@@ -1,0 +1,409 @@
+// Athar (أثـر) — Comprehensive Production Database Schema
+// Dialect: PostgreSQL (Supabase) · ORM: Prisma 7.x · Auth: Better Auth 1.x
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// 1. BETTER AUTH REQUIRED MODELS
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Better Auth relations
+  sessions      Session[]
+  accounts      Account[]
+
+  // Athar domain relations
+  settings        UserSettings?
+  lifeAreas       LifeArea[]
+  trackers        Tracker[]
+  trackerVersions TrackerVersion[]
+  trackerEntries  TrackerEntry[]
+  tasks           Task[]
+  dailyNotes      DailyNote[]
+  abstinenceTrackers AbstinenceTracker[]
+  abstinenceSessions AbstinenceSession[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?   @db.Text
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([identifier, value])
+  @@map("verification")
+}
+
+// -----------------------------------------------------------------------------
+// 2. USER SETTINGS
+// -----------------------------------------------------------------------------
+
+model UserSettings {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  timezone        String   @default("Asia/Riyadh") // IANA Timezone identifier
+  language        String   @default("ar")          // Primary language (Arabic default)
+  weekStartDay    Int      @default(6)             // 6 = Saturday (السبت), 0 = Sunday
+  themeAccent     String   @default("violet")      // Brand accent token
+  dashboardConfig Json     @default("{}")          // Widget layout and visibility
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("user_settings")
+}
+
+// -----------------------------------------------------------------------------
+// 3. USER-DEFINED LIFE AREAS (CATEGORIES)
+// -----------------------------------------------------------------------------
+
+model LifeArea {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  name        String
+  slug        String
+  description String?
+  icon              String    @default("Sparkles") // Lucide icon identifier
+  color             String    @default("violet")   // Tailwind color token
+  priority          Int       @default(1)          // Priority level (1=منخفضة, 2=متوسطة, 3=عالية, 4=قصوى)
+  sortOrder         Int       @default(0)
+  hiddenOnDashboard Boolean   @default(false)      // Hide from main dashboard widgets
+  
+  isArchived        Boolean   @default(false)
+  archivedAt  DateTime?
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Domain relations
+  trackers    Tracker[]
+  tasks       Task[]
+
+  @@unique([userId, slug])
+  @@index([userId, isArchived, sortOrder])
+  @@map("life_area")
+}
+
+// -----------------------------------------------------------------------------
+// 4. DYNAMIC TRACKERS & METRIC TYPES
+// -----------------------------------------------------------------------------
+
+enum TrackerMetricType {
+  BOOLEAN     // Binary daily completion
+  COUNTER     // Incremental count with steps and target
+  NUMBER      // Quantitative measurement (weight, pages)
+  DURATION    // Elapsed time in seconds/minutes
+  TIME_RANGE  // Start and end timestamps (e.g. sleep)
+  CHECKLIST   // Multi-item checklist (e.g. 5 prayers)
+  AVOIDANCE   // Relapse and urge tracking (e.g. smoking)
+}
+
+enum TargetFrequency {
+  DAILY
+  WEEKLY
+  CUSTOM
+}
+
+model Tracker {
+  id                 String            @id @default(cuid())
+  userId             String
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  lifeAreaId         String?
+  lifeArea           LifeArea?         @relation(fields: [lifeAreaId], references: [id], onDelete: SetNull)
+  
+  name               String
+  slug               String
+  description        String?
+  icon               String            @default("Flame") // Lucide icon identifier
+  color              String            @default("emerald") // Tailwind token
+  priority           Int               @default(1)       // Priority ranking
+  
+  metricType         TrackerMetricType
+  unit               String?                             // e.g. "كوب", "دقيقة", "صفحة", "كجم"
+  
+  targetValue        Float?                              // Target goal per day/week
+  targetFrequency    TargetFrequency   @default(DAILY)
+  
+  scheduleConfig     Json              @default("{}")    // Active days, schedules
+  trackerConfig      Json              @default("{}")    // Type-specific schema parameters
+  displayPreferences Json              @default("{}")    // Card styling, visibility
+  
+  sortOrder          Int               @default(0)
+  version            Int               @default(1)       // Increments on config/target update
+  
+  isPaused           Boolean           @default(false)
+  isArchived         Boolean           @default(false)
+  archivedAt         DateTime?
+  
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  // Historical and log relations
+  versions           TrackerVersion[]
+  entries            TrackerEntry[]
+  tasks              Task[]
+  abstinenceTracker  AbstinenceTracker?
+
+  @@unique([userId, slug])
+  @@index([userId, isArchived, isPaused, sortOrder])
+  @@index([userId, lifeAreaId])
+  @@map("tracker")
+}
+
+// -----------------------------------------------------------------------------
+// 5. HISTORICAL INTEGRITY & TARGET SNAPSHOTS
+// -----------------------------------------------------------------------------
+
+model TrackerVersion {
+  id              String            @id @default(cuid())
+  trackerId       String
+  tracker         Tracker           @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  versionNumber   Int
+  name            String
+  metricType      TrackerMetricType
+  unit            String?
+  targetValue     Float?
+  targetFrequency TargetFrequency
+  trackerConfig   Json
+  scheduleConfig  Json
+  
+  validFrom       DateTime          @default(now())
+  validTo         DateTime?         // Nullable: active until superseded
+  
+  createdAt       DateTime          @default(now())
+
+  @@unique([trackerId, versionNumber])
+  @@index([userId, trackerId, validFrom])
+  @@map("tracker_version")
+}
+
+// -----------------------------------------------------------------------------
+// 6. TRACKER ENTRIES (POLYMORPHIC LOGS)
+// -----------------------------------------------------------------------------
+
+model TrackerEntry {
+  id              String    @id @default(cuid())
+  trackerId       String
+  tracker         Tracker   @relation(fields: [trackerId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Temporal dual-axis coordinates
+  localDate       String    // Formatted "YYYY-MM-DD" representing user's calendar bucket
+  occurredAt      DateTime  @default(now()) // Exact UTC timestamp of the physical event
+  
+  // Polymorphic values (populated based on tracker.metricType)
+  valueBoolean    Boolean?
+  valueNumeric    Float?
+  valueDuration   Int?      // Duration in total elapsed seconds
+  timeRangeStart  DateTime? // Range start (UTC)
+  timeRangeEnd    DateTime? // Range end (UTC)
+  entryPayload    Json?     // Detailed metadata (checklist state, sets, relapse mood)
+  
+  notes           String?   @db.Text
+  trackerVersion  Int       @default(1) // Snapshot version active at entry creation
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // High-performance query indexes
+  @@index([userId, localDate])
+  @@index([trackerId, localDate])
+  @@index([userId, trackerId, occurredAt])
+  @@map("tracker_entry")
+}
+
+// -----------------------------------------------------------------------------
+// 7. DECOUPLED TASKS (ONE-TIME ACTIONS)
+// -----------------------------------------------------------------------------
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model Task {
+  id          String       @id @default(cuid())
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  lifeAreaId  String?
+  lifeArea    LifeArea?    @relation(fields: [lifeAreaId], references: [id], onDelete: SetNull)
+  
+  trackerId   String?
+  tracker     Tracker?     @relation(fields: [trackerId], references: [id], onDelete: SetNull)
+
+  title       String
+  description String?      @db.Text
+  dueDate     String?      // Local calendar due date "YYYY-MM-DD"
+  
+  priority    TaskPriority @default(MEDIUM)
+  status      TaskStatus   @default(TODO)
+  completedAt DateTime?
+  
+  tags        Json         @default("[]") // String array of labels
+  sortOrder   Int          @default(0)
+  
+  isArchived  Boolean      @default(false)
+  archivedAt  DateTime?
+
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@index([userId, status, dueDate])
+  @@index([userId, isArchived, dueDate])
+  @@index([userId, lifeAreaId])
+  @@index([userId, trackerId])
+  @@map("task")
+}
+
+// -----------------------------------------------------------------------------
+// 8. PERSONAL HISTORY & DAILY NOTES / REFLECTIONS
+// -----------------------------------------------------------------------------
+
+model DailyNote {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  localDate String   // Formatted "YYYY-MM-DD" representing user's local date
+  title     String?
+  content   String   @db.Text
+  mood      String?  // e.g. "great", "good", "neutral", "tired", "stressed"
+  tags      Json     @default("[]")
+  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, localDate])
+  @@index([userId, localDate])
+  @@map("daily_note")
+}
+
+// -----------------------------------------------------------------------------
+// 9. DEDICATED ABSTINENCE TRACKING & RELAPSE MANAGEMENT
+// -----------------------------------------------------------------------------
+
+model AbstinenceTracker {
+  id          String              @id @default(cuid())
+  userId      String
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  trackerId   String?             @unique
+  tracker     Tracker?            @relation(fields: [trackerId], references: [id], onDelete: SetNull)
+
+  name        String              // اسم السلوك الممتنع عنه (مثل: مشاهدة الإباحية، التدخين)
+  description String?             @db.Text
+  icon        String              @default("ShieldCheck")
+  color       String              @default("rose")
+
+  targetDays  Int?                // هدف زمني اختياري بالأيام (مثل 7 أو 30 أو 90 يوماً)
+
+  isArchived  Boolean             @default(false)
+  archivedAt  DateTime?
+
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  sessions    AbstinenceSession[]
+
+  @@index([userId, isArchived])
+  @@map("abstinence_tracker")
+}
+
+model AbstinenceSession {
+  id                  String            @id @default(cuid())
+  abstinenceTrackerId String
+  abstinenceTracker   AbstinenceTracker @relation(fields: [abstinenceTrackerId], references: [id], onDelete: Cascade)
+  userId              String
+  user                User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  startedAt           DateTime          // تاريخ ووقت بداية الجلسة (UTC)
+  endedAt             DateTime?         // تاريخ ووقت الانتهاء / الانتكاسة (null إذا كانت الجلسة نشطة حالياً)
+  durationSeconds     Int?              // مدة الجلسة المحسوبة بالثواني
+
+  relapseReason       String?           @db.Text // سبب أو محفز الانتكاسة
+  trigger             String?
+  notes               String?           @db.Text
+
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  @@index([userId, abstinenceTrackerId, startedAt])
+  @@index([userId, endedAt])
+  @@map("abstinence_session")
+}
+
+
