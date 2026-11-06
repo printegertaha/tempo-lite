@@ -42,10 +42,28 @@ export default function GoogleSignInButton({
       const destination = returnTo || searchParams?.get("returnTo");
       const safeCallback = getSafeReturnUrl(destination, "/");
 
+      console.group("🚀 [ATHAR_AUTH_DEBUG: GOOGLE_SIGN_IN_CLICK]");
+      console.log("📍 Window Info:", {
+        origin: typeof window !== "undefined" ? window.location.origin : "server",
+        href: typeof window !== "undefined" ? window.location.href : "server",
+        host: typeof window !== "undefined" ? window.location.host : "server",
+      });
+      console.log("🎯 Target Config:", {
+        provider: "google",
+        callbackURL: safeCallback,
+        destination,
+      });
+      console.groupEnd();
+
       const res = await authClient.signIn.social({
         provider: "google",
         callbackURL: safeCallback,
       });
+
+      console.group("📥 [ATHAR_AUTH_DEBUG: GOOGLE_SIGN_IN_RESPONSE]");
+      console.log("Response Data:", res?.data);
+      console.log("Response Error:", res?.error);
+      console.groupEnd();
 
       // Better Auth returns { data, error } without throwing
       if (res?.error) {

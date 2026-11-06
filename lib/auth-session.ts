@@ -31,14 +31,22 @@ export interface AuthSessionResult {
 export async function getServerSession(): Promise<AuthSessionResult | null> {
   try {
     const reqHeaders = await headers();
+    const cookieHeader = reqHeaders.get("cookie") || "";
+    const cookieKeys = cookieHeader.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
+    const host = reqHeaders.get("host") || "unknown";
+
     const session = await auth.api.getSession({
       headers: reqHeaders,
     });
 
     if (!session || !session.user) {
+      if (cookieKeys.length > 0) {
+        console.log(`🔎 [SERVER_SESSION] Host: ${host} | Cookies present: [${cookieKeys.join(", ")}] | Better Auth Result: NO_SESSION_FOUND`);
+      }
       return null;
     }
 
+    console.log(`✅ [SERVER_SESSION] Host: ${host} | User: ${session.user.email} (${session.user.id}) | Valid Session`);
     return session as unknown as AuthSessionResult;
   } catch (error: any) {
     if (
@@ -48,7 +56,7 @@ export async function getServerSession(): Promise<AuthSessionResult | null> {
     ) {
       throw error;
     }
-    console.error("Error retrieving server session:", error);
+    console.error("🚨 [SERVER_SESSION_ERROR]:", error?.message || error);
     return null;
   }
 }

@@ -40,6 +40,10 @@ export const auth = betterAuth({
     process.env.BETTER_AUTH_SECRET ||
     "development_secret_key_at_least_32_characters_long",
   trustedOrigins: Array.from(new Set(originsList)),
+  logger: {
+    disabled: false,
+    level: "debug",
+  },
   // Google OAuth is the ONLY authentication provider
   socialProviders: {
     google: {

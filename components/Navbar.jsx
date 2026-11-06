@@ -43,6 +43,19 @@ export default function Navbar() {
   const moreDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
 
+  // Debug authentication state on client
+  useEffect(() => {
+    const cookies = typeof document !== "undefined"
+      ? document.cookie.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean)
+      : [];
+    console.group("👤 [ATHAR_AUTH_DEBUG: CLIENT_SESSION_STATE]");
+    console.log("Loading (isPending):", isPending);
+    console.log("Is Authenticated:", !!sessionData?.user);
+    console.log("User:", sessionData?.user || null);
+    console.log("Cookies Present in Browser:", cookies);
+    console.groupEnd();
+  }, [sessionData, isPending]);
+
   // Close menus on path change
   useEffect(() => {
     setMobileMenuOpen(false);

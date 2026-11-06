@@ -1,3 +1,6 @@
+"use client";
+
+import { useEffect } from "react";
 import Link from "next/link";
 import {
   Sparkles,
@@ -12,6 +15,27 @@ import {
 } from "lucide-react";
 
 export default function UnauthenticatedWelcome({ authError }) {
+  useEffect(() => {
+    const params = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+    const errorParam = params?.get("error");
+    const cookies = typeof document !== "undefined"
+      ? document.cookie.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean)
+      : [];
+
+    if (authError || errorParam) {
+      console.error("🚨 [ATHAR_AUTH_DEBUG: OAUTH_ERROR_DETECTED]", {
+        authError,
+        urlParamError: errorParam,
+        fullUrl: typeof window !== "undefined" ? window.location.href : "",
+        cookiesPresent: cookies,
+      });
+    } else {
+      console.log("ℹ️ [ATHAR_AUTH_DEBUG: UNAUTHENTICATED_VIEW_LOADED]", {
+        fullUrl: typeof window !== "undefined" ? window.location.href : "",
+        cookiesPresent: cookies,
+      });
+    }
+  }, [authError]);
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
       {/* Auth Error Banner if redirected back with error */}
