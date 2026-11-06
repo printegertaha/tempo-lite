@@ -12,6 +12,7 @@ function resolveBaseUrl(): string {
       ? `https://${process.env.VERCEL_URL}`
       : "http://localhost:3000");
 
+  url = url.trim();
   if (!url.startsWith("http://") && !url.startsWith("https://")) {
     url = `https://${url}`;
   }
@@ -25,10 +26,11 @@ const originsList = [
   "http://127.0.0.1:3000",
   "http://localhost:3001",
   authBaseUrl,
-  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL.replace(/\/+$/, "")] : []),
-  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL.replace(/\/+$/, "")] : []),
-  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL}`] : []),
-  ...(process.env.VERCEL_PROJECT_PRODUCTION_URL ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`] : []),
+  "https://tempo-lite-nu.vercel.app",
+  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL.trim().replace(/\/+$/, "")] : []),
+  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "")] : []),
+  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL.trim()}`] : []),
+  ...(process.env.VERCEL_PROJECT_PRODUCTION_URL ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim()}`] : []),
 ];
 
 export const auth = betterAuth({
@@ -36,9 +38,10 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   baseURL: authBaseUrl,
-  secret:
+  secret: (
     process.env.BETTER_AUTH_SECRET ||
-    "development_secret_key_at_least_32_characters_long",
+    "development_secret_key_at_least_32_characters_long"
+  ).trim(),
   trustedOrigins: Array.from(new Set(originsList)),
   logger: {
     disabled: false,
@@ -47,8 +50,8 @@ export const auth = betterAuth({
   // Google OAuth is the ONLY authentication provider
   socialProviders: {
     google: {
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
+      clientId: (process.env.GOOGLE_CLIENT_ID || "").trim(),
+      clientSecret: (process.env.GOOGLE_CLIENT_SECRET || "").trim(),
       prompt: "select_account",
       accessType: "offline",
     },
