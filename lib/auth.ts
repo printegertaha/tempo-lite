@@ -50,7 +50,12 @@ export const auth = betterAuth({
     disabled: false,
     level: "debug",
   },
-  // Google OAuth is the ONLY authentication provider
+  emailAndPassword: {
+    enabled: true,
+    requireEmailVerification: false,
+    autoSignIn: true,
+  },
+  // Social authentication providers
   socialProviders: {
     google: {
       clientId: (process.env.GOOGLE_CLIENT_ID || "").trim(),

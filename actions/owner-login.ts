@@ -91,3 +91,4 @@ export async function loginAsOwner() {
   // 6. Redirect to dashboard
   redirect("/");
 }
+
