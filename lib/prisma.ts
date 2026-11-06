@@ -11,13 +11,12 @@ const globalForPrisma = globalThis as unknown as {
 function createPrismaClient(): PrismaClient {
   const connectionString =
     process.env.DATABASE_URL ||
+    process.env.DIRECT_URL ||
     "postgresql://postgres:postgres@localhost:5432/postgres";
 
   // Re-use connection pool to prevent connection exhaustion, especially in serverless & Supabase poolers
   const poolMax = process.env.DATABASE_POOL_MAX
     ? parseInt(process.env.DATABASE_POOL_MAX, 10)
-    : process.env.NODE_ENV === "production"
-    ? 10
     : 5;
 
   const pool =
@@ -29,19 +28,20 @@ function createPrismaClient(): PrismaClient {
       connectionTimeoutMillis: 10000,
     });
 
-  if (process.env.NODE_ENV !== "production") {
-    globalForPrisma.pgPool = pool;
-  }
+  globalForPrisma.pgPool = pool;
 
   const adapter = new PrismaPg(pool);
 
-  return new PrismaClient({
+  const client = new PrismaClient({
     adapter,
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "warn", "error"]
         : ["error"],
   });
+
+  globalForPrisma.prisma = client;
+  return client;
 }
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();

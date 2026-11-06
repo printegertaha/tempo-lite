@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Flame, ShieldCheck, AlertCircle } from "lucide-react";
+import { Flame, ShieldCheck, AlertCircle, Sparkles } from "lucide-react";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 
 function LoginContent() {
@@ -53,8 +53,22 @@ function LoginContent() {
             </div>
           )}
 
-          {/* Primary Action: Google OAuth Button */}
+          {/* Primary Action: 1-Click Owner Login or Google OAuth */}
           <div className="space-y-4">
+            <a
+              href="/api/auth/owner-login"
+              className="w-full flex items-center justify-center gap-2.5 py-3.5 px-4 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-sm font-bold shadow-xl shadow-violet-600/30 transition-all duration-200 cursor-pointer active:scale-[0.99]"
+            >
+              <Sparkles className="w-4 h-4 text-amber-300" />
+              <span>دخول المالك الفوري (Taha)</span>
+            </a>
+
+            <div className="relative flex items-center justify-center my-3">
+              <div className="border-t border-zinc-800 w-full" />
+              <span className="bg-[#0c0e17] px-3 text-[11px] text-zinc-500 shrink-0 font-medium">أو عبر Google</span>
+              <div className="border-t border-zinc-800 w-full" />
+            </div>
+
             <GoogleSignInButton
               returnTo={returnTo}
               label="تسجيل الدخول باستخدام Google"

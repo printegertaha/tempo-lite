@@ -426,9 +426,19 @@ export default function Navbar() {
               ) : (
                 /* Unauthenticated guest actions */
                 <div className="flex items-center gap-2">
-                   <Link href={'/login'}>
-                   تسجيل الدخول</Link>
-            
+                  <a
+                    href="/api/auth/owner-login"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                    <span>دخول المالك</span>
+                  </a>
+                  <Link
+                    href="/login"
+                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all"
+                  >
+                    تسجيل الدخول
+                  </Link>
                 </div>
               )}
 

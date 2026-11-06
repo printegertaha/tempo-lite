@@ -10,6 +10,8 @@ function resolveBaseUrl(): string {
       ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
       : process.env.VERCEL_URL
       ? `https://${process.env.VERCEL_URL}`
+      : process.env.NODE_ENV === "production"
+      ? "https://tempo-lite-nu.vercel.app"
       : "http://localhost:3000");
 
   url = url.trim();
@@ -27,6 +29,7 @@ const originsList = [
   "http://localhost:3001",
   authBaseUrl,
   "https://tempo-lite-nu.vercel.app",
+  "https://tempo-lite.vercel.app",
   ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL.trim().replace(/\/+$/, "")] : []),
   ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "")] : []),
   ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL.trim()}`] : []),
