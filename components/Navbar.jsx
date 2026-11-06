@@ -413,7 +413,8 @@ export default function Navbar() {
               ) : (
                 /* Unauthenticated guest actions */
                 <div className="flex items-center gap-2">
-                  <GoogleSignInButton />
+                   <Link href={'/login'}>
+                   تسجيل الدخول</Link>
             
                 </div>
               )}
