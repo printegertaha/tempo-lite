@@ -8,11 +8,25 @@ import {
   ArrowRight,
   LogIn,
   Layers,
+  AlertCircle,
 } from "lucide-react";
 
-export default function UnauthenticatedWelcome() {
+export default function UnauthenticatedWelcome({ authError }) {
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+      {/* Auth Error Banner if redirected back with error */}
+      {authError && (
+        <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs sm:text-sm flex items-start gap-3 text-right">
+          <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="space-y-1">
+            <span className="font-bold block">تعذر إتمام جلسة تسجيل الدخول ({authError})</span>
+            <span className="text-zinc-400 text-xs block">
+              يرجى التأكد من إضافة متغيرات DATABASE_URL و BETTER_AUTH_URL و GOOGLE_CLIENT_ID في إعدادات Vercel وعمل Redeploy.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Hero Section */}
       <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-zinc-900/80 to-zinc-950 border border-zinc-800 shadow-2xl text-center space-y-6 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2">

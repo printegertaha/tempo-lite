@@ -9,12 +9,13 @@ import DashboardClient from "@/components/dashboard/DashboardClient";
 import UnauthenticatedWelcome from "@/components/dashboard/UnauthenticatedWelcome";
 import { Loader2 } from "lucide-react";
 
-async function DashboardServer() {
+async function DashboardServer({ searchParamsPromise }) {
   const session = await getServerSession();
+  const searchParams = searchParamsPromise ? await searchParamsPromise : {};
 
   // If unauthenticated, render marketing/welcome view directly
   if (!session?.user) {
-    return <UnauthenticatedWelcome />;
+    return <UnauthenticatedWelcome authError={searchParams?.error} />;
   }
 
   const todayStr = getLocalDateString();
@@ -48,7 +49,7 @@ async function DashboardServer() {
   );
 }
 
-export default function HomePage() {
+export default function HomePage(props) {
   return (
     <Suspense
       fallback={
@@ -57,7 +58,7 @@ export default function HomePage() {
         </div>
       }
     >
-      <DashboardServer />
+      <DashboardServer searchParamsPromise={props.searchParams} />
     </Suspense>
   );
 }
