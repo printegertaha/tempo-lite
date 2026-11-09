@@ -209,6 +209,10 @@ export type UserWhereInput = {
   dailyNotes?: Prisma.DailyNoteListRelationFilter
   abstinenceTrackers?: Prisma.AbstinenceTrackerListRelationFilter
   abstinenceSessions?: Prisma.AbstinenceSessionListRelationFilter
+  mutationReceipts?: Prisma.MutationReceiptListRelationFilter
+  gymWorkouts?: Prisma.GymWorkoutListRelationFilter
+  mealEntries?: Prisma.MealEntryListRelationFilter
+  expenseEntries?: Prisma.ExpenseEntryListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -230,6 +234,10 @@ export type UserOrderByWithRelationInput = {
   dailyNotes?: Prisma.DailyNoteOrderByRelationAggregateInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerOrderByRelationAggregateInput
   abstinenceSessions?: Prisma.AbstinenceSessionOrderByRelationAggregateInput
+  mutationReceipts?: Prisma.MutationReceiptOrderByRelationAggregateInput
+  gymWorkouts?: Prisma.GymWorkoutOrderByRelationAggregateInput
+  mealEntries?: Prisma.MealEntryOrderByRelationAggregateInput
+  expenseEntries?: Prisma.ExpenseEntryOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -254,6 +262,10 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   dailyNotes?: Prisma.DailyNoteListRelationFilter
   abstinenceTrackers?: Prisma.AbstinenceTrackerListRelationFilter
   abstinenceSessions?: Prisma.AbstinenceSessionListRelationFilter
+  mutationReceipts?: Prisma.MutationReceiptListRelationFilter
+  gymWorkouts?: Prisma.GymWorkoutListRelationFilter
+  mealEntries?: Prisma.MealEntryListRelationFilter
+  expenseEntries?: Prisma.ExpenseEntryListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -301,6 +313,10 @@ export type UserCreateInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -322,6 +338,10 @@ export type UserUncheckedCreateInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -343,6 +363,10 @@ export type UserUpdateInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -364,6 +388,10 @@ export type UserUncheckedUpdateInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -601,6 +629,62 @@ export type UserUpdateOneRequiredWithoutAbstinenceSessionsNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAbstinenceSessionsInput, Prisma.UserUpdateWithoutAbstinenceSessionsInput>, Prisma.UserUncheckedUpdateWithoutAbstinenceSessionsInput>
 }
 
+export type UserCreateNestedOneWithoutMutationReceiptsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutMutationReceiptsInput, Prisma.UserUncheckedCreateWithoutMutationReceiptsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMutationReceiptsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutMutationReceiptsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutMutationReceiptsInput, Prisma.UserUncheckedCreateWithoutMutationReceiptsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMutationReceiptsInput
+  upsert?: Prisma.UserUpsertWithoutMutationReceiptsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutMutationReceiptsInput, Prisma.UserUpdateWithoutMutationReceiptsInput>, Prisma.UserUncheckedUpdateWithoutMutationReceiptsInput>
+}
+
+export type UserCreateNestedOneWithoutGymWorkoutsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGymWorkoutsInput, Prisma.UserUncheckedCreateWithoutGymWorkoutsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGymWorkoutsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutGymWorkoutsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutGymWorkoutsInput, Prisma.UserUncheckedCreateWithoutGymWorkoutsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutGymWorkoutsInput
+  upsert?: Prisma.UserUpsertWithoutGymWorkoutsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutGymWorkoutsInput, Prisma.UserUpdateWithoutGymWorkoutsInput>, Prisma.UserUncheckedUpdateWithoutGymWorkoutsInput>
+}
+
+export type UserCreateNestedOneWithoutMealEntriesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutMealEntriesInput, Prisma.UserUncheckedCreateWithoutMealEntriesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMealEntriesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutMealEntriesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutMealEntriesInput, Prisma.UserUncheckedCreateWithoutMealEntriesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutMealEntriesInput
+  upsert?: Prisma.UserUpsertWithoutMealEntriesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutMealEntriesInput, Prisma.UserUpdateWithoutMealEntriesInput>, Prisma.UserUncheckedUpdateWithoutMealEntriesInput>
+}
+
+export type UserCreateNestedOneWithoutExpenseEntriesInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutExpenseEntriesInput, Prisma.UserUncheckedCreateWithoutExpenseEntriesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutExpenseEntriesInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutExpenseEntriesNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutExpenseEntriesInput, Prisma.UserUncheckedCreateWithoutExpenseEntriesInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutExpenseEntriesInput
+  upsert?: Prisma.UserUpsertWithoutExpenseEntriesInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutExpenseEntriesInput, Prisma.UserUpdateWithoutExpenseEntriesInput>, Prisma.UserUncheckedUpdateWithoutExpenseEntriesInput>
+}
+
 export type UserCreateWithoutSessionsInput = {
   id?: string
   name: string
@@ -619,6 +703,10 @@ export type UserCreateWithoutSessionsInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -639,6 +727,10 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -675,6 +767,10 @@ export type UserUpdateWithoutSessionsInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -695,6 +791,10 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -715,6 +815,10 @@ export type UserCreateWithoutAccountsInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -735,6 +839,10 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -771,6 +879,10 @@ export type UserUpdateWithoutAccountsInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -791,6 +903,10 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSettingsInput = {
@@ -811,6 +927,10 @@ export type UserCreateWithoutSettingsInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSettingsInput = {
@@ -831,6 +951,10 @@ export type UserUncheckedCreateWithoutSettingsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSettingsInput = {
@@ -867,6 +991,10 @@ export type UserUpdateWithoutSettingsInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSettingsInput = {
@@ -887,6 +1015,10 @@ export type UserUncheckedUpdateWithoutSettingsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutLifeAreasInput = {
@@ -907,6 +1039,10 @@ export type UserCreateWithoutLifeAreasInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutLifeAreasInput = {
@@ -927,6 +1063,10 @@ export type UserUncheckedCreateWithoutLifeAreasInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutLifeAreasInput = {
@@ -963,6 +1103,10 @@ export type UserUpdateWithoutLifeAreasInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutLifeAreasInput = {
@@ -983,6 +1127,10 @@ export type UserUncheckedUpdateWithoutLifeAreasInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackersInput = {
@@ -1003,6 +1151,10 @@ export type UserCreateWithoutTrackersInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackersInput = {
@@ -1023,6 +1175,10 @@ export type UserUncheckedCreateWithoutTrackersInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackersInput = {
@@ -1059,6 +1215,10 @@ export type UserUpdateWithoutTrackersInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackersInput = {
@@ -1079,6 +1239,10 @@ export type UserUncheckedUpdateWithoutTrackersInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackerVersionsInput = {
@@ -1099,6 +1263,10 @@ export type UserCreateWithoutTrackerVersionsInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackerVersionsInput = {
@@ -1119,6 +1287,10 @@ export type UserUncheckedCreateWithoutTrackerVersionsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackerVersionsInput = {
@@ -1155,6 +1327,10 @@ export type UserUpdateWithoutTrackerVersionsInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackerVersionsInput = {
@@ -1175,6 +1351,10 @@ export type UserUncheckedUpdateWithoutTrackerVersionsInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackerEntriesInput = {
@@ -1195,6 +1375,10 @@ export type UserCreateWithoutTrackerEntriesInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackerEntriesInput = {
@@ -1215,6 +1399,10 @@ export type UserUncheckedCreateWithoutTrackerEntriesInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackerEntriesInput = {
@@ -1251,6 +1439,10 @@ export type UserUpdateWithoutTrackerEntriesInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackerEntriesInput = {
@@ -1271,6 +1463,10 @@ export type UserUncheckedUpdateWithoutTrackerEntriesInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTasksInput = {
@@ -1291,6 +1487,10 @@ export type UserCreateWithoutTasksInput = {
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTasksInput = {
@@ -1311,6 +1511,10 @@ export type UserUncheckedCreateWithoutTasksInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTasksInput = {
@@ -1347,6 +1551,10 @@ export type UserUpdateWithoutTasksInput = {
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTasksInput = {
@@ -1367,6 +1575,10 @@ export type UserUncheckedUpdateWithoutTasksInput = {
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutDailyNotesInput = {
@@ -1387,6 +1599,10 @@ export type UserCreateWithoutDailyNotesInput = {
   tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutDailyNotesInput = {
@@ -1407,6 +1623,10 @@ export type UserUncheckedCreateWithoutDailyNotesInput = {
   tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutDailyNotesInput = {
@@ -1443,6 +1663,10 @@ export type UserUpdateWithoutDailyNotesInput = {
   tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDailyNotesInput = {
@@ -1463,6 +1687,10 @@ export type UserUncheckedUpdateWithoutDailyNotesInput = {
   tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAbstinenceTrackersInput = {
@@ -1483,6 +1711,10 @@ export type UserCreateWithoutAbstinenceTrackersInput = {
   tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAbstinenceTrackersInput = {
@@ -1503,6 +1735,10 @@ export type UserUncheckedCreateWithoutAbstinenceTrackersInput = {
   tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAbstinenceTrackersInput = {
@@ -1539,6 +1775,10 @@ export type UserUpdateWithoutAbstinenceTrackersInput = {
   tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAbstinenceTrackersInput = {
@@ -1559,6 +1799,10 @@ export type UserUncheckedUpdateWithoutAbstinenceTrackersInput = {
   tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAbstinenceSessionsInput = {
@@ -1579,6 +1823,10 @@ export type UserCreateWithoutAbstinenceSessionsInput = {
   tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
   dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAbstinenceSessionsInput = {
@@ -1599,6 +1847,10 @@ export type UserUncheckedCreateWithoutAbstinenceSessionsInput = {
   tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
   dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAbstinenceSessionsInput = {
@@ -1635,6 +1887,10 @@ export type UserUpdateWithoutAbstinenceSessionsInput = {
   tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
   dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAbstinenceSessionsInput = {
@@ -1655,6 +1911,458 @@ export type UserUncheckedUpdateWithoutAbstinenceSessionsInput = {
   tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
   dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
   abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutMutationReceiptsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutMutationReceiptsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaUncheckedCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerUncheckedCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutMutationReceiptsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutMutationReceiptsInput, Prisma.UserUncheckedCreateWithoutMutationReceiptsInput>
+}
+
+export type UserUpsertWithoutMutationReceiptsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutMutationReceiptsInput, Prisma.UserUncheckedUpdateWithoutMutationReceiptsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutMutationReceiptsInput, Prisma.UserUncheckedCreateWithoutMutationReceiptsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutMutationReceiptsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutMutationReceiptsInput, Prisma.UserUncheckedUpdateWithoutMutationReceiptsInput>
+}
+
+export type UserUpdateWithoutMutationReceiptsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutMutationReceiptsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUncheckedUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUncheckedUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutGymWorkoutsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutGymWorkoutsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaUncheckedCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerUncheckedCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutGymWorkoutsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutGymWorkoutsInput, Prisma.UserUncheckedCreateWithoutGymWorkoutsInput>
+}
+
+export type UserUpsertWithoutGymWorkoutsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutGymWorkoutsInput, Prisma.UserUncheckedUpdateWithoutGymWorkoutsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutGymWorkoutsInput, Prisma.UserUncheckedCreateWithoutGymWorkoutsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutGymWorkoutsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutGymWorkoutsInput, Prisma.UserUncheckedUpdateWithoutGymWorkoutsInput>
+}
+
+export type UserUpdateWithoutGymWorkoutsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutGymWorkoutsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUncheckedUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUncheckedUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutMealEntriesInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutMealEntriesInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaUncheckedCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerUncheckedCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutMealEntriesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutMealEntriesInput, Prisma.UserUncheckedCreateWithoutMealEntriesInput>
+}
+
+export type UserUpsertWithoutMealEntriesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutMealEntriesInput, Prisma.UserUncheckedUpdateWithoutMealEntriesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutMealEntriesInput, Prisma.UserUncheckedCreateWithoutMealEntriesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutMealEntriesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutMealEntriesInput, Prisma.UserUncheckedUpdateWithoutMealEntriesInput>
+}
+
+export type UserUpdateWithoutMealEntriesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutMealEntriesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUncheckedUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUncheckedUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutExpenseEntriesInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutExpenseEntriesInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaUncheckedCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerUncheckedCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutExpenseEntriesInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutExpenseEntriesInput, Prisma.UserUncheckedCreateWithoutExpenseEntriesInput>
+}
+
+export type UserUpsertWithoutExpenseEntriesInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutExpenseEntriesInput, Prisma.UserUncheckedUpdateWithoutExpenseEntriesInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutExpenseEntriesInput, Prisma.UserUncheckedCreateWithoutExpenseEntriesInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutExpenseEntriesInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutExpenseEntriesInput, Prisma.UserUncheckedUpdateWithoutExpenseEntriesInput>
+}
+
+export type UserUpdateWithoutExpenseEntriesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutExpenseEntriesInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUncheckedUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUncheckedUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -1673,6 +2381,10 @@ export type UserCountOutputType = {
   dailyNotes: number
   abstinenceTrackers: number
   abstinenceSessions: number
+  mutationReceipts: number
+  gymWorkouts: number
+  mealEntries: number
+  expenseEntries: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -1686,6 +2398,10 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   dailyNotes?: boolean | UserCountOutputTypeCountDailyNotesArgs
   abstinenceTrackers?: boolean | UserCountOutputTypeCountAbstinenceTrackersArgs
   abstinenceSessions?: boolean | UserCountOutputTypeCountAbstinenceSessionsArgs
+  mutationReceipts?: boolean | UserCountOutputTypeCountMutationReceiptsArgs
+  gymWorkouts?: boolean | UserCountOutputTypeCountGymWorkoutsArgs
+  mealEntries?: boolean | UserCountOutputTypeCountMealEntriesArgs
+  expenseEntries?: boolean | UserCountOutputTypeCountExpenseEntriesArgs
 }
 
 /**
@@ -1768,6 +2484,34 @@ export type UserCountOutputTypeCountAbstinenceSessionsArgs<ExtArgs extends runti
   where?: Prisma.AbstinenceSessionWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountMutationReceiptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MutationReceiptWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountGymWorkoutsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.GymWorkoutWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountMealEntriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.MealEntryWhereInput
+}
+
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountExpenseEntriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.ExpenseEntryWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -1788,6 +2532,10 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   dailyNotes?: boolean | Prisma.User$dailyNotesArgs<ExtArgs>
   abstinenceTrackers?: boolean | Prisma.User$abstinenceTrackersArgs<ExtArgs>
   abstinenceSessions?: boolean | Prisma.User$abstinenceSessionsArgs<ExtArgs>
+  mutationReceipts?: boolean | Prisma.User$mutationReceiptsArgs<ExtArgs>
+  gymWorkouts?: boolean | Prisma.User$gymWorkoutsArgs<ExtArgs>
+  mealEntries?: boolean | Prisma.User$mealEntriesArgs<ExtArgs>
+  expenseEntries?: boolean | Prisma.User$expenseEntriesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -1834,6 +2582,10 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   dailyNotes?: boolean | Prisma.User$dailyNotesArgs<ExtArgs>
   abstinenceTrackers?: boolean | Prisma.User$abstinenceTrackersArgs<ExtArgs>
   abstinenceSessions?: boolean | Prisma.User$abstinenceSessionsArgs<ExtArgs>
+  mutationReceipts?: boolean | Prisma.User$mutationReceiptsArgs<ExtArgs>
+  gymWorkouts?: boolean | Prisma.User$gymWorkoutsArgs<ExtArgs>
+  mealEntries?: boolean | Prisma.User$mealEntriesArgs<ExtArgs>
+  expenseEntries?: boolean | Prisma.User$expenseEntriesArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -1853,6 +2605,10 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     dailyNotes: Prisma.$DailyNotePayload<ExtArgs>[]
     abstinenceTrackers: Prisma.$AbstinenceTrackerPayload<ExtArgs>[]
     abstinenceSessions: Prisma.$AbstinenceSessionPayload<ExtArgs>[]
+    mutationReceipts: Prisma.$MutationReceiptPayload<ExtArgs>[]
+    gymWorkouts: Prisma.$GymWorkoutPayload<ExtArgs>[]
+    mealEntries: Prisma.$MealEntryPayload<ExtArgs>[]
+    expenseEntries: Prisma.$ExpenseEntryPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -2267,6 +3023,10 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   dailyNotes<T extends Prisma.User$dailyNotesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$dailyNotesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$DailyNotePayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   abstinenceTrackers<T extends Prisma.User$abstinenceTrackersArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$abstinenceTrackersArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AbstinenceTrackerPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   abstinenceSessions<T extends Prisma.User$abstinenceSessionsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$abstinenceSessionsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$AbstinenceSessionPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  mutationReceipts<T extends Prisma.User$mutationReceiptsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$mutationReceiptsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MutationReceiptPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  gymWorkouts<T extends Prisma.User$gymWorkoutsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$gymWorkoutsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GymWorkoutPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  mealEntries<T extends Prisma.User$mealEntriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$mealEntriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MealEntryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  expenseEntries<T extends Prisma.User$expenseEntriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$expenseEntriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExpenseEntryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -2952,6 +3712,102 @@ export type User$abstinenceSessionsArgs<ExtArgs extends runtime.Types.Extensions
   take?: number
   skip?: number
   distinct?: Prisma.AbstinenceSessionScalarFieldEnum | Prisma.AbstinenceSessionScalarFieldEnum[]
+}
+
+/**
+ * User.mutationReceipts
+ */
+export type User$mutationReceiptsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the MutationReceipt
+   */
+  select?: Prisma.MutationReceiptSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the MutationReceipt
+   */
+  omit?: Prisma.MutationReceiptOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MutationReceiptInclude<ExtArgs> | null
+  where?: Prisma.MutationReceiptWhereInput
+  orderBy?: Prisma.MutationReceiptOrderByWithRelationInput | Prisma.MutationReceiptOrderByWithRelationInput[]
+  cursor?: Prisma.MutationReceiptWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MutationReceiptScalarFieldEnum | Prisma.MutationReceiptScalarFieldEnum[]
+}
+
+/**
+ * User.gymWorkouts
+ */
+export type User$gymWorkoutsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the GymWorkout
+   */
+  select?: Prisma.GymWorkoutSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the GymWorkout
+   */
+  omit?: Prisma.GymWorkoutOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.GymWorkoutInclude<ExtArgs> | null
+  where?: Prisma.GymWorkoutWhereInput
+  orderBy?: Prisma.GymWorkoutOrderByWithRelationInput | Prisma.GymWorkoutOrderByWithRelationInput[]
+  cursor?: Prisma.GymWorkoutWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.GymWorkoutScalarFieldEnum | Prisma.GymWorkoutScalarFieldEnum[]
+}
+
+/**
+ * User.mealEntries
+ */
+export type User$mealEntriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the MealEntry
+   */
+  select?: Prisma.MealEntrySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the MealEntry
+   */
+  omit?: Prisma.MealEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.MealEntryInclude<ExtArgs> | null
+  where?: Prisma.MealEntryWhereInput
+  orderBy?: Prisma.MealEntryOrderByWithRelationInput | Prisma.MealEntryOrderByWithRelationInput[]
+  cursor?: Prisma.MealEntryWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.MealEntryScalarFieldEnum | Prisma.MealEntryScalarFieldEnum[]
+}
+
+/**
+ * User.expenseEntries
+ */
+export type User$expenseEntriesArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the ExpenseEntry
+   */
+  select?: Prisma.ExpenseEntrySelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the ExpenseEntry
+   */
+  omit?: Prisma.ExpenseEntryOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.ExpenseEntryInclude<ExtArgs> | null
+  where?: Prisma.ExpenseEntryWhereInput
+  orderBy?: Prisma.ExpenseEntryOrderByWithRelationInput | Prisma.ExpenseEntryOrderByWithRelationInput[]
+  cursor?: Prisma.ExpenseEntryWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.ExpenseEntryScalarFieldEnum | Prisma.ExpenseEntryScalarFieldEnum[]
 }
 
 /**

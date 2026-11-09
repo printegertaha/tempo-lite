@@ -37,6 +37,10 @@ model User {
   dailyNotes      DailyNote[]
   abstinenceTrackers AbstinenceTracker[]
   abstinenceSessions AbstinenceSession[]
+  mutationReceipts   MutationReceipt[]
+  gymWorkouts        GymWorkout[]
+  mealEntries        MealEntry[]
+  expenseEntries     ExpenseEntry[]
 
   @@map("user")
 }
@@ -103,6 +107,9 @@ model UserSettings {
   weekStartDay    Int      @default(6)             // 6 = Saturday (السبت), 0 = Sunday
   themeAccent     String   @default("violet")      // Brand accent token
   dashboardConfig Json     @default("{}")          // Widget layout and visibility
+  audioEnabled    Boolean  @default(true)          // Sound effects feedback toggle
+  audioVolume     Float    @default(0.7)           // Audio volume level (0.0 to 1.0)
+  plannerConfig   Json     @default("{}")          // Weekly planner rules and preferences
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -308,10 +315,19 @@ model Task {
   title       String
   description String?      @db.Text
   dueDate     String?      // Local calendar due date "YYYY-MM-DD"
+  startTime   String?      // Scheduled start time "HH:MM" (e.g. "09:00")
+  durationMinutes Int?     // Estimated or allocated duration in minutes
   
   priority    TaskPriority @default(MEDIUM)
   status      TaskStatus   @default(TODO)
   completedAt DateTime?
+  
+  isPomodoro  Boolean      @default(false)
+  workCycle   Int          @default(25)   // Work interval in minutes
+  breakCycle  Int          @default(5)    // Break interval in minutes
+  isRecurring Boolean      @default(false) // Weekly repeating task
+  subtasks    Json         @default("[]") // Array of { id, title, completed }
+  version     Int          @default(1)    // Version for optimistic concurrency control
   
   tags        Json         @default("[]") // String array of labels
   sortOrder   Int          @default(0)
@@ -405,5 +421,80 @@ model AbstinenceSession {
   @@index([userId, endedAt])
   @@map("abstinence_session")
 }
+
+// -----------------------------------------------------------------------------
+// 10. LOCAL-FIRST MUTATION RECEIPTS & IDEMPOTENCY
+// -----------------------------------------------------------------------------
+
+model MutationReceipt {
+  id         String   @id // Client-generated mutation UUID
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType String   // "task", "tracker", "entry", etc.
+  entityId   String
+  action     String   // "create", "update", "delete", "toggle"
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, id])
+  @@index([userId, createdAt])
+  @@map("mutation_receipt")
+}
+
+// -----------------------------------------------------------------------------
+// 11. DEDICATED DOMAIN MODELS (MIGRATED FROM LEGACY LOCALSTORAGE)
+// -----------------------------------------------------------------------------
+
+model GymWorkout {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date            String   // Local calendar date "YYYY-MM-DD"
+  title           String   // e.g. "تمارين الصدر والترايسبس"
+  muscleGroup     String?  // e.g. "push", "pull", "legs"
+  durationMinutes Int?     @default(60)
+  exercises       Json     @default("[]") // [{ name, sets: [{ reps, weight, completed }] }]
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("gym_workout")
+}
+
+model MealEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // Local calendar date "YYYY-MM-DD"
+  mealType  String   // "breakfast", "lunch", "dinner", "snacks"
+  title     String
+  calories  Int      @default(0)
+  protein   Float    @default(0)
+  carbs     Float    @default(0)
+  fat       Float    @default(0)
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("meal_entry")
+}
+
+model ExpenseEntry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date      String   // Local calendar date "YYYY-MM-DD"
+  title     String
+  amount    Float
+  category  String   // e.g. "طعام ومطاعم", "مشتريات", "فواتير"
+  notes     String?  @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("expense_entry")
+}
+
 
 

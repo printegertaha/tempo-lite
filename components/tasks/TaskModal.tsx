@@ -29,6 +29,16 @@ const STATUSES = [
   { id: "CANCELLED", label: "ملغاة" },
 ];
 
+interface TaskModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  task?: any;
+  lifeAreas?: any[];
+  trackers?: any[];
+  todayStr?: string;
+  onSave?: (data: any) => Promise<any> | void;
+}
+
 export default function TaskModal({
   isOpen,
   onClose,
@@ -37,7 +47,7 @@ export default function TaskModal({
   trackers = [],
   todayStr,
   onSave,
-}) {
+}: TaskModalProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [dueDate, setDueDate] = useState("");
@@ -45,7 +55,7 @@ export default function TaskModal({
   const [status, setStatus] = useState("TODO");
   const [lifeAreaId, setLifeAreaId] = useState("");
   const [trackerId, setTrackerId] = useState("");
-  const [tags, setTags] = useState([]);
+  const [tags, setTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
@@ -76,7 +86,7 @@ export default function TaskModal({
 
   if (!isOpen) return null;
 
-  const handleAddTag = (e) => {
+  const handleAddTag = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
       const trimmed = tagInput.trim().replace(/^#/, "");
@@ -87,11 +97,11 @@ export default function TaskModal({
     }
   };
 
-  const handleRemoveTag = (tagToRemove) => {
+  const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((t) => t !== tagToRemove));
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       setErrorMessage("يرجى كتابة عنوان المهمة");
@@ -102,7 +112,7 @@ export default function TaskModal({
     setErrorMessage("");
 
     try {
-      const payload = {
+      const payload: any = {
         title: title.trim(),
         description: description.trim() || null,
         dueDate: dueDate || null,
@@ -117,16 +127,18 @@ export default function TaskModal({
         payload.id = task.id;
       }
 
-      await onSave(payload);
+      if (onSave) {
+        await onSave(payload);
+      }
       onClose();
-    } catch (err) {
+    } catch (err: any) {
       setErrorMessage(err?.message || "حدث خطأ أثناء حفظ المهمة");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const setRelativeDueDate = (days) => {
+  const setRelativeDueDate = (days: number) => {
     const base = todayStr || (typeof window !== "undefined" ? getLocalDateString() : "");
     if (days === 0) setDueDate(base);
     else if (days === 1) setDueDate(addDaysToDateString(base, 1));

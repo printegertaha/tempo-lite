@@ -24,7 +24,7 @@ export default function AbstinenceLiveCounter({
   const startedAt = activeSession?.startedAt;
 
   // Local live tick: updates every 1000ms
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
   useEffect(() => {
     const timer = setInterval(() => {

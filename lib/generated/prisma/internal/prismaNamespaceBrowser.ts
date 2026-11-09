@@ -63,7 +63,11 @@ export const ModelName = {
   Task: 'Task',
   DailyNote: 'DailyNote',
   AbstinenceTracker: 'AbstinenceTracker',
-  AbstinenceSession: 'AbstinenceSession'
+  AbstinenceSession: 'AbstinenceSession',
+  MutationReceipt: 'MutationReceipt',
+  GymWorkout: 'GymWorkout',
+  MealEntry: 'MealEntry',
+  ExpenseEntry: 'ExpenseEntry'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -148,6 +152,9 @@ export const UserSettingsScalarFieldEnum = {
   weekStartDay: 'weekStartDay',
   themeAccent: 'themeAccent',
   dashboardConfig: 'dashboardConfig',
+  audioEnabled: 'audioEnabled',
+  audioVolume: 'audioVolume',
+  plannerConfig: 'plannerConfig',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
@@ -253,9 +260,17 @@ export const TaskScalarFieldEnum = {
   title: 'title',
   description: 'description',
   dueDate: 'dueDate',
+  startTime: 'startTime',
+  durationMinutes: 'durationMinutes',
   priority: 'priority',
   status: 'status',
   completedAt: 'completedAt',
+  isPomodoro: 'isPomodoro',
+  workCycle: 'workCycle',
+  breakCycle: 'breakCycle',
+  isRecurring: 'isRecurring',
+  subtasks: 'subtasks',
+  version: 'version',
   tags: 'tags',
   sortOrder: 'sortOrder',
   isArchived: 'isArchived',
@@ -315,6 +330,67 @@ export const AbstinenceSessionScalarFieldEnum = {
 } as const
 
 export type AbstinenceSessionScalarFieldEnum = (typeof AbstinenceSessionScalarFieldEnum)[keyof typeof AbstinenceSessionScalarFieldEnum]
+
+
+export const MutationReceiptScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  action: 'action',
+  createdAt: 'createdAt'
+} as const
+
+export type MutationReceiptScalarFieldEnum = (typeof MutationReceiptScalarFieldEnum)[keyof typeof MutationReceiptScalarFieldEnum]
+
+
+export const GymWorkoutScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  title: 'title',
+  muscleGroup: 'muscleGroup',
+  durationMinutes: 'durationMinutes',
+  exercises: 'exercises',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type GymWorkoutScalarFieldEnum = (typeof GymWorkoutScalarFieldEnum)[keyof typeof GymWorkoutScalarFieldEnum]
+
+
+export const MealEntryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  mealType: 'mealType',
+  title: 'title',
+  calories: 'calories',
+  protein: 'protein',
+  carbs: 'carbs',
+  fat: 'fat',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type MealEntryScalarFieldEnum = (typeof MealEntryScalarFieldEnum)[keyof typeof MealEntryScalarFieldEnum]
+
+
+export const ExpenseEntryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  title: 'title',
+  amount: 'amount',
+  category: 'category',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type ExpenseEntryScalarFieldEnum = (typeof ExpenseEntryScalarFieldEnum)[keyof typeof ExpenseEntryScalarFieldEnum]
 
 
 export const SortOrder = {

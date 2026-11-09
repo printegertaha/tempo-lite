@@ -28,10 +28,12 @@ export type AggregateUserSettings = {
 
 export type UserSettingsAvgAggregateOutputType = {
   weekStartDay: number | null
+  audioVolume: number | null
 }
 
 export type UserSettingsSumAggregateOutputType = {
   weekStartDay: number | null
+  audioVolume: number | null
 }
 
 export type UserSettingsMinAggregateOutputType = {
@@ -41,6 +43,8 @@ export type UserSettingsMinAggregateOutputType = {
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
+  audioEnabled: boolean | null
+  audioVolume: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -52,6 +56,8 @@ export type UserSettingsMaxAggregateOutputType = {
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
+  audioEnabled: boolean | null
+  audioVolume: number | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -64,6 +70,9 @@ export type UserSettingsCountAggregateOutputType = {
   weekStartDay: number
   themeAccent: number
   dashboardConfig: number
+  audioEnabled: number
+  audioVolume: number
+  plannerConfig: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -72,10 +81,12 @@ export type UserSettingsCountAggregateOutputType = {
 
 export type UserSettingsAvgAggregateInputType = {
   weekStartDay?: true
+  audioVolume?: true
 }
 
 export type UserSettingsSumAggregateInputType = {
   weekStartDay?: true
+  audioVolume?: true
 }
 
 export type UserSettingsMinAggregateInputType = {
@@ -85,6 +96,8 @@ export type UserSettingsMinAggregateInputType = {
   language?: true
   weekStartDay?: true
   themeAccent?: true
+  audioEnabled?: true
+  audioVolume?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -96,6 +109,8 @@ export type UserSettingsMaxAggregateInputType = {
   language?: true
   weekStartDay?: true
   themeAccent?: true
+  audioEnabled?: true
+  audioVolume?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -108,6 +123,9 @@ export type UserSettingsCountAggregateInputType = {
   weekStartDay?: true
   themeAccent?: true
   dashboardConfig?: true
+  audioEnabled?: true
+  audioVolume?: true
+  plannerConfig?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -207,6 +225,9 @@ export type UserSettingsGroupByOutputType = {
   weekStartDay: number
   themeAccent: string
   dashboardConfig: runtime.JsonValue
+  audioEnabled: boolean
+  audioVolume: number
+  plannerConfig: runtime.JsonValue
   createdAt: Date
   updatedAt: Date
   _count: UserSettingsCountAggregateOutputType | null
@@ -242,6 +263,9 @@ export type UserSettingsWhereInput = {
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
   dashboardConfig?: Prisma.JsonFilter<"UserSettings">
+  audioEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
+  audioVolume?: Prisma.FloatFilter<"UserSettings"> | number
+  plannerConfig?: Prisma.JsonFilter<"UserSettings">
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -255,6 +279,9 @@ export type UserSettingsOrderByWithRelationInput = {
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
   dashboardConfig?: Prisma.SortOrder
+  audioEnabled?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
+  plannerConfig?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -271,6 +298,9 @@ export type UserSettingsWhereUniqueInput = Prisma.AtLeast<{
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
   dashboardConfig?: Prisma.JsonFilter<"UserSettings">
+  audioEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
+  audioVolume?: Prisma.FloatFilter<"UserSettings"> | number
+  plannerConfig?: Prisma.JsonFilter<"UserSettings">
   createdAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"UserSettings"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -284,6 +314,9 @@ export type UserSettingsOrderByWithAggregationInput = {
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
   dashboardConfig?: Prisma.SortOrder
+  audioEnabled?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
+  plannerConfig?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.UserSettingsCountOrderByAggregateInput
@@ -304,6 +337,9 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
   weekStartDay?: Prisma.IntWithAggregatesFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   dashboardConfig?: Prisma.JsonWithAggregatesFilter<"UserSettings">
+  audioEnabled?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
+  audioVolume?: Prisma.FloatWithAggregatesFilter<"UserSettings"> | number
+  plannerConfig?: Prisma.JsonWithAggregatesFilter<"UserSettings">
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"UserSettings"> | Date | string
 }
@@ -315,6 +351,9 @@ export type UserSettingsCreateInput = {
   weekStartDay?: number
   themeAccent?: string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: boolean
+  audioVolume?: number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutSettingsInput
@@ -328,6 +367,9 @@ export type UserSettingsUncheckedCreateInput = {
   weekStartDay?: number
   themeAccent?: string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: boolean
+  audioVolume?: number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -339,6 +381,9 @@ export type UserSettingsUpdateInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutSettingsNestedInput
@@ -352,6 +397,9 @@ export type UserSettingsUncheckedUpdateInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -364,6 +412,9 @@ export type UserSettingsCreateManyInput = {
   weekStartDay?: number
   themeAccent?: string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: boolean
+  audioVolume?: number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -375,6 +426,9 @@ export type UserSettingsUpdateManyMutationInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -387,6 +441,9 @@ export type UserSettingsUncheckedUpdateManyInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -404,12 +461,16 @@ export type UserSettingsCountOrderByAggregateInput = {
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
   dashboardConfig?: Prisma.SortOrder
+  audioEnabled?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
+  plannerConfig?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type UserSettingsAvgOrderByAggregateInput = {
   weekStartDay?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
 }
 
 export type UserSettingsMaxOrderByAggregateInput = {
@@ -419,6 +480,8 @@ export type UserSettingsMaxOrderByAggregateInput = {
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
+  audioEnabled?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -430,12 +493,15 @@ export type UserSettingsMinOrderByAggregateInput = {
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
+  audioEnabled?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
 
 export type UserSettingsSumOrderByAggregateInput = {
   weekStartDay?: Prisma.SortOrder
+  audioVolume?: Prisma.SortOrder
 }
 
 export type UserSettingsCreateNestedOneWithoutUserInput = {
@@ -478,6 +544,14 @@ export type IntFieldUpdateOperationsInput = {
   divide?: number
 }
 
+export type FloatFieldUpdateOperationsInput = {
+  set?: number
+  increment?: number
+  decrement?: number
+  multiply?: number
+  divide?: number
+}
+
 export type UserSettingsCreateWithoutUserInput = {
   id?: string
   timezone?: string
@@ -485,6 +559,9 @@ export type UserSettingsCreateWithoutUserInput = {
   weekStartDay?: number
   themeAccent?: string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: boolean
+  audioVolume?: number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -496,6 +573,9 @@ export type UserSettingsUncheckedCreateWithoutUserInput = {
   weekStartDay?: number
   themeAccent?: string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: boolean
+  audioVolume?: number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -523,6 +603,9 @@ export type UserSettingsUpdateWithoutUserInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -534,6 +617,9 @@ export type UserSettingsUncheckedUpdateWithoutUserInput = {
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
   dashboardConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  audioEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  audioVolume?: Prisma.FloatFieldUpdateOperationsInput | number
+  plannerConfig?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -548,6 +634,9 @@ export type UserSettingsSelect<ExtArgs extends runtime.Types.Extensions.Internal
   weekStartDay?: boolean
   themeAccent?: boolean
   dashboardConfig?: boolean
+  audioEnabled?: boolean
+  audioVolume?: boolean
+  plannerConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -561,6 +650,9 @@ export type UserSettingsSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   weekStartDay?: boolean
   themeAccent?: boolean
   dashboardConfig?: boolean
+  audioEnabled?: boolean
+  audioVolume?: boolean
+  plannerConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -574,6 +666,9 @@ export type UserSettingsSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   weekStartDay?: boolean
   themeAccent?: boolean
   dashboardConfig?: boolean
+  audioEnabled?: boolean
+  audioVolume?: boolean
+  plannerConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -587,11 +682,14 @@ export type UserSettingsSelectScalar = {
   weekStartDay?: boolean
   themeAccent?: boolean
   dashboardConfig?: boolean
+  audioEnabled?: boolean
+  audioVolume?: boolean
+  plannerConfig?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
+export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "audioEnabled" | "audioVolume" | "plannerConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
 export type UserSettingsInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -615,6 +713,9 @@ export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.Intern
     weekStartDay: number
     themeAccent: string
     dashboardConfig: runtime.JsonValue
+    audioEnabled: boolean
+    audioVolume: number
+    plannerConfig: runtime.JsonValue
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["userSettings"]>
@@ -1048,6 +1149,9 @@ export interface UserSettingsFieldRefs {
   readonly weekStartDay: Prisma.FieldRef<"UserSettings", 'Int'>
   readonly themeAccent: Prisma.FieldRef<"UserSettings", 'String'>
   readonly dashboardConfig: Prisma.FieldRef<"UserSettings", 'Json'>
+  readonly audioEnabled: Prisma.FieldRef<"UserSettings", 'Boolean'>
+  readonly audioVolume: Prisma.FieldRef<"UserSettings", 'Float'>
+  readonly plannerConfig: Prisma.FieldRef<"UserSettings", 'Json'>
   readonly createdAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
 }

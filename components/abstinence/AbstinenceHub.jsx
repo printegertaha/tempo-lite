@@ -88,16 +88,16 @@ export default function AbstinenceHub({
   // Compute longest streak formatted string
   const longestDur = selectedTracker
     ? calculateAbstinenceDuration(
-        new Date(Date.now() - (selectedTracker.longestStreakSeconds || 0) * 1000),
-        new Date()
+        new Date(0),
+        new Date((selectedTracker.longestStreakSeconds || 0) * 1000)
       )
     : null;
 
   // Compute total abstinent formatted string
   const totalDur = selectedTracker
     ? calculateAbstinenceDuration(
-        new Date(Date.now() - (selectedTracker.totalAbstinentSeconds || 0) * 1000),
-        new Date()
+        new Date(0),
+        new Date((selectedTracker.totalAbstinentSeconds || 0) * 1000)
       )
     : null;
 

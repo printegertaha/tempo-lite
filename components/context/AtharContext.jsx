@@ -26,6 +26,9 @@ import SocialMediaModal from "../social/SocialMediaModal";
 import SmokingEventModal from "../smoking/SmokingEventModal";
 import RunningSessionModal from "../running/RunningSessionModal";
 import GymSessionModal from "../gym/GymSessionModal";
+import { saveGymWorkout, deleteGymWorkout } from "@/actions/gym";
+import { saveMealEntry, deleteMealEntry } from "@/actions/nutrition";
+import { saveExpenseEntry, deleteExpenseEntry } from "@/actions/expenses";
 
 const AtharContext = createContext(null);
 
@@ -458,6 +461,12 @@ export function AtharProvider({ children }) {
         },
       },
     }));
+    saveGymWorkout({
+      date: dateStr,
+      title: session.workoutType || session.gymName || "تمرين رياضي",
+      durationMinutes: Number(session.durationMinutes) || 60,
+      notes: session.notes || null,
+    }).catch(() => {});
     showToast("تم توثيق تمرين الجيم والقوة 💪", "success");
   };
 
@@ -473,6 +482,7 @@ export function AtharProvider({ children }) {
         },
       },
     }));
+    deleteGymWorkout(id).catch(() => {});
     showToast("تم حذف جلسة التمرين", "info");
   };
 
@@ -691,6 +701,13 @@ export function AtharProvider({ children }) {
         categories: updatedCats,
       };
     });
+    saveExpenseEntry({
+      date: selectedDate,
+      title: expense.title,
+      amount: Number(expense.amount),
+      category: expense.category,
+      notes: expense.notes || null,
+    }).catch(() => {});
     showToast(`تم تسجيل مصروف بقيمة ${expense.amount} ر.س 💳`, "success");
   };
 
@@ -699,6 +716,7 @@ export function AtharProvider({ children }) {
       ...prev,
       transactions: prev.transactions.filter((t) => t.id !== id),
     }));
+    deleteExpenseEntry(String(id)).catch(() => {});
     showToast("تم حذف المصروف", "info");
   };
 
@@ -735,6 +753,16 @@ export function AtharProvider({ children }) {
         }
       };
     });
+    saveMealEntry({
+      date: selectedDate,
+      mealType: meal.mealType || "lunch",
+      title: meal.name || meal.title || "وجبة",
+      calories: Number(meal.calories) || 0,
+      protein: Number(meal.protein) || 0,
+      carbs: Number(meal.carbs) || 0,
+      fat: Number(meal.fat) || 0,
+      notes: meal.notes || null,
+    }).catch(() => {});
     showToast("تم تسجيل الوجبة بنجاح 🥗", "success");
   };
 

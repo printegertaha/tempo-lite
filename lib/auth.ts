@@ -41,10 +41,15 @@ export const auth = betterAuth({
     provider: "postgresql",
   }),
   baseURL: authBaseUrl,
-  secret: (
-    process.env.BETTER_AUTH_SECRET ||
-    "development_secret_key_at_least_32_characters_long"
-  ).trim(),
+  secret: (() => {
+    const s = process.env.BETTER_AUTH_SECRET?.trim();
+    if (s && s.length >= 32) return s;
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("SECURITY_ERROR: BETTER_AUTH_SECRET must be set and at least 32 characters long in production.");
+    }
+    console.warn("⚠️ [SECURITY WARNING] BETTER_AUTH_SECRET is unset. Generating a temporary runtime secret for development.");
+    return require("crypto").randomBytes(32).toString("hex");
+  })(),
   trustedOrigins: Array.from(new Set(originsList)),
   logger: {
     disabled: false,

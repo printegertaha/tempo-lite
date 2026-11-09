@@ -6,9 +6,7 @@ import {
   Circle,
   Calendar,
   Clock,
-  AlertCircle,
   Flame,
-  ChevronDown,
   MoreVertical,
   Edit2,
   Trash2,
@@ -17,8 +15,12 @@ import {
   Tag,
   Link2,
   Folder,
-  ArrowRight,
   FastForward,
+  Maximize2,
+  CheckSquare,
+  Square,
+  Coffee,
+  Repeat
 } from "lucide-react";
 import { formatArabicDueDate } from "@/lib/dates";
 
@@ -57,72 +59,73 @@ export default function TaskCard({
   onPostpone,
   onDelete,
   onArchive,
+  onOpenZen,
+  onToggleSubtask,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [postponeMenuOpen, setPostponeMenuOpen] = useState(false);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const [subtasksExpanded, setSubtasksExpanded] = useState(false);
 
   const isCompleted = task.status === "COMPLETED";
   const priorityInfo = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.MEDIUM;
   const dueInfo = formatArabicDueDate(task.dueDate, todayStr);
 
-  const handleToggle = async (e) => {
+  const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
+  const completedSubtasksCount = subtasks.filter((s) => s.completed).length;
+
+  const handleToggle = (e) => {
     e.stopPropagation();
-    if (isUpdating) return;
-    setIsUpdating(true);
-    try {
-      await onToggleStatus(task.id);
-    } finally {
-      setIsUpdating(false);
-    }
+    onToggleStatus(task.id);
   };
 
-  const handlePostponeClick = async (days) => {
+  const handlePostponeClick = (days) => {
     setPostponeMenuOpen(false);
     setMenuOpen(false);
     if (onPostpone) {
-      await onPostpone(task.id, days);
+      onPostpone(task.id, days);
     }
   };
 
   return (
     <div
-      className={`group relative rounded-2xl border transition-all duration-200 bg-zinc-950/60 p-4 ${
+      className={`group relative rounded-2xl border transition-all duration-200 bg-zinc-950/70 p-4 sm:p-5 flex flex-col justify-between ${
         isCompleted
-          ? "border-zinc-800/60 opacity-60 bg-zinc-900/20"
+          ? "border-zinc-800/50 opacity-60 bg-zinc-900/20"
           : dueInfo.isOverdue
-          ? "border-red-950/50 hover:border-red-500/40 bg-red-950/5 shadow-lg shadow-red-950/20"
+          ? "border-red-950/60 hover:border-red-500/40 bg-red-950/5 shadow-md shadow-red-950/20"
           : dueInfo.isToday
-          ? "border-amber-950/50 hover:border-amber-500/30 bg-amber-950/5"
-          : "border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/40"
+          ? "border-amber-950/60 hover:border-amber-500/40 bg-amber-950/5"
+          : "border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/50 hover:shadow-xl hover:shadow-black/50"
       }`}
     >
-      <div className="flex items-start gap-3.5">
-        {/* Completion Checkbox */}
-        <button
-          onClick={handleToggle}
-          disabled={isUpdating}
-          className={`mt-0.5 shrink-0 transition-transform active:scale-90 ${
-            isCompleted
-              ? "text-emerald-400 hover:text-emerald-300"
-              : dueInfo.isOverdue
-              ? "text-red-400/80 hover:text-red-400"
-              : "text-zinc-500 hover:text-zinc-200"
-          }`}
-          title={isCompleted ? "إعادة فتح المهمة" : "إتمام المهمة"}
-        >
-          {isCompleted ? (
-            <CheckCircle2 className="w-5 h-5 fill-emerald-500/10" />
-          ) : (
-            <Circle className="w-5 h-5" />
-          )}
-        </button>
+      <div>
+        {/* Top Header: Checkbox + Title + Actions */}
+        <div className="flex items-start gap-3.5">
+          {/* Large Touch Target Completion Checkbox */}
+          <button
+            type="button"
+            onClick={handleToggle}
+            className={`mt-0.5 shrink-0 transition-transform active:scale-90 p-0.5 cursor-pointer ${
+              isCompleted
+                ? "text-emerald-400 hover:text-emerald-300"
+                : dueInfo.isOverdue
+                ? "text-red-400 hover:text-red-300"
+                : "text-zinc-500 hover:text-violet-400"
+            }`}
+            title={isCompleted ? "إعادة فتح المهمة" : "إتمام المهمة"}
+          >
+            {isCompleted ? (
+              <CheckCircle2 className="w-5 h-5 fill-emerald-500/10 text-emerald-400" />
+            ) : (
+              <Circle className="w-5 h-5" />
+            )}
+          </button>
 
-        {/* Task Details */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Title & Badges */}
+          <div className="flex-1 min-w-0">
             <h3
-              className={`text-sm font-semibold leading-snug transition-colors ${
+              onClick={handleToggle}
+              className={`text-sm sm:text-base font-bold leading-snug cursor-pointer select-none transition-colors break-words ${
                 isCompleted
                   ? "line-through text-zinc-500"
                   : "text-zinc-100 group-hover:text-white"
@@ -131,198 +134,279 @@ export default function TaskCard({
               {task.title}
             </h3>
 
-            {/* Priority Indicator */}
-            <span
-              className={`text-[10px] px-2 py-0.5 rounded-full border font-medium ${priorityInfo.color}`}
-            >
-              {priorityInfo.label}
-            </span>
-
-            {/* Due Date Indicator */}
-            {task.dueDate && (
+            {/* Badges bar */}
+            <div className="flex items-center gap-1.5 flex-wrap mt-2">
+              {/* Priority Indicator */}
               <span
-                className={`text-[10px] px-2 py-0.5 rounded-full border font-mono flex items-center gap-1 ${
-                  dueInfo.isOverdue
-                    ? "bg-red-500/15 border-red-500/40 text-red-400 font-semibold animate-pulse"
-                    : dueInfo.isToday
-                    ? "bg-amber-500/15 border-amber-500/40 text-amber-300 font-semibold"
-                    : "bg-zinc-800/60 border-zinc-700/40 text-zinc-400"
+                className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${priorityInfo.color}`}
+              >
+                {priorityInfo.label}
+              </span>
+
+              {/* Start Time Badge */}
+              {task.startTime && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono">
+                  <Clock className="w-2.5 h-2.5 text-zinc-400" />
+                  <span>{task.startTime}</span>
+                </span>
+              )}
+
+              {/* Duration / Pomodoro Badge */}
+              {task.isPomodoro ? (
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 font-mono">
+                  <Flame className="w-2.5 h-2.5 text-violet-400" />
+                  <span>{task.workCycle || 25}+{task.breakCycle || 5}د بومودورو</span>
+                </span>
+              ) : task.durationMinutes ? (
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
+                  <span>{task.durationMinutes} دقيقة</span>
+                </span>
+              ) : null}
+
+              {/* Due Date Indicator */}
+              {task.dueDate && (
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-full border font-mono flex items-center gap-1 ${
+                    dueInfo.isOverdue
+                      ? "bg-red-500/15 border-red-500/40 text-red-400 font-bold animate-pulse"
+                      : dueInfo.isToday
+                      ? "bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold"
+                      : "bg-zinc-800/60 border-zinc-700/40 text-zinc-400"
+                  }`}
+                >
+                  <Calendar className="w-2.5 h-2.5" />
+                  <span>{dueInfo.label}</span>
+                </span>
+              )}
+
+              {/* Recurring Badge */}
+              {task.isRecurring && (
+                <span
+                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300"
+                  title="مهمة دورية تتكرر أسبوعياً"
+                >
+                  <Repeat className="w-2.5 h-2.5" />
+                  <span>دورية</span>
+                </span>
+              )}
+            </div>
+
+            {/* Description */}
+            {task.description && (
+              <p
+                className={`text-xs mt-2 leading-relaxed whitespace-pre-wrap break-words ${
+                  isCompleted ? "text-zinc-600 line-through" : "text-zinc-400"
                 }`}
               >
-                <Calendar className="w-2.5 h-2.5" />
-                <span>{dueInfo.label}</span>
-              </span>
-            )}
-          </div>
-
-          {/* Description if present */}
-          {task.description && (
-            <p
-              className={`text-xs mt-1 leading-relaxed whitespace-pre-wrap ${
-                isCompleted ? "text-zinc-600 line-through" : "text-zinc-400"
-              }`}
-            >
-              {task.description}
-            </p>
-          )}
-
-          {/* Metadata badges (Life Area, Linked Tracker, Tags) */}
-          <div className="flex items-center gap-2 mt-2.5 flex-wrap">
-            {/* Life Area Badge */}
-            {task.lifeArea && (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300">
-                <Folder className="w-3 h-3 text-zinc-400" />
-                <span>{task.lifeArea.name}</span>
-              </span>
+                {task.description}
+              </p>
             )}
 
-            {/* Linked Tracker Badge */}
-            {task.tracker && (
-              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-md bg-violet-500/10 border border-violet-500/20 text-violet-300">
-                <Link2 className="w-3 h-3 text-violet-400" />
-                <span>مرتبط: {task.tracker.name}</span>
-              </span>
-            )}
-
-            {/* Tags / Labels */}
-            {Array.isArray(task.tags) &&
-              task.tags.map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-900/80 border border-zinc-800 text-zinc-400"
+            {/* Sub-tasks checklist progress */}
+            {subtasks.length > 0 && (
+              <div className="mt-3 pt-2.5 border-t border-zinc-900">
+                <button
+                  type="button"
+                  onClick={() => setSubtasksExpanded(!subtasksExpanded)}
+                  className="w-full flex items-center justify-between text-[11px] text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
                 >
-                  <Tag className="w-2.5 h-2.5 text-zinc-500" />
-                  <span>{tag}</span>
-                </span>
-              ))}
-          </div>
-        </div>
+                  <div className="flex items-center gap-1.5">
+                    <CheckSquare className="w-3.5 h-3.5 text-violet-400" />
+                    <span>المهام الفرعية:</span>
+                    <span className="font-mono font-bold text-zinc-300">
+                      {completedSubtasksCount} / {subtasks.length}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-zinc-500">
+                    {subtasksExpanded ? "إخفاء" : "عرض"}
+                  </span>
+                </button>
 
-        {/* Action Controls */}
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Quick Postpone Button (+1 day) if not completed */}
-          {!isCompleted && (
+                {/* Progress bar */}
+                <div className="w-full h-1 rounded-full bg-zinc-900 mt-1.5 overflow-hidden">
+                  <div
+                    className="h-full bg-violet-500 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(completedSubtasksCount / subtasks.length) * 100}%`,
+                    }}
+                  />
+                </div>
+
+                {/* Expanded Subtasks */}
+                {subtasksExpanded && (
+                  <div className="mt-2 space-y-1.5 pl-2">
+                    {subtasks.map((st) => (
+                      <div
+                        key={st.id}
+                        onClick={() => onToggleSubtask && onToggleSubtask(task.id, st.id)}
+                        className="flex items-center gap-2 text-xs text-zinc-300 hover:text-white cursor-pointer py-0.5"
+                      >
+                        {st.completed ? (
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        ) : (
+                          <Square className="w-3.5 h-3.5 text-zinc-600 shrink-0" />
+                        )}
+                        <span className={st.completed ? "line-through text-zinc-500" : ""}>
+                          {st.title}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Action Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Zen Mode Button (Focus) */}
+            {onOpenZen && !isCompleted && (
+              <button
+                type="button"
+                onClick={() => onOpenZen(task)}
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-colors cursor-pointer"
+                title="فتح وضع التركيز العميق (Zen Mode)"
+              >
+                <Maximize2 className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* Quick Postpone Button */}
+            {!isCompleted && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setPostponeMenuOpen((prev) => !prev)}
+                  className="p-1.5 rounded-xl text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  title="تأجيل المهمة"
+                >
+                  <FastForward className="w-4 h-4" />
+                </button>
+
+                {postponeMenuOpen && (
+                  <div
+                    className="absolute left-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-2.5 py-1 text-[10px] text-zinc-400 font-semibold border-b border-zinc-800/80">
+                      تأجيل المهمة
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handlePostponeClick(1)}
+                      className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
+                    >
+                      +1 يوم (غداً)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePostponeClick(3)}
+                      className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
+                    >
+                      +3 أيام
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePostponeClick(7)}
+                      className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
+                    >
+                      +أسبوع
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* More Menu */}
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setPostponeMenuOpen((prev) => !prev)}
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/60 transition-colors"
-                title="تأجيل المهمة"
+                onClick={() => setMenuOpen((prev) => !prev)}
+                className="p-1.5 rounded-xl text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                title="خيارات إضافية"
               >
-                <FastForward className="w-4 h-4" />
+                <MoreVertical className="w-4 h-4" />
               </button>
 
-              {/* Postpone Popup Menu */}
-              {postponeMenuOpen && (
+              {menuOpen && (
                 <div
-                  className="absolute left-0 mt-1 w-36 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
+                  className="absolute left-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div className="px-2.5 py-1 text-[10px] text-zinc-400 font-semibold border-b border-zinc-800/80">
-                    تأجيل المهمة
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handlePostponeClick(1)}
-                    className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
-                  >
-                    +1 يوم (غداً)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePostponeClick(3)}
-                    className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
-                  >
-                    +3 أيام
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handlePostponeClick(7)}
-                    className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
-                  >
-                    +أسبوع
-                  </button>
                   <button
                     type="button"
                     onClick={() => {
-                      setPostponeMenuOpen(false);
+                      setMenuOpen(false);
                       onEdit(task);
                     }}
-                    className="w-full text-right px-3 py-1.5 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 border-t border-zinc-800/60 transition-colors"
+                    className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer"
                   >
-                    تاريخ مخصص...
+                    <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>تعديل</span>
+                  </button>
+
+                  {onArchive && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMenuOpen(false);
+                        onArchive(task.id, !task.isArchived);
+                      }}
+                      className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 flex items-center gap-2 transition-colors cursor-pointer"
+                    >
+                      {task.isArchived ? (
+                        <>
+                          <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
+                          <span>استعادة</span>
+                        </>
+                      ) : (
+                        <>
+                          <Archive className="w-3.5 h-3.5 text-zinc-400" />
+                          <span>أرشفة</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onDelete(task.id);
+                    }}
+                    className="w-full text-right px-3 py-1.5 text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-zinc-800/80 transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>حذف</span>
                   </button>
                 </div>
               )}
             </div>
-          )}
-
-          {/* More Actions Dropdown */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setMenuOpen((prev) => !prev)}
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors"
-              title="خيارات إضافية"
-            >
-              <MoreVertical className="w-4 h-4" />
-            </button>
-
-            {menuOpen && (
-              <div
-                className="absolute left-0 mt-1 w-36 rounded-xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onEdit(task);
-                  }}
-                  className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 flex items-center gap-2 transition-colors"
-                >
-                  <Edit2 className="w-3.5 h-3.5 text-zinc-400" />
-                  <span>تعديل</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onArchive(task.id, !task.isArchived);
-                  }}
-                  className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 flex items-center gap-2 transition-colors"
-                >
-                  {task.isArchived ? (
-                    <>
-                      <RotateCcw className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>استعادة</span>
-                    </>
-                  ) : (
-                    <>
-                      <Archive className="w-3.5 h-3.5 text-zinc-400" />
-                      <span>أرشفة</span>
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    onDelete(task.id);
-                  }}
-                  className="w-full text-right px-3 py-1.5 text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-zinc-800/80 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>حذف</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
       </div>
+
+      {/* Footer tags / category */}
+      {(task.lifeArea || (task.tags && task.tags.length > 0)) && (
+        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-900 flex-wrap">
+          {task.lifeArea && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300">
+              <Folder className="w-2.5 h-2.5 text-zinc-400" />
+              <span>{task.lifeArea.name}</span>
+            </span>
+          )}
+          {Array.isArray(task.tags) &&
+            task.tags.map((tag, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-900/80 border border-zinc-800 text-zinc-400"
+              >
+                <Tag className="w-2.5 h-2.5 text-zinc-500" />
+                <span>{tag}</span>
+              </span>
+            ))}
+        </div>
+      )}
     </div>
   );
 }
-

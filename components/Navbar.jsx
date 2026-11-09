@@ -7,6 +7,7 @@ import {
   Flame,
   LayoutDashboard,
   Calendar as CalendarIcon,
+  CalendarRange,
   BarChart3,
   Settings,
   Plus,
@@ -25,14 +26,13 @@ import {
   ShieldCheck,
   Compass,
 } from "lucide-react";
-import { useAthar } from "./context/AtharContext";
 import { useSession, authClient } from "@/lib/auth-client";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
+import SyncStatusBadge from "@/components/sync/SyncStatusBadge";
 
 export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { openQuickLog } = useAthar();
   const { data: sessionData, isPending } = useSession();
 
   const [scrolled, setScrolled] = useState(false);
@@ -43,18 +43,6 @@ export default function Navbar() {
   const moreDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
 
-  // Debug authentication state on client
-  useEffect(() => {
-    const cookies = typeof document !== "undefined"
-      ? document.cookie.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean)
-      : [];
-    console.group("👤 [ATHAR_AUTH_DEBUG: CLIENT_SESSION_STATE]");
-    console.log("Loading (isPending):", isPending);
-    console.log("Is Authenticated:", !!sessionData?.user);
-    console.log("User:", sessionData?.user || null);
-    console.log("Cookies Present in Browser:", cookies);
-    console.groupEnd();
-  }, [sessionData, isPending]);
 
   // Close menus on path change
   useEffect(() => {
@@ -107,8 +95,9 @@ export default function Navbar() {
 
   const primaryLinks = [
     { href: "/", label: "الرئيسية", icon: LayoutDashboard },
-    { href: "/habits", label: "العادات", icon: Flame },
+    { href: "/planner", label: "المخطط", icon: CalendarRange },
     { href: "/tasks", label: "المهام", icon: CheckSquare },
+    { href: "/habits", label: "العادات", icon: Flame },
     { href: "/journal", label: "اليوميات", icon: BookMarked },
     { href: "/calendar", label: "التقويم", icon: CalendarIcon },
     { href: "/analytics", label: "التحليلات", icon: BarChart3 },
@@ -334,7 +323,10 @@ export default function Navbar() {
               {/* Authenticated user actions */}
               {isAuthenticated ? (
                 <>
-                  {/* Quick Log Button */}
+                  {/* Live Local-First Sync Status */}
+                  <div className="hidden sm:flex items-center">
+                    <SyncStatusBadge />
+                  </div>
 
                   {/* Settings link */}
                   <Link
@@ -426,18 +418,17 @@ export default function Navbar() {
               ) : (
                 /* Unauthenticated guest actions */
                 <div className="flex items-center gap-2">
-                  <a
-                    href="/api/auth/owner-login"
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-                    <span>دخول المالك</span>
-                  </a>
                   <Link
                     href="/login"
-                    className="px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all"
+                    className="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95"
                   >
                     تسجيل الدخول
+                  </Link>
+                  <Link
+                    href="/register"
+                    className="hidden sm:inline-flex px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all"
+                  >
+                    حساب جديد
                   </Link>
                 </div>
               )}
@@ -617,14 +608,14 @@ export default function Navbar() {
 
         {/* Center Floating Action Button (Only for authenticated users) */}
         {isAuthenticated ? (
-          <button
-            type="button"
-            onClick={() => openQuickLog("prayer")}
+          <Link
+            href="/planner"
             className="flex items-center justify-center -mt-6 w-13 h-13 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xl shadow-violet-600/40 border-2 border-[#0a0c16] active:scale-95 transition-transform"
-            aria-label="تسجيل نشاط سريع"
+            aria-label="المخطط الأسبوعي وإدارة المهام"
+            title="المخطط الأسبوعي"
           >
             <Plus className="w-6 h-6 stroke-[2.5]" />
-          </button>
+          </Link>
         ) : (
           <Link
             href="/login"

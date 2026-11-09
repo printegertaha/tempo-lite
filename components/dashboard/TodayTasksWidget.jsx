@@ -160,6 +160,9 @@ export default function TodayTasksWidget({
   selectedDate,
   onTaskUpdated,
   onOpenCreateTask,
+  onToggleTask,
+  onAddTask,
+  onDeleteTask,
 }) {
   const [localTasks, setLocalTasks] = useState(tasks);
   const [quickInput, setQuickInput] = useState("");
@@ -173,6 +176,11 @@ export default function TodayTasksWidget({
   }, [tasks]);
 
   const handleToggle = async (taskId) => {
+    if (onToggleTask) {
+      await onToggleTask(taskId);
+      return;
+    }
+
     if (updatingTaskId) return;
     setUpdatingTaskId(taskId);
     const previousTasks = [...localTasks];
@@ -212,16 +220,28 @@ export default function TodayTasksWidget({
     e.preventDefault();
     if (!quickInput.trim() || isSubmitting) return;
 
+    const title = quickInput.trim();
+    setQuickInput("");
+
+    if (onAddTask) {
+      await onAddTask({
+        title,
+        dueDate: selectedDate,
+        priority: "MEDIUM",
+        status: "TODO",
+      });
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await createTask({
-        title: quickInput.trim(),
+        title,
         dueDate: selectedDate,
         priority: "MEDIUM",
         status: "TODO",
       });
       if (res.success) {
-        setQuickInput("");
         if (onTaskUpdated) onTaskUpdated();
       }
     } finally {

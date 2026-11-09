@@ -66,6 +66,7 @@ async function TasksServer() {
 
       {/* Main Tasks Hub with Server-Fetched Initial Props */}
       <TasksView
+        userId={session.user.id}
         initialLocalDate={todayStr}
         initialTasks={tasksRes.success ? tasksRes.data || [] : []}
         initialStats={statsRes.success ? statsRes.data : null}

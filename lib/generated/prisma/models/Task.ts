@@ -27,10 +27,18 @@ export type AggregateTask = {
 }
 
 export type TaskAvgAggregateOutputType = {
+  durationMinutes: number | null
+  workCycle: number | null
+  breakCycle: number | null
+  version: number | null
   sortOrder: number | null
 }
 
 export type TaskSumAggregateOutputType = {
+  durationMinutes: number | null
+  workCycle: number | null
+  breakCycle: number | null
+  version: number | null
   sortOrder: number | null
 }
 
@@ -42,9 +50,16 @@ export type TaskMinAggregateOutputType = {
   title: string | null
   description: string | null
   dueDate: string | null
+  startTime: string | null
+  durationMinutes: number | null
   priority: $Enums.TaskPriority | null
   status: $Enums.TaskStatus | null
   completedAt: Date | null
+  isPomodoro: boolean | null
+  workCycle: number | null
+  breakCycle: number | null
+  isRecurring: boolean | null
+  version: number | null
   sortOrder: number | null
   isArchived: boolean | null
   archivedAt: Date | null
@@ -60,9 +75,16 @@ export type TaskMaxAggregateOutputType = {
   title: string | null
   description: string | null
   dueDate: string | null
+  startTime: string | null
+  durationMinutes: number | null
   priority: $Enums.TaskPriority | null
   status: $Enums.TaskStatus | null
   completedAt: Date | null
+  isPomodoro: boolean | null
+  workCycle: number | null
+  breakCycle: number | null
+  isRecurring: boolean | null
+  version: number | null
   sortOrder: number | null
   isArchived: boolean | null
   archivedAt: Date | null
@@ -78,9 +100,17 @@ export type TaskCountAggregateOutputType = {
   title: number
   description: number
   dueDate: number
+  startTime: number
+  durationMinutes: number
   priority: number
   status: number
   completedAt: number
+  isPomodoro: number
+  workCycle: number
+  breakCycle: number
+  isRecurring: number
+  subtasks: number
+  version: number
   tags: number
   sortOrder: number
   isArchived: number
@@ -92,10 +122,18 @@ export type TaskCountAggregateOutputType = {
 
 
 export type TaskAvgAggregateInputType = {
+  durationMinutes?: true
+  workCycle?: true
+  breakCycle?: true
+  version?: true
   sortOrder?: true
 }
 
 export type TaskSumAggregateInputType = {
+  durationMinutes?: true
+  workCycle?: true
+  breakCycle?: true
+  version?: true
   sortOrder?: true
 }
 
@@ -107,9 +145,16 @@ export type TaskMinAggregateInputType = {
   title?: true
   description?: true
   dueDate?: true
+  startTime?: true
+  durationMinutes?: true
   priority?: true
   status?: true
   completedAt?: true
+  isPomodoro?: true
+  workCycle?: true
+  breakCycle?: true
+  isRecurring?: true
+  version?: true
   sortOrder?: true
   isArchived?: true
   archivedAt?: true
@@ -125,9 +170,16 @@ export type TaskMaxAggregateInputType = {
   title?: true
   description?: true
   dueDate?: true
+  startTime?: true
+  durationMinutes?: true
   priority?: true
   status?: true
   completedAt?: true
+  isPomodoro?: true
+  workCycle?: true
+  breakCycle?: true
+  isRecurring?: true
+  version?: true
   sortOrder?: true
   isArchived?: true
   archivedAt?: true
@@ -143,9 +195,17 @@ export type TaskCountAggregateInputType = {
   title?: true
   description?: true
   dueDate?: true
+  startTime?: true
+  durationMinutes?: true
   priority?: true
   status?: true
   completedAt?: true
+  isPomodoro?: true
+  workCycle?: true
+  breakCycle?: true
+  isRecurring?: true
+  subtasks?: true
+  version?: true
   tags?: true
   sortOrder?: true
   isArchived?: true
@@ -249,9 +309,17 @@ export type TaskGroupByOutputType = {
   title: string
   description: string | null
   dueDate: string | null
+  startTime: string | null
+  durationMinutes: number | null
   priority: $Enums.TaskPriority
   status: $Enums.TaskStatus
   completedAt: Date | null
+  isPomodoro: boolean
+  workCycle: number
+  breakCycle: number
+  isRecurring: boolean
+  subtasks: runtime.JsonValue
+  version: number
   tags: runtime.JsonValue
   sortOrder: number
   isArchived: boolean
@@ -291,9 +359,17 @@ export type TaskWhereInput = {
   title?: Prisma.StringFilter<"Task"> | string
   description?: Prisma.StringNullableFilter<"Task"> | string | null
   dueDate?: Prisma.StringNullableFilter<"Task"> | string | null
+  startTime?: Prisma.StringNullableFilter<"Task"> | string | null
+  durationMinutes?: Prisma.IntNullableFilter<"Task"> | number | null
   priority?: Prisma.EnumTaskPriorityFilter<"Task"> | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFilter<"Task"> | $Enums.TaskStatus
   completedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
+  isPomodoro?: Prisma.BoolFilter<"Task"> | boolean
+  workCycle?: Prisma.IntFilter<"Task"> | number
+  breakCycle?: Prisma.IntFilter<"Task"> | number
+  isRecurring?: Prisma.BoolFilter<"Task"> | boolean
+  subtasks?: Prisma.JsonFilter<"Task">
+  version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
@@ -313,9 +389,17 @@ export type TaskOrderByWithRelationInput = {
   title?: Prisma.SortOrder
   description?: Prisma.SortOrderInput | Prisma.SortOrder
   dueDate?: Prisma.SortOrderInput | Prisma.SortOrder
+  startTime?: Prisma.SortOrderInput | Prisma.SortOrder
+  durationMinutes?: Prisma.SortOrderInput | Prisma.SortOrder
   priority?: Prisma.SortOrder
   status?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  isPomodoro?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  isRecurring?: Prisma.SortOrder
+  subtasks?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
@@ -338,9 +422,17 @@ export type TaskWhereUniqueInput = Prisma.AtLeast<{
   title?: Prisma.StringFilter<"Task"> | string
   description?: Prisma.StringNullableFilter<"Task"> | string | null
   dueDate?: Prisma.StringNullableFilter<"Task"> | string | null
+  startTime?: Prisma.StringNullableFilter<"Task"> | string | null
+  durationMinutes?: Prisma.IntNullableFilter<"Task"> | number | null
   priority?: Prisma.EnumTaskPriorityFilter<"Task"> | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFilter<"Task"> | $Enums.TaskStatus
   completedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
+  isPomodoro?: Prisma.BoolFilter<"Task"> | boolean
+  workCycle?: Prisma.IntFilter<"Task"> | number
+  breakCycle?: Prisma.IntFilter<"Task"> | number
+  isRecurring?: Prisma.BoolFilter<"Task"> | boolean
+  subtasks?: Prisma.JsonFilter<"Task">
+  version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
@@ -360,9 +452,17 @@ export type TaskOrderByWithAggregationInput = {
   title?: Prisma.SortOrder
   description?: Prisma.SortOrderInput | Prisma.SortOrder
   dueDate?: Prisma.SortOrderInput | Prisma.SortOrder
+  startTime?: Prisma.SortOrderInput | Prisma.SortOrder
+  durationMinutes?: Prisma.SortOrderInput | Prisma.SortOrder
   priority?: Prisma.SortOrder
   status?: Prisma.SortOrder
   completedAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  isPomodoro?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  isRecurring?: Prisma.SortOrder
+  subtasks?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
@@ -387,9 +487,17 @@ export type TaskScalarWhereWithAggregatesInput = {
   title?: Prisma.StringWithAggregatesFilter<"Task"> | string
   description?: Prisma.StringNullableWithAggregatesFilter<"Task"> | string | null
   dueDate?: Prisma.StringNullableWithAggregatesFilter<"Task"> | string | null
+  startTime?: Prisma.StringNullableWithAggregatesFilter<"Task"> | string | null
+  durationMinutes?: Prisma.IntNullableWithAggregatesFilter<"Task"> | number | null
   priority?: Prisma.EnumTaskPriorityWithAggregatesFilter<"Task"> | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusWithAggregatesFilter<"Task"> | $Enums.TaskStatus
   completedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Task"> | Date | string | null
+  isPomodoro?: Prisma.BoolWithAggregatesFilter<"Task"> | boolean
+  workCycle?: Prisma.IntWithAggregatesFilter<"Task"> | number
+  breakCycle?: Prisma.IntWithAggregatesFilter<"Task"> | number
+  isRecurring?: Prisma.BoolWithAggregatesFilter<"Task"> | boolean
+  subtasks?: Prisma.JsonWithAggregatesFilter<"Task">
+  version?: Prisma.IntWithAggregatesFilter<"Task"> | number
   tags?: Prisma.JsonWithAggregatesFilter<"Task">
   sortOrder?: Prisma.IntWithAggregatesFilter<"Task"> | number
   isArchived?: Prisma.BoolWithAggregatesFilter<"Task"> | boolean
@@ -403,9 +511,17 @@ export type TaskCreateInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -425,9 +541,17 @@ export type TaskUncheckedCreateInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -441,9 +565,17 @@ export type TaskUpdateInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -463,9 +595,17 @@ export type TaskUncheckedUpdateInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -482,9 +622,17 @@ export type TaskCreateManyInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -498,9 +646,17 @@ export type TaskUpdateManyMutationInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -517,9 +673,17 @@ export type TaskUncheckedUpdateManyInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -546,9 +710,17 @@ export type TaskCountOrderByAggregateInput = {
   title?: Prisma.SortOrder
   description?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
+  startTime?: Prisma.SortOrder
+  durationMinutes?: Prisma.SortOrder
   priority?: Prisma.SortOrder
   status?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
+  isPomodoro?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  isRecurring?: Prisma.SortOrder
+  subtasks?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
@@ -558,6 +730,10 @@ export type TaskCountOrderByAggregateInput = {
 }
 
 export type TaskAvgOrderByAggregateInput = {
+  durationMinutes?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
 }
 
@@ -569,9 +745,16 @@ export type TaskMaxOrderByAggregateInput = {
   title?: Prisma.SortOrder
   description?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
+  startTime?: Prisma.SortOrder
+  durationMinutes?: Prisma.SortOrder
   priority?: Prisma.SortOrder
   status?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
+  isPomodoro?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  isRecurring?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
@@ -587,9 +770,16 @@ export type TaskMinOrderByAggregateInput = {
   title?: Prisma.SortOrder
   description?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
+  startTime?: Prisma.SortOrder
+  durationMinutes?: Prisma.SortOrder
   priority?: Prisma.SortOrder
   status?: Prisma.SortOrder
   completedAt?: Prisma.SortOrder
+  isPomodoro?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  isRecurring?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
@@ -598,6 +788,10 @@ export type TaskMinOrderByAggregateInput = {
 }
 
 export type TaskSumOrderByAggregateInput = {
+  durationMinutes?: Prisma.SortOrder
+  workCycle?: Prisma.SortOrder
+  breakCycle?: Prisma.SortOrder
+  version?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
 }
 
@@ -740,9 +934,17 @@ export type TaskCreateWithoutUserInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -760,9 +962,17 @@ export type TaskUncheckedCreateWithoutUserInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -808,9 +1018,17 @@ export type TaskScalarWhereInput = {
   title?: Prisma.StringFilter<"Task"> | string
   description?: Prisma.StringNullableFilter<"Task"> | string | null
   dueDate?: Prisma.StringNullableFilter<"Task"> | string | null
+  startTime?: Prisma.StringNullableFilter<"Task"> | string | null
+  durationMinutes?: Prisma.IntNullableFilter<"Task"> | number | null
   priority?: Prisma.EnumTaskPriorityFilter<"Task"> | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFilter<"Task"> | $Enums.TaskStatus
   completedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
+  isPomodoro?: Prisma.BoolFilter<"Task"> | boolean
+  workCycle?: Prisma.IntFilter<"Task"> | number
+  breakCycle?: Prisma.IntFilter<"Task"> | number
+  isRecurring?: Prisma.BoolFilter<"Task"> | boolean
+  subtasks?: Prisma.JsonFilter<"Task">
+  version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
@@ -824,9 +1042,17 @@ export type TaskCreateWithoutLifeAreaInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -844,9 +1070,17 @@ export type TaskUncheckedCreateWithoutLifeAreaInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -886,9 +1120,17 @@ export type TaskCreateWithoutTrackerInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -906,9 +1148,17 @@ export type TaskUncheckedCreateWithoutTrackerInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -950,9 +1200,17 @@ export type TaskCreateManyUserInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -966,9 +1224,17 @@ export type TaskUpdateWithoutUserInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -986,9 +1252,17 @@ export type TaskUncheckedUpdateWithoutUserInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1004,9 +1278,17 @@ export type TaskUncheckedUpdateManyWithoutUserInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1022,9 +1304,17 @@ export type TaskCreateManyLifeAreaInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -1038,9 +1328,17 @@ export type TaskUpdateWithoutLifeAreaInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1058,9 +1356,17 @@ export type TaskUncheckedUpdateWithoutLifeAreaInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1076,9 +1382,17 @@ export type TaskUncheckedUpdateManyWithoutLifeAreaInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1094,9 +1408,17 @@ export type TaskCreateManyTrackerInput = {
   title: string
   description?: string | null
   dueDate?: string | null
+  startTime?: string | null
+  durationMinutes?: number | null
   priority?: $Enums.TaskPriority
   status?: $Enums.TaskStatus
   completedAt?: Date | string | null
+  isPomodoro?: boolean
+  workCycle?: number
+  breakCycle?: number
+  isRecurring?: boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
@@ -1110,9 +1432,17 @@ export type TaskUpdateWithoutTrackerInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1130,9 +1460,17 @@ export type TaskUncheckedUpdateWithoutTrackerInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1148,9 +1486,17 @@ export type TaskUncheckedUpdateManyWithoutTrackerInput = {
   title?: Prisma.StringFieldUpdateOperationsInput | string
   description?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  startTime?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  durationMinutes?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
   priority?: Prisma.EnumTaskPriorityFieldUpdateOperationsInput | $Enums.TaskPriority
   status?: Prisma.EnumTaskStatusFieldUpdateOperationsInput | $Enums.TaskStatus
   completedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  isPomodoro?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  workCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  breakCycle?: Prisma.IntFieldUpdateOperationsInput | number
+  isRecurring?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
@@ -1169,9 +1515,17 @@ export type TaskSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   title?: boolean
   description?: boolean
   dueDate?: boolean
+  startTime?: boolean
+  durationMinutes?: boolean
   priority?: boolean
   status?: boolean
   completedAt?: boolean
+  isPomodoro?: boolean
+  workCycle?: boolean
+  breakCycle?: boolean
+  isRecurring?: boolean
+  subtasks?: boolean
+  version?: boolean
   tags?: boolean
   sortOrder?: boolean
   isArchived?: boolean
@@ -1191,9 +1545,17 @@ export type TaskSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   title?: boolean
   description?: boolean
   dueDate?: boolean
+  startTime?: boolean
+  durationMinutes?: boolean
   priority?: boolean
   status?: boolean
   completedAt?: boolean
+  isPomodoro?: boolean
+  workCycle?: boolean
+  breakCycle?: boolean
+  isRecurring?: boolean
+  subtasks?: boolean
+  version?: boolean
   tags?: boolean
   sortOrder?: boolean
   isArchived?: boolean
@@ -1213,9 +1575,17 @@ export type TaskSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   title?: boolean
   description?: boolean
   dueDate?: boolean
+  startTime?: boolean
+  durationMinutes?: boolean
   priority?: boolean
   status?: boolean
   completedAt?: boolean
+  isPomodoro?: boolean
+  workCycle?: boolean
+  breakCycle?: boolean
+  isRecurring?: boolean
+  subtasks?: boolean
+  version?: boolean
   tags?: boolean
   sortOrder?: boolean
   isArchived?: boolean
@@ -1235,9 +1605,17 @@ export type TaskSelectScalar = {
   title?: boolean
   description?: boolean
   dueDate?: boolean
+  startTime?: boolean
+  durationMinutes?: boolean
   priority?: boolean
   status?: boolean
   completedAt?: boolean
+  isPomodoro?: boolean
+  workCycle?: boolean
+  breakCycle?: boolean
+  isRecurring?: boolean
+  subtasks?: boolean
+  version?: boolean
   tags?: boolean
   sortOrder?: boolean
   isArchived?: boolean
@@ -1246,7 +1624,7 @@ export type TaskSelectScalar = {
   updatedAt?: boolean
 }
 
-export type TaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "lifeAreaId" | "trackerId" | "title" | "description" | "dueDate" | "priority" | "status" | "completedAt" | "tags" | "sortOrder" | "isArchived" | "archivedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["task"]>
+export type TaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "lifeAreaId" | "trackerId" | "title" | "description" | "dueDate" | "startTime" | "durationMinutes" | "priority" | "status" | "completedAt" | "isPomodoro" | "workCycle" | "breakCycle" | "isRecurring" | "subtasks" | "version" | "tags" | "sortOrder" | "isArchived" | "archivedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["task"]>
 export type TaskInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   lifeArea?: boolean | Prisma.Task$lifeAreaArgs<ExtArgs>
@@ -1278,9 +1656,17 @@ export type $TaskPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     title: string
     description: string | null
     dueDate: string | null
+    startTime: string | null
+    durationMinutes: number | null
     priority: $Enums.TaskPriority
     status: $Enums.TaskStatus
     completedAt: Date | null
+    isPomodoro: boolean
+    workCycle: number
+    breakCycle: number
+    isRecurring: boolean
+    subtasks: runtime.JsonValue
+    version: number
     tags: runtime.JsonValue
     sortOrder: number
     isArchived: boolean
@@ -1720,9 +2106,17 @@ export interface TaskFieldRefs {
   readonly title: Prisma.FieldRef<"Task", 'String'>
   readonly description: Prisma.FieldRef<"Task", 'String'>
   readonly dueDate: Prisma.FieldRef<"Task", 'String'>
+  readonly startTime: Prisma.FieldRef<"Task", 'String'>
+  readonly durationMinutes: Prisma.FieldRef<"Task", 'Int'>
   readonly priority: Prisma.FieldRef<"Task", 'TaskPriority'>
   readonly status: Prisma.FieldRef<"Task", 'TaskStatus'>
   readonly completedAt: Prisma.FieldRef<"Task", 'DateTime'>
+  readonly isPomodoro: Prisma.FieldRef<"Task", 'Boolean'>
+  readonly workCycle: Prisma.FieldRef<"Task", 'Int'>
+  readonly breakCycle: Prisma.FieldRef<"Task", 'Int'>
+  readonly isRecurring: Prisma.FieldRef<"Task", 'Boolean'>
+  readonly subtasks: Prisma.FieldRef<"Task", 'Json'>
+  readonly version: Prisma.FieldRef<"Task", 'Int'>
   readonly tags: Prisma.FieldRef<"Task", 'Json'>
   readonly sortOrder: Prisma.FieldRef<"Task", 'Int'>
   readonly isArchived: Prisma.FieldRef<"Task", 'Boolean'>

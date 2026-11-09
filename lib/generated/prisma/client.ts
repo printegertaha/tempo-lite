@@ -106,3 +106,23 @@ export type AbstinenceTracker = Prisma.AbstinenceTrackerModel
  * 
  */
 export type AbstinenceSession = Prisma.AbstinenceSessionModel
+/**
+ * Model MutationReceipt
+ * 
+ */
+export type MutationReceipt = Prisma.MutationReceiptModel
+/**
+ * Model GymWorkout
+ * 
+ */
+export type GymWorkout = Prisma.GymWorkoutModel
+/**
+ * Model MealEntry
+ * 
+ */
+export type MealEntry = Prisma.MealEntryModel
+/**
+ * Model ExpenseEntry
+ * 
+ */
+export type ExpenseEntry = Prisma.ExpenseEntryModel

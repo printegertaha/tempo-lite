@@ -112,7 +112,29 @@ export default function DynamicHabitsGrid({
   onOpenDetailedLog,
 }) {
   if (!trackers || trackers.length === 0) {
-    return null;
+    return (
+      <div className="p-6 rounded-2xl bg-zinc-950/60 border border-zinc-800/80 text-center space-y-3">
+        <div className="w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400 flex items-center justify-center mx-auto">
+          <Flame className="w-5 h-5" />
+        </div>
+        <div>
+          <h3 className="text-xs font-bold text-zinc-200">لا توجد عادات نشطة بعد</h3>
+          <p className="text-[11px] text-zinc-500 max-w-sm mx-auto mt-0.5">
+            ابدأ ببناء روتينك اليومي وتتبع ما يهمك (قراءة، رياضة، ماء، صلوات، عمل عميق).
+          </p>
+        </div>
+        {onOpenCreateTracker && (
+          <button
+            type="button"
+            onClick={onOpenCreateTracker}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-md shadow-violet-600/20 transition-all active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>أنشئ أول عادة</span>
+          </button>
+        )}
+      </div>
+    );
   }
 
   return (

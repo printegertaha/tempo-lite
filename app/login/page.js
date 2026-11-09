@@ -164,24 +164,8 @@ function LoginContent() {
             </button>
           </form>
 
-          {/* Quick Alternative Actions */}
-          <div className="relative flex items-center justify-center my-2">
-            <div className="border-t border-zinc-800 w-full" />
-            <span className="bg-[#0c0e17] px-3 text-[11px] text-zinc-500 shrink-0 font-medium">
-              أو خيارات الدخول السريع
-            </span>
-            <div className="border-t border-zinc-800 w-full" />
-          </div>
-
+          {/* Google Sign In */}
           <div className="space-y-3">
-            <a
-              href="/api/auth/owner-login"
-              className="w-full flex items-center justify-center gap-2.5 py-3 px-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-850 border border-violet-500/30 text-violet-300 text-xs font-bold transition-all"
-            >
-              <Sparkles className="w-3.5 h-3.5 text-amber-300" />
-              <span>دخول المالك الفوري (Taha)</span>
-            </a>
-
             <GoogleSignInButton
               returnTo={returnTo}
               label="تسجيل الدخول باستخدام Google"

@@ -1,7 +1,6 @@
 import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import { AtharProvider } from "@/components/context/AtharContext";
-import QuickLogModal from "@/components/QuickLogModal";
 import Toast from "@/components/Toast";
 import "./globals.css";
 
@@ -45,7 +44,6 @@ export default function RootLayout({ children }) {
             </main>
           </div>
 
-          <QuickLogModal />
           <Toast />
         </AtharProvider>
       </body>
