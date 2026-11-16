@@ -17,8 +17,10 @@ export default function PrayerDetailModal({
   const [durationMinutes, setDurationMinutes] = useState(12);
   const [notes, setNotes] = useState("");
   const [isDone, setIsDone] = useState(true);
+  const [prevPrayerData, setPrevPrayerData] = useState(prayerData);
 
-  useEffect(() => {
+  if (prevPrayerData !== prayerData) {
+    setPrevPrayerData(prayerData);
     if (prayerData) {
       setActualTime(prayerData.actualTime || prayerData.scheduledTime || "12:00");
       setLocation(prayerData.location || "mosque");
@@ -28,7 +30,7 @@ export default function PrayerDetailModal({
       setNotes(prayerData.notes || "");
       setIsDone(prayerData.done !== false);
     }
-  }, [prayerData]);
+  }
 
   if (!isOpen || !prayerData) return null;
 

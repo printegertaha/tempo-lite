@@ -59,9 +59,13 @@ export default function TaskModal({
   const [tagInput, setTagInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevTaskId, setPrevTaskId] = useState(task?.id);
 
   // Populate state on open or change
-  useEffect(() => {
+  if (prevIsOpen !== isOpen || prevTaskId !== task?.id) {
+    setPrevIsOpen(isOpen);
+    setPrevTaskId(task?.id);
     if (task) {
       setTitle(task.title || "");
       setDescription(task.description || "");
@@ -82,7 +86,7 @@ export default function TaskModal({
       setTags([]);
     }
     setErrorMessage("");
-  }, [task, isOpen, todayStr]);
+  }
 
   if (!isOpen) return null;
 

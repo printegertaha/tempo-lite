@@ -14,14 +14,16 @@ export default function SmokingEventModal({
   const [trigger, setTrigger] = useState("توتر وضغط عمل");
   const [durationMinutes, setDurationMinutes] = useState(7);
   const [notes, setNotes] = useState("");
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
-  useEffect(() => {
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       try {
         setEventTime(new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }));
       } catch {}
     }
-  }, [isOpen]);
+  }
 
   if (!isOpen) return null;
 

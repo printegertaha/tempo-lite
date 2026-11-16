@@ -26,9 +26,25 @@ import {
   ShieldCheck,
   Compass,
 } from "lucide-react";
+import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
 import GoogleSignInButton from "./auth/GoogleSignInButton";
-import SyncStatusBadge from "@/components/sync/SyncStatusBadge";
+
+const SyncStatusBadge = dynamic(
+  () => import("@/components/sync/SyncStatusBadge"),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-zinc-800/40 border border-zinc-700/40 text-transparent text-[11px] font-medium select-none pointer-events-none opacity-0"
+        aria-hidden="true"
+      >
+        <span className="w-1.5 h-1.5 rounded-full bg-transparent" />
+        <span>المزامنة</span>
+      </div>
+    ),
+  }
+);
 
 export default function Navbar() {
   const pathname = usePathname();
@@ -42,14 +58,15 @@ export default function Navbar() {
 
   const moreDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
+  const [prevPathname, setPrevPathname] = useState(pathname);
 
-
-  // Close menus on path change
-  useEffect(() => {
+  // Close menus when route/path changes (React state adjustment pattern)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
     setMobileMenuOpen(false);
     setMoreDropdownOpen(false);
     setUserDropdownOpen(false);
-  }, [pathname]);
+  }
 
   // Lock body scroll when mobile menu is open
   useEffect(() => {
@@ -176,9 +193,7 @@ export default function Navbar() {
                   <span className="text-lg font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
                     أثـر
                   </span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-violet-500/15 border border-violet-500/25 text-violet-300">
-                    ATHAR
-                  </span>
+
                 </div>
                 <span className="text-[11px] text-zinc-400 block -mt-0.5">
                   منظومة إتقان العادات وعمارة الوقت
@@ -226,7 +241,7 @@ export default function Navbar() {
                 <div className="text-right">
                   <div className="flex items-center gap-1.5">
                     <span className="text-lg sm:text-xl font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
-                      Tempo 
+                      أثـر
                     </span>
                   </div>
                 </div>
@@ -320,14 +335,14 @@ export default function Navbar() {
 
             {/* 3. Left side (User, Quick Actions, Mobile Menu) */}
             <div className="flex items-center gap-2.5">
+              {/* Live Local-First Sync / Guest Status */}
+              <div className="hidden sm:flex items-center">
+                <SyncStatusBadge />
+              </div>
+
               {/* Authenticated user actions */}
               {isAuthenticated ? (
                 <>
-                  {/* Live Local-First Sync Status */}
-                  <div className="hidden sm:flex items-center">
-                    <SyncStatusBadge />
-                  </div>
-
                   {/* Settings link */}
                   <Link
                     href="/settings"
@@ -424,12 +439,7 @@ export default function Navbar() {
                   >
                     تسجيل الدخول
                   </Link>
-                  <Link
-                    href="/register"
-                    className="hidden sm:inline-flex px-3 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-850 border border-zinc-800 text-zinc-300 hover:text-white text-xs font-semibold transition-all"
-                  >
-                    حساب جديد
-                  </Link>
+            
                 </div>
               )}
 
@@ -586,12 +596,12 @@ export default function Navbar() {
           href="/"
           className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
             pathname === "/"
-              ? "text-violet-400 font-bold"
+              ? "text-emerald-400 font-bold"
               : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
-          <LayoutDashboard className="w-5 h-5" />
-          <span className="text-[10px]">الرئيسية</span>
+          <Flame className="w-5 h-5" />
+          <span className="text-[10px]">اليوم</span>
         </Link>
 
         <Link
@@ -602,7 +612,7 @@ export default function Navbar() {
               : "text-zinc-400 hover:text-zinc-200"
           }`}
         >
-          <Flame className="w-5 h-5" />
+          <Sparkles className="w-5 h-5" />
           <span className="text-[10px]">العادات</span>
         </Link>
 
@@ -647,7 +657,7 @@ export default function Navbar() {
           }`}
         >
           <BookMarked className="w-5 h-5" />
-          <span className="text-[10px]">اليوميات</span>
+          <span className="text-[10px]">اليومية</span>
         </Link>
       </nav>
     </>

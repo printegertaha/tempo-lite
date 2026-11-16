@@ -67,7 +67,8 @@ export const ModelName = {
   MutationReceipt: 'MutationReceipt',
   GymWorkout: 'GymWorkout',
   MealEntry: 'MealEntry',
-  ExpenseEntry: 'ExpenseEntry'
+  ExpenseEntry: 'ExpenseEntry',
+  PrayerRecord: 'PrayerRecord'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -391,6 +392,23 @@ export const ExpenseEntryScalarFieldEnum = {
 } as const
 
 export type ExpenseEntryScalarFieldEnum = (typeof ExpenseEntryScalarFieldEnum)[keyof typeof ExpenseEntryScalarFieldEnum]
+
+
+export const PrayerRecordScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  prayerKey: 'prayerKey',
+  isCompleted: 'isCompleted',
+  completedAt: 'completedAt',
+  location: 'location',
+  withSunnah: 'withSunnah',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PrayerRecordScalarFieldEnum = (typeof PrayerRecordScalarFieldEnum)[keyof typeof PrayerRecordScalarFieldEnum]
 
 
 export const SortOrder = {

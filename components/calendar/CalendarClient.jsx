@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { getCalendarMonthSummary } from "@/actions/history";
 import Link from "next/link";
 import {
@@ -33,9 +33,96 @@ export default function CalendarClient({
 
   const isInitialMount = useRef(true);
 
-  const loadMonthData = async (y, m) => {
-    if (!user) return;
+  const loadMonthData = useCallback(async (y, m) => {
     setIsLoading(true);
+    if (!user || user.isGuest || user.id === "guest") {
+      try {
+        const { getLocalDB } = await import("@/lib/local-db");
+        const db = await getLocalDB();
+        const [guestTasks, guestNotes, guestPrayers] = await Promise.all([
+          db.getAllFromIndex("tasks", "by-user", "guest").catch(() => []),
+          db.getAll("daily_notes").catch(() => []),
+          db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
+        ]);
+
+        const daysMap = {};
+        for (const t of guestTasks) {
+          if (t.dueDate) {
+            const [ty, tm] = t.dueDate.split("-").map(Number);
+            if (ty === y && tm === m) {
+              if (!daysMap[t.dueDate]) {
+                daysMap[t.dueDate] = {
+                  date: t.dueDate,
+                  taskCount: 0,
+                  completedTasks: 0,
+                  entriesCount: 0,
+                  completedPrayers: 0,
+                  hasData: false,
+                };
+              }
+              daysMap[t.dueDate].taskCount++;
+              if (t.status === "COMPLETED") daysMap[t.dueDate].completedTasks++;
+            }
+          }
+        }
+
+        for (const n of guestNotes) {
+          if (n.localDate && (n.userId === "guest" || !n.userId)) {
+            const [ny, nm] = n.localDate.split("-").map(Number);
+            if (ny === y && nm === m) {
+              if (!daysMap[n.localDate]) {
+                daysMap[n.localDate] = {
+                  date: n.localDate,
+                  taskCount: 0,
+                  completedTasks: 0,
+                  entriesCount: 0,
+                  completedPrayers: 0,
+                  hasData: false,
+                };
+              }
+              daysMap[n.localDate].entriesCount = (daysMap[n.localDate].entriesCount || 0) + 1;
+            }
+          }
+        }
+
+        for (const p of guestPrayers) {
+          if (p.date && p.isCompleted) {
+            const [py, pm] = p.date.split("-").map(Number);
+            if (py === y && pm === m) {
+              if (!daysMap[p.date]) {
+                daysMap[p.date] = {
+                  date: p.date,
+                  taskCount: 0,
+                  completedTasks: 0,
+                  entriesCount: 0,
+                  completedPrayers: 0,
+                  hasData: false,
+                };
+              }
+              daysMap[p.date].completedPrayers = (daysMap[p.date].completedPrayers || 0) + 1;
+            }
+          }
+        }
+
+        // Set hasData flag for every day with activity
+        Object.keys(daysMap).forEach((dateKey) => {
+          const d = daysMap[dateKey];
+          d.hasData = d.completedTasks > 0 || d.taskCount > 0 || d.entriesCount > 0 || (d.completedPrayers || 0) > 0;
+        });
+
+        setMonthData({
+          year: y,
+          month: m,
+          days: daysMap,
+        });
+      } catch (err) {
+        console.error("Error loading guest calendar data:", err);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await getCalendarMonthSummary(y, m);
       if (res.success && res.data) {
@@ -46,15 +133,19 @@ export default function CalendarClient({
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
+      if (!user) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        loadMonthData(currentYear, currentMonth);
+      }
       return;
     }
     loadMonthData(currentYear, currentMonth);
-  }, [currentYear, currentMonth]);
+  }, [currentYear, currentMonth, user, loadMonthData]);
 
   const handlePrevMonth = () => {
     if (currentMonth === 1) {
@@ -73,31 +164,6 @@ export default function CalendarClient({
       setCurrentMonth((prev) => prev + 1);
     }
   };
-
-  if (!user) {
-    return (
-      <div className="max-w-md mx-auto py-24 px-4 text-center">
-        <div className="p-8 rounded-3xl bg-zinc-950/80 border border-zinc-800 shadow-2xl space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto text-violet-400">
-            <CalendarIcon className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-zinc-100">سجل الدخول لاستعراض التقويم</h2>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              استعرض سجل إنجازاتك اليومية عبر التقويم التفاعلي المرتبط مباشرة بأنشطتك وجلساتك الحقيقية.
-            </p>
-          </div>
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-lg shadow-violet-600/20 transition-all active:scale-95"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>تسجيل الدخول عبر Google</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   // Format month name in Arabic
   const monthDate = new Date(currentYear, currentMonth - 1, 1);
@@ -153,6 +219,25 @@ export default function CalendarClient({
           </button>
         </div>
       </div>
+
+      {/* Guest Mode Informational Banner */}
+      {!user && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-violet-500/10 border border-violet-500/25 text-violet-300">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
+            <span className="text-xs font-medium">
+              <b>وضع الضيف المحلي (Offline-First):</b> سجل إنجازاتك اليومية يعتمد على المهام والأنشطة المحفوظة في متصفحك.
+            </span>
+          </div>
+          <Link
+            href="/login?returnTo=/calendar"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0 active:scale-95"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>تسجيل الدخول / حساب جديد</span>
+          </Link>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Calendar Grid (2 Cols) */}

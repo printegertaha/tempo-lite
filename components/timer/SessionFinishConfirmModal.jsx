@@ -18,16 +18,18 @@ export default function SessionFinishConfirmModal({
   const [projectName, setProjectName] = useState(initialProject || "");
   const [taskName, setTaskName] = useState(initialTask || "");
   const [notes, setNotes] = useState("");
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
   // Keep in sync whenever opened with new elapsed time
-  useEffect(() => {
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setAdjustedSeconds(Math.max(60, initialSeconds || 60));
       setProjectName(initialProject || (sessionType === "gym" ? "جلسة تمرين" : "مشروع البرمجة"));
       setTaskName(initialTask || "");
       setNotes("");
     }
-  }, [isOpen, initialSeconds, initialProject, initialTask, sessionType]);
+  }
 
   if (!isOpen) return null;
 

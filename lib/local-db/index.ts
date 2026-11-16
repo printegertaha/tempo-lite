@@ -44,6 +44,19 @@ export interface LocalMutation {
   lastError?: string;
 }
 
+export interface LocalPrayerRecord {
+  id: string;
+  userId: string;
+  date: string; // YYYY-MM-DD
+  prayerKey: "fajr" | "dhuhr" | "asr" | "maghrib" | "isha";
+  isCompleted: boolean;
+  completedAt?: string | null;
+  location?: "mosque" | "home" | "work" | "other" | null;
+  withSunnah?: boolean;
+  notes?: string | null;
+  clientUpdatedAt: number;
+}
+
 interface AtharDBSchema extends DBSchema {
   tasks: {
     key: string;
@@ -52,6 +65,14 @@ interface AtharDBSchema extends DBSchema {
       "by-user": string;
       "by-user-date": [string, string];
       "by-user-status": [string, string];
+    };
+  };
+  prayer_records: {
+    key: string;
+    value: LocalPrayerRecord;
+    indexes: {
+      "by-user-date": [string, string];
+      "by-user": string;
     };
   };
   trackers: {
@@ -88,6 +109,21 @@ interface AtharDBSchema extends DBSchema {
     key: string;
     value: { key: string; value: any; updatedAt: number };
   };
+  abstinence_trackers: {
+    key: string;
+    value: any;
+    indexes: {
+      "by-user": string;
+    };
+  };
+  abstinence_sessions: {
+    key: string;
+    value: any;
+    indexes: {
+      "by-user": string;
+      "by-user-tracker": [string, string];
+    };
+  };
   gym_workouts: {
     key: string;
     value: any;
@@ -112,7 +148,7 @@ interface AtharDBSchema extends DBSchema {
 }
 
 const DB_NAME = "athar_local_v2";
-const DB_VERSION = 1;
+const DB_VERSION = 3;
 
 let dbPromise: Promise<IDBPDatabase<AtharDBSchema>> | null = null;
 
@@ -175,6 +211,24 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
         if (!db.objectStoreNames.contains("expense_entries")) {
           const expenseStore = db.createObjectStore("expense_entries", { keyPath: "id" });
           expenseStore.createIndex("by-user-date", ["userId", "date"]);
+        }
+
+        // 8. Dedicated Abstinence & Relapse Stores
+        if (!db.objectStoreNames.contains("abstinence_trackers")) {
+          const absStore = db.createObjectStore("abstinence_trackers", { keyPath: "id" });
+          absStore.createIndex("by-user", "userId");
+        }
+        if (!db.objectStoreNames.contains("abstinence_sessions")) {
+          const sessStore = db.createObjectStore("abstinence_sessions", { keyPath: "id" });
+          sessStore.createIndex("by-user", "userId");
+          sessStore.createIndex("by-user-tracker", ["userId", "trackerId"]);
+        }
+
+        // 9. Dedicated Prayer Tracking Store
+        if (!db.objectStoreNames.contains("prayer_records")) {
+          const prayerStore = db.createObjectStore("prayer_records", { keyPath: "id" });
+          prayerStore.createIndex("by-user", "userId");
+          prayerStore.createIndex("by-user-date", ["userId", "date"]);
         }
       },
     });
@@ -297,6 +351,225 @@ export const localMetadataRepo = {
   async set(key: string, value: any): Promise<void> {
     const db = await getLocalDB();
     await db.put("metadata", { key, value, updatedAt: Date.now() });
+  },
+};
+
+export const localPrayerRepo = {
+  async getByDate(userId: string, date: string): Promise<LocalPrayerRecord[]> {
+    const db = await getLocalDB();
+    return db.getAllFromIndex("prayer_records", "by-user-date", [userId, date]);
+  },
+
+  async getById(id: string): Promise<LocalPrayerRecord | undefined> {
+    const db = await getLocalDB();
+    return db.get("prayer_records", id);
+  },
+
+  async save(record: LocalPrayerRecord): Promise<void> {
+    const db = await getLocalDB();
+    await db.put("prayer_records", record);
+  },
+
+  async saveBatch(records: LocalPrayerRecord[]): Promise<void> {
+    const db = await getLocalDB();
+    const tx = db.transaction("prayer_records", "readwrite");
+    for (const r of records) {
+      await tx.store.put(r);
+    }
+    await tx.done;
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getLocalDB();
+    await db.delete("prayer_records", id);
+  },
+};
+
+export interface GuestDataSummary {
+  hasData: boolean;
+  tasksCount: number;
+  prayersCount: number;
+  trackersCount: number;
+  abstinenceCount: number;
+  entriesCount: number;
+  notesCount: number;
+  gymCount: number;
+  mealsCount: number;
+  expensesCount: number;
+  totalRecords: number;
+}
+
+export const localGuestManager = {
+  async getSummary(): Promise<GuestDataSummary> {
+    try {
+      const db = await getLocalDB();
+      const [tasks, prayers, trackers, abstinence, notes, gym, meals, expenses] = await Promise.all([
+        db.getAllFromIndex("tasks", "by-user", "guest"),
+        db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
+        db.getAllFromIndex("trackers", "by-user", "guest"),
+        db.getAllFromIndex("abstinence_trackers", "by-user", "guest").catch(() => []),
+        db.getAll("daily_notes"),
+        db.getAll("gym_workouts"),
+        db.getAll("meal_entries"),
+        db.getAll("expense_entries"),
+      ]);
+
+      const guestNotes = notes.filter((n: any) => n.userId === "guest");
+      const guestGym = gym.filter((g: any) => g.userId === "guest");
+      const guestMeals = meals.filter((m: any) => m.userId === "guest");
+      const guestExpenses = expenses.filter((e: any) => e.userId === "guest");
+
+      const total =
+        tasks.length +
+        prayers.length +
+        trackers.length +
+        abstinence.length +
+        guestNotes.length +
+        guestGym.length +
+        guestMeals.length +
+        guestExpenses.length;
+
+      return {
+        hasData: total > 0,
+        tasksCount: tasks.length,
+        prayersCount: prayers.length,
+        trackersCount: trackers.length,
+        abstinenceCount: abstinence.length,
+        entriesCount: 0,
+        notesCount: guestNotes.length,
+        gymCount: guestGym.length,
+        mealsCount: guestMeals.length,
+        expensesCount: guestExpenses.length,
+        totalRecords: total,
+      };
+    } catch {
+      return {
+        hasData: false,
+        tasksCount: 0,
+        prayersCount: 0,
+        trackersCount: 0,
+        abstinenceCount: 0,
+        entriesCount: 0,
+        notesCount: 0,
+        gymCount: 0,
+        mealsCount: 0,
+        expensesCount: 0,
+        totalRecords: 0,
+      };
+    }
+  },
+
+  async getAllGuestPayload(): Promise<{
+    tasks: any[];
+    prayers: any[];
+    trackers: any[];
+    abstinenceTrackers: any[];
+    dailyNotes: any[];
+    gymWorkouts: any[];
+    mealEntries: any[];
+    expenseEntries: any[];
+  }> {
+    const db = await getLocalDB();
+    const [tasks, prayers, trackers, abstinence, notes, gym, meals, expenses] = await Promise.all([
+      db.getAllFromIndex("tasks", "by-user", "guest"),
+      db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
+      db.getAllFromIndex("trackers", "by-user", "guest"),
+      db.getAllFromIndex("abstinence_trackers", "by-user", "guest").catch(() => []),
+      db.getAll("daily_notes"),
+      db.getAll("gym_workouts"),
+      db.getAll("meal_entries"),
+      db.getAll("expense_entries"),
+    ]);
+
+    return {
+      tasks: tasks.filter((t) => !t.isArchived),
+      prayers,
+      trackers,
+      abstinenceTrackers: abstinence,
+      dailyNotes: notes.filter((n: any) => n.userId === "guest"),
+      gymWorkouts: gym.filter((g: any) => g.userId === "guest"),
+      mealEntries: meals.filter((m: any) => m.userId === "guest"),
+      expenseEntries: expenses.filter((e: any) => e.userId === "guest"),
+    };
+  },
+
+  async clearGuestData(): Promise<void> {
+    const db = await getLocalDB();
+    // 1. Clear tasks
+    const guestTasks = await db.getAllFromIndex("tasks", "by-user", "guest");
+    const taskTx = db.transaction("tasks", "readwrite");
+    for (const t of guestTasks) {
+      await taskTx.store.delete(t.id);
+    }
+    await taskTx.done;
+
+    // 2. Clear prayers
+    try {
+      const guestPrayers = await db.getAllFromIndex("prayer_records", "by-user", "guest");
+      const prayerTx = db.transaction("prayer_records", "readwrite");
+      for (const p of guestPrayers) {
+        await prayerTx.store.delete(p.id);
+      }
+      await prayerTx.done;
+    } catch {}
+
+    // 3. Clear trackers
+    const guestTrackers = await db.getAllFromIndex("trackers", "by-user", "guest");
+    const trackerTx = db.transaction("trackers", "readwrite");
+    for (const t of guestTrackers) {
+      await trackerTx.store.delete(t.id);
+    }
+    await trackerTx.done;
+
+    // 4. Clear abstinence trackers
+    try {
+      const guestAbs = await db.getAllFromIndex("abstinence_trackers", "by-user", "guest");
+      const absTx = db.transaction("abstinence_trackers", "readwrite");
+      for (const a of guestAbs) {
+        await absTx.store.delete(a.id);
+      }
+      await absTx.done;
+    } catch {}
+
+    // 5. Clear notes
+    const notes = await db.getAll("daily_notes");
+    const notesTx = db.transaction("daily_notes", "readwrite");
+    for (const n of notes) {
+      if ((n as any).userId === "guest") {
+        await notesTx.store.delete((n as any).id || (n as any).localDate);
+      }
+    }
+    await notesTx.done;
+
+    // 6. Clear gym workouts
+    const gym = await db.getAll("gym_workouts");
+    const gymTx = db.transaction("gym_workouts", "readwrite");
+    for (const g of gym) {
+      if ((g as any).userId === "guest") {
+        await gymTx.store.delete((g as any).id);
+      }
+    }
+    await gymTx.done;
+
+    // 7. Clear meals
+    const meals = await db.getAll("meal_entries");
+    const mealTx = db.transaction("meal_entries", "readwrite");
+    for (const m of meals) {
+      if ((m as any).userId === "guest") {
+        await mealTx.store.delete((m as any).id);
+      }
+    }
+    await mealTx.done;
+
+    // 8. Clear expenses
+    const expenses = await db.getAll("expense_entries");
+    const expTx = db.transaction("expense_entries", "readwrite");
+    for (const e of expenses) {
+      if ((e as any).userId === "guest") {
+        await expTx.store.delete((e as any).id);
+      }
+    }
+    await expTx.done;
   },
 };
 

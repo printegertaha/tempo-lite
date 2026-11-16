@@ -317,7 +317,36 @@ function TrackerForm({
           onSaved?.(res.data);
           onClose();
         } else {
-          onToast?.(res.error || "تعذر إنشاء المتعقب", "error");
+          // Local guest offline fallback: save to IndexedDB
+          try {
+            const { getLocalDB } = await import("@/lib/local-db");
+            const db = await getLocalDB();
+            const guestTracker = {
+              id: `guest_trk_${Date.now()}`,
+              userId: "guest",
+              name: name.trim(),
+              slug: name.trim().toLowerCase().replace(/\s+/g, "-"),
+              description: description.trim() || null,
+              icon,
+              color,
+              metricType,
+              unit: unit.trim() || null,
+              targetValue: targetValue ? Number(targetValue) : null,
+              targetFrequency,
+              scheduleConfig,
+              trackerConfig,
+              isArchived: false,
+              isPaused: false,
+              isPinned: false,
+              createdAt: new Date().toISOString(),
+            };
+            await db.put("trackers", guestTracker);
+            onToast?.("تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉", "success");
+            onSaved?.(guestTracker);
+            onClose();
+          } catch {
+            onToast?.(res.error || "تعذر إنشاء المتعقب", "error");
+          }
         }
       }
     } catch {
@@ -512,7 +541,7 @@ function TrackerForm({
           <div className="p-4 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-xs text-rose-300 space-y-1">
             <div className="font-bold flex items-center gap-1.5 text-zinc-100">
               <ShieldAlert className="w-4 h-4 text-rose-400" />
-              <span>نظام الامتناع والتعافي الدقيق</span>
+             
             </div>
             <p className="text-zinc-400 text-[11px] leading-relaxed">
               سيتم ربط هذا المتعقب تلقائياً بنظام الامتناع المتقدم بحساب الثواني والأيام الحقيقية، مع إمكانية تعديل وقت البداية وتوثيق الانتكاسات ومحفزاتها بدقة.

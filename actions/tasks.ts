@@ -68,9 +68,16 @@ export async function createTask(rawInput: CreateTaskInput) {
         title: validated.title,
         description: validated.description || null,
         dueDate: validated.dueDate || null,
+        startTime: validated.startTime || null,
+        durationMinutes: validated.durationMinutes || null,
         priority: validated.priority,
         status: validated.status,
         completedAt: validated.status === "COMPLETED" ? new Date() : null,
+        isPomodoro: validated.isPomodoro,
+        workCycle: validated.workCycle,
+        breakCycle: validated.breakCycle,
+        isRecurring: validated.isRecurring,
+        subtasks: validated.subtasks,
         lifeAreaId: validated.lifeAreaId || null,
         trackerId: validated.trackerId || null,
         tags: validated.tags,
@@ -201,9 +208,17 @@ export async function getTasks(filters: Record<string, any> = {}) {
       }),
     ]);
 
+    const serializedTasks = tasks.map((t: any) => ({
+      ...t,
+      completedAt: t.completedAt ? t.completedAt.toISOString() : null,
+      createdAt: t.createdAt ? t.createdAt.toISOString() : null,
+      updatedAt: t.updatedAt ? t.updatedAt.toISOString() : null,
+      archivedAt: t.archivedAt ? t.archivedAt.toISOString() : null,
+    }));
+
     return {
       success: true,
-      data: tasks,
+      data: serializedTasks,
       pagination: {
         total,
         page,
@@ -358,9 +373,16 @@ export async function updateTask(rawInput: UpdateTaskInput) {
         title: validated.title !== undefined ? validated.title : undefined,
         description: validated.description !== undefined ? validated.description : undefined,
         dueDate: validated.dueDate !== undefined ? validated.dueDate : undefined,
+        startTime: validated.startTime !== undefined ? validated.startTime : undefined,
+        durationMinutes: validated.durationMinutes !== undefined ? validated.durationMinutes : undefined,
         priority: validated.priority !== undefined ? validated.priority : undefined,
         status: validated.status !== undefined ? validated.status : undefined,
         completedAt,
+        isPomodoro: validated.isPomodoro !== undefined ? validated.isPomodoro : undefined,
+        workCycle: validated.workCycle !== undefined ? validated.workCycle : undefined,
+        breakCycle: validated.breakCycle !== undefined ? validated.breakCycle : undefined,
+        isRecurring: validated.isRecurring !== undefined ? validated.isRecurring : undefined,
+        subtasks: validated.subtasks !== undefined ? validated.subtasks : undefined,
         lifeAreaId: validated.lifeAreaId !== undefined ? validated.lifeAreaId : undefined,
         trackerId: validated.trackerId !== undefined ? validated.trackerId : undefined,
         tags: validated.tags !== undefined ? validated.tags : undefined,

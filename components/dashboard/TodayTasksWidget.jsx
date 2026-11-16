@@ -165,15 +165,17 @@ export default function TodayTasksWidget({
   onDeleteTask,
 }) {
   const [localTasks, setLocalTasks] = useState(tasks);
+  const [prevTasks, setPrevTasks] = useState(tasks);
   const [quickInput, setQuickInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [updatingTaskId, setUpdatingTaskId] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // "all" | "open" | "completed"
 
   // Keep localTasks in sync when server props refresh
-  useEffect(() => {
+  if (prevTasks !== tasks) {
+    setPrevTasks(tasks);
     setLocalTasks(tasks);
-  }, [tasks]);
+  }
 
   const handleToggle = async (taskId) => {
     if (onToggleTask) {

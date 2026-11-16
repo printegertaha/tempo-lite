@@ -262,9 +262,7 @@ export default function TasksView({
       <div className="flex items-center justify-between gap-4 p-4 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <SyncStatusBadge />
-          <span className="text-xs text-zinc-500 font-mono hidden sm:inline">
-            تحديثات فورية 100% تعمل محلياً دون انتظار الخادم
-          </span>
+        
         </div>
 
         <div className="flex items-center gap-2">
@@ -384,105 +382,7 @@ export default function TasksView({
         </button>
       </div>
 
-      {/* 2. Instant Inline Task Creator */}
-      <form
-        onSubmit={handleQuickAdd}
-        className="p-4 sm:p-5 rounded-3xl bg-zinc-950/80 border border-zinc-800/90 shadow-xl space-y-3"
-      >
-        <div className="flex items-center gap-2">
-          <input
-            id="quick-task-input"
-            type="text"
-            value={quickTitle}
-            onChange={(e) => setQuickTitle(e.target.value)}
-            placeholder="أضف مهمة جديدة فوراً... (اضغط Enter للحفظ السريع أو A)"
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500/60 transition-all"
-          />
-          <button
-            type="submit"
-            disabled={!quickTitle.trim() || isQuickAdding}
-            className="px-5 py-3 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/20 disabled:opacity-50 transition-all active:scale-95 cursor-pointer shrink-0"
-          >
-            {isQuickAdding ? <Loader2 className="w-4 h-4 animate-spin" /> : "إضافة سريعة"}
-          </button>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 flex-wrap text-xs text-zinc-400 pt-1">
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Priority Selector */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-zinc-500">الأولوية:</span>
-              <div className="flex items-center gap-1 bg-zinc-900/80 p-0.5 rounded-xl border border-zinc-800">
-                {(["LOW", "MEDIUM", "HIGH", "URGENT"] as const).map((p) => (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setQuickPriority(p)}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-colors cursor-pointer ${
-                      quickPriority === p
-                        ? p === "URGENT"
-                          ? "bg-red-500 text-white"
-                          : p === "HIGH"
-                          ? "bg-amber-500 text-black"
-                          : p === "MEDIUM"
-                          ? "bg-sky-500 text-white"
-                          : "bg-zinc-700 text-white"
-                        : "text-zinc-400 hover:text-white"
-                    }`}
-                  >
-                    {p === "URGENT" ? "عاجلة" : p === "HIGH" ? "مرتفعة" : p === "MEDIUM" ? "متوسطة" : "منخفضة"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Due Date Presets */}
-            <div className="flex items-center gap-1.5">
-              <span className="text-[11px] text-zinc-500">الموعد:</span>
-              <div className="flex items-center gap-1 bg-zinc-900/80 p-0.5 rounded-xl border border-zinc-800">
-                <button
-                  type="button"
-                  onClick={() => setQuickDueDate("today")}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-                    quickDueDate === "today" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  اليوم
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQuickDueDate("tomorrow")}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-                    quickDueDate === "tomorrow" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  غداً
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setQuickDueDate("none")}
-                  className={`px-2 py-0.5 rounded-lg text-[10px] font-medium transition-colors cursor-pointer ${
-                    quickDueDate === "none" ? "bg-violet-600 text-white" : "text-zinc-400 hover:text-white"
-                  }`}
-                >
-                  بلا موعد
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTask(null);
-              setModalOpen(true);
-            }}
-            className="text-[11px] text-violet-400 hover:text-violet-300 flex items-center gap-1 hover:underline cursor-pointer"
-          >
-            <span>خيارات تفصيلية (بومودورو، وقت بداية، مهام فرعية)...</span>
-          </button>
-        </div>
-      </form>
+    
 
       {/* 3. Filter and View Tabs Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">

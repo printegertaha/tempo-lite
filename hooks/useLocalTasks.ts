@@ -6,10 +6,19 @@ import { syncEngine } from "@/lib/sync/sync-engine";
 import { soundManager } from "@/lib/audio";
 import { addDaysToDateString, getLocalDateString } from "@/lib/dates";
 
+// In-memory module-level cache for zero-flicker instant navigation
+const memoryTaskCache = new Map<string, LocalTask[]>();
+
 export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
+  const effectiveUserId = userId || "guest";
+  const isGuest = effectiveUserId === "guest";
+
   const [tasks, setTasks] = useState<LocalTask[]>(() => {
+    const cached = memoryTaskCache.get(effectiveUserId);
+    if (cached && cached.length > 0) return cached;
     return initialTasks.map((t) => ({
       ...t,
+      completedAt: t.completedAt ? (typeof t.completedAt === "string" ? t.completedAt : new Date(t.completedAt).toISOString()) : null,
       clientUpdatedAt: Date.now(),
       subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
       tags: Array.isArray(t.tags) ? t.tags : [],
@@ -17,33 +26,29 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
     }));
   });
 
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [isLoaded, setIsLoaded] = useState<boolean>(() => memoryTaskCache.has(effectiveUserId));
   const tasksRef = useRef<LocalTask[]>(tasks);
-  
+
   useEffect(() => {
     tasksRef.current = tasks;
-  }, [tasks]);
+    memoryTaskCache.set(effectiveUserId, tasks);
+  }, [tasks, effectiveUserId]);
 
-  // Initialize sync engine with active userId
+  // Initialize sync engine only with authenticated userId (not guest)
   useEffect(() => {
-    if (userId) {
+    if (userId && userId !== "guest") {
       syncEngine.init(userId);
     }
   }, [userId]);
 
   // Load from IndexedDB on mount and reconcile with initial server props
   useEffect(() => {
-    if (!userId) {
-      setIsLoaded(true);
-      return;
-    }
-
     let isMounted = true;
 
     async function loadLocalData() {
       try {
-        const localCached = await localTaskRepo.getAllForUser(userId!);
-        const pendingMutations = await localOutboxRepo.getPending(userId!);
+        const localCached = await localTaskRepo.getAllForUser(effectiveUserId);
+        const pendingMutations = isGuest ? [] : await localOutboxRepo.getPending(effectiveUserId);
         const pendingEntityIds = new Set(pendingMutations.map((m) => m.entityId));
 
         if (localCached.length > 0) {
@@ -55,13 +60,14 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
 
         // Reconcile server initial tasks with local state:
         // Do NOT overwrite local records that have pending outbox mutations!
-        if (initialTasks && initialTasks.length > 0) {
+        if (initialTasks && initialTasks.length > 0 && !isGuest) {
           const mergedMap = new Map<string, LocalTask>();
 
           // Start with server tasks
           for (const s of initialTasks) {
             mergedMap.set(s.id, {
               ...s,
+              completedAt: s.completedAt ? (typeof s.completedAt === "string" ? s.completedAt : new Date(s.completedAt).toISOString()) : null,
               clientUpdatedAt: Date.now(),
               subtasks: Array.isArray(s.subtasks) ? s.subtasks : [],
               tags: Array.isArray(s.tags) ? s.tags : [],
@@ -98,8 +104,8 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
     // Listen for multi-tab updates via BroadcastChannel
     const channel = new BroadcastChannel("athar_tasks_channel");
     channel.onmessage = (e) => {
-      if (e.data?.type === "TASKS_CHANGED" && e.data.userId === userId) {
-        localTaskRepo.getAllForUser(userId).then((updated) => {
+      if (e.data?.type === "TASKS_CHANGED" && e.data.userId === effectiveUserId) {
+        localTaskRepo.getAllForUser(effectiveUserId).then((updated) => {
           if (isMounted) setTasks(updated);
         });
       }
@@ -109,30 +115,28 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
       isMounted = false;
       channel.close();
     };
-  }, [userId, initialTasks]);
+  }, [effectiveUserId, isGuest, initialTasks]);
 
   const broadcastChange = useCallback(() => {
     if (typeof window !== "undefined") {
       const channel = new BroadcastChannel("athar_tasks_channel");
-      channel.postMessage({ type: "TASKS_CHANGED", userId });
+      channel.postMessage({ type: "TASKS_CHANGED", userId: effectiveUserId });
       channel.close();
     }
-  }, [userId]);
+  }, [effectiveUserId]);
 
   /**
    * 1. Add Task (Instant Local Execution <16ms)
    */
   const addTask = useCallback(
     async (taskData: Partial<LocalTask>) => {
-      if (!userId) return null;
-
       const newId = taskData.id || crypto.randomUUID();
       const nowIso = new Date().toISOString();
       const nowMs = Date.now();
 
       const newTask: LocalTask = {
         id: newId,
-        userId,
+        userId: effectiveUserId,
         lifeAreaId: taskData.lifeAreaId || null,
         trackerId: taskData.trackerId || null,
         title: taskData.title?.trim() || "مهمة جديدة",
@@ -156,7 +160,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
         createdAt: nowIso,
         updatedAt: nowIso,
         clientUpdatedAt: nowMs,
-        _syncStatus: "pending",
+        _syncStatus: isGuest ? "synced" : "pending",
       };
 
       // 1. In-memory update
@@ -165,28 +169,30 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
       // 2. Persist to local IndexedDB
       await localTaskRepo.save(newTask);
 
-      // 3. Queue to Outbox
-      const mutation: LocalMutation = {
-        mutationId: crypto.randomUUID(),
-        userId,
-        entityType: "task",
-        entityId: newId,
-        action: "create",
-        payload: newTask,
-        clientTimestamp: nowMs,
-        version: 1,
-        status: "pending",
-        retryCount: 0,
-      };
-      await localOutboxRepo.add(mutation);
+      // 3. Queue to Outbox if authenticated user
+      if (!isGuest) {
+        const mutation: LocalMutation = {
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "task",
+          entityId: newId,
+          action: "create",
+          payload: newTask,
+          clientTimestamp: nowMs,
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        };
+        await localOutboxRepo.add(mutation);
+        syncEngine.scheduleSync(5000);
+      }
 
       soundManager.playClick();
       broadcastChange();
-      syncEngine.scheduleSync(5000);
 
       return newTask;
     },
-    [userId, broadcastChange]
+    [effectiveUserId, isGuest, broadcastChange]
   );
 
   /**
@@ -194,8 +200,6 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
    */
   const updateTask = useCallback(
     async (id: string, updates: Partial<LocalTask>) => {
-      if (!userId) return;
-
       const nowMs = Date.now();
       let updatedTask: LocalTask | null = null;
 
@@ -206,7 +210,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
               ...t,
               ...updates,
               clientUpdatedAt: nowMs,
-              _syncStatus: "pending",
+              _syncStatus: isGuest ? "synced" : "pending",
             };
             return updatedTask;
           }
@@ -218,24 +222,26 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
 
       await localTaskRepo.save(updatedTask);
 
-      const mutation: LocalMutation = {
-        mutationId: crypto.randomUUID(),
-        userId,
-        entityType: "task",
-        entityId: id,
-        action: "update",
-        payload: updates,
-        clientTimestamp: nowMs,
-        version: (updatedTask as LocalTask).version,
-        status: "pending",
-        retryCount: 0,
-      };
-      await localOutboxRepo.add(mutation);
+      if (!isGuest) {
+        const mutation: LocalMutation = {
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "task",
+          entityId: id,
+          action: "update",
+          payload: updates,
+          clientTimestamp: nowMs,
+          version: (updatedTask as LocalTask).version,
+          status: "pending",
+          retryCount: 0,
+        };
+        await localOutboxRepo.add(mutation);
+        syncEngine.scheduleSync(5000);
+      }
 
       broadcastChange();
-      syncEngine.scheduleSync(5000);
     },
-    [userId, broadcastChange]
+    [effectiveUserId, isGuest, broadcastChange]
   );
 
   /**
@@ -244,7 +250,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
   const toggleTaskStatus = useCallback(
     async (id: string) => {
       const task = tasksRef.current.find((t) => t.id === id);
-      if (!task || !userId) return;
+      if (!task) return;
 
       const isCompleting = task.status !== "COMPLETED";
       const newStatus = isCompleting ? "COMPLETED" : "TODO";
@@ -261,7 +267,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
         completedAt,
       });
     },
-    [userId, updateTask]
+    [updateTask]
   );
 
   /**
@@ -269,30 +275,30 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
    */
   const deleteTask = useCallback(
     async (id: string) => {
-      if (!userId) return;
-
       setTasks((prev) => prev.filter((t) => t.id !== id));
       await localTaskRepo.delete(id);
 
-      const mutation: LocalMutation = {
-        mutationId: crypto.randomUUID(),
-        userId,
-        entityType: "task",
-        entityId: id,
-        action: "delete",
-        payload: {},
-        clientTimestamp: Date.now(),
-        version: 1,
-        status: "pending",
-        retryCount: 0,
-      };
-      await localOutboxRepo.add(mutation);
+      if (!isGuest) {
+        const mutation: LocalMutation = {
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "task",
+          entityId: id,
+          action: "delete",
+          payload: {},
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        };
+        await localOutboxRepo.add(mutation);
+        syncEngine.scheduleSync(5000);
+      }
 
       soundManager.playClick();
       broadcastChange();
-      syncEngine.scheduleSync(5000);
     },
-    [userId, broadcastChange]
+    [effectiveUserId, isGuest, broadcastChange]
   );
 
   /**
@@ -318,8 +324,6 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
    */
   const reorderTasks = useCallback(
     async (orderedIds: string[]) => {
-      if (!userId) return;
-
       const idMap = new Map(orderedIds.map((id, index) => [id, index]));
       const reordered = [...tasksRef.current]
         .map((t) => {
@@ -331,28 +335,41 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
       setTasks(reordered);
       await localTaskRepo.saveBatch(reordered);
 
-      // Queue updates for changed orders
-      for (const t of reordered) {
-        const mutation: LocalMutation = {
-          mutationId: crypto.randomUUID(),
-          userId,
-          entityType: "task",
-          entityId: t.id,
-          action: "update",
-          payload: { sortOrder: t.sortOrder },
-          clientTimestamp: Date.now(),
-          version: t.version,
-          status: "pending",
-          retryCount: 0,
-        };
-        await localOutboxRepo.add(mutation);
+      if (!isGuest) {
+        for (const t of reordered) {
+          const mutation: LocalMutation = {
+            mutationId: crypto.randomUUID(),
+            userId: effectiveUserId,
+            entityType: "task",
+            entityId: t.id,
+            action: "update",
+            payload: { sortOrder: t.sortOrder },
+            clientTimestamp: Date.now(),
+            version: t.version,
+            status: "pending",
+            retryCount: 0,
+          };
+          await localOutboxRepo.add(mutation);
+        }
+        syncEngine.scheduleSync(5000);
       }
 
       broadcastChange();
-      syncEngine.scheduleSync(5000);
     },
-    [userId, broadcastChange]
+    [effectiveUserId, isGuest, broadcastChange]
   );
+
+  /**
+   * 7. Refresh Tasks from IndexedDB
+   */
+  const refreshTasks = useCallback(async () => {
+    try {
+      const localCached = await localTaskRepo.getAllForUser(effectiveUserId);
+      setTasks(localCached);
+    } catch (err) {
+      console.warn("Failed to refresh tasks from IndexedDB:", err);
+    }
+  }, [effectiveUserId]);
 
   return {
     tasks,
@@ -363,6 +380,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
     deleteTask,
     postponeTask,
     reorderTasks,
+    refreshTasks,
+    refreshFromDb: refreshTasks,
   };
 }
-

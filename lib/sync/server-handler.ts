@@ -1,5 +1,6 @@
 import prisma from "@/lib/prisma";
 import { z } from "zod";
+import { slugify } from "@/lib/validations/life-area";
 
 export const SyncBatchMutationSchema = z.object({
   mutationId: z.string().min(1),
@@ -13,6 +14,7 @@ export const SyncBatchMutationSchema = z.object({
     "gym_workout",
     "meal_entry",
     "expense_entry",
+    "prayer_record",
   ]),
   entityId: z.string().min(1),
   action: z.enum(["create", "update", "delete"]),
@@ -381,18 +383,235 @@ export async function processSyncBatch(
               status: "applied",
             });
           }
+        } else if (mut.entityType === "tracker") {
+          if (mut.action === "create" || mut.action === "update") {
+            const rawSlug = mut.payload.slug || slugify(mut.payload.name || `tracker-${mut.entityId}`);
+            const tracker = await tx.tracker.upsert({
+              where: { id: mut.entityId },
+              create: {
+                id: mut.entityId,
+                userId,
+                lifeAreaId: mut.payload.lifeAreaId || null,
+                name: mut.payload.name || "عادة جديدة",
+                slug: rawSlug,
+                description: mut.payload.description || null,
+                icon: mut.payload.icon || "Flame",
+                color: mut.payload.color || "emerald",
+                priority: mut.payload.priority ?? 1,
+                metricType: mut.payload.metricType || "BOOLEAN",
+                unit: mut.payload.unit || null,
+                targetValue: mut.payload.targetValue ?? null,
+                targetFrequency: mut.payload.targetFrequency || "DAILY",
+                scheduleConfig: mut.payload.scheduleConfig ?? {},
+                trackerConfig: mut.payload.trackerConfig ?? {},
+                displayPreferences: mut.payload.displayPreferences ?? {},
+                sortOrder: mut.payload.sortOrder ?? 0,
+                version: (mut.payload.version ?? 1) + 1,
+                isPaused: Boolean(mut.payload.isPaused),
+                isArchived: Boolean(mut.payload.isArchived),
+              },
+              update: {
+                name: mut.payload.name,
+                description: mut.payload.description,
+                icon: mut.payload.icon,
+                color: mut.payload.color,
+                priority: mut.payload.priority,
+                unit: mut.payload.unit,
+                targetValue: mut.payload.targetValue,
+                targetFrequency: mut.payload.targetFrequency,
+                scheduleConfig: mut.payload.scheduleConfig,
+                trackerConfig: mut.payload.trackerConfig,
+                displayPreferences: mut.payload.displayPreferences,
+                sortOrder: mut.payload.sortOrder,
+                isPaused: mut.payload.isPaused,
+                isArchived: mut.payload.isArchived,
+                version: { increment: 1 },
+              },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+              serverVersion: tracker.version,
+            });
+          } else if (mut.action === "delete") {
+            await tx.tracker.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          }
+        } else if (mut.entityType === "life_area") {
+          if (mut.action === "create" || mut.action === "update") {
+            const rawSlug = mut.payload.slug || slugify(mut.payload.name || `area-${mut.entityId}`);
+            await tx.lifeArea.upsert({
+              where: { id: mut.entityId },
+              create: {
+                id: mut.entityId,
+                userId,
+                name: mut.payload.name || "تصنيف جديد",
+                slug: rawSlug,
+                description: mut.payload.description || null,
+                icon: mut.payload.icon || "Sparkles",
+                color: mut.payload.color || "violet",
+                priority: mut.payload.priority ?? 1,
+                sortOrder: mut.payload.sortOrder ?? 0,
+                hiddenOnDashboard: Boolean(mut.payload.hiddenOnDashboard),
+                isArchived: Boolean(mut.payload.isArchived),
+              },
+              update: {
+                name: mut.payload.name,
+                description: mut.payload.description,
+                icon: mut.payload.icon,
+                color: mut.payload.color,
+                priority: mut.payload.priority,
+                sortOrder: mut.payload.sortOrder,
+                hiddenOnDashboard: mut.payload.hiddenOnDashboard,
+                isArchived: mut.payload.isArchived,
+              },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          } else if (mut.action === "delete") {
+            await tx.lifeArea.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          }
+        } else if (mut.entityType === "abstinence") {
+          if (mut.action === "create" || mut.action === "update") {
+            await tx.abstinenceTracker.upsert({
+              where: { id: mut.entityId },
+              create: {
+                id: mut.entityId,
+                userId,
+                name: mut.payload.name || "هدف امتناع",
+                description: mut.payload.description || null,
+                icon: mut.payload.icon || "ShieldCheck",
+                color: mut.payload.color || "rose",
+                targetDays: mut.payload.targetDays ?? null,
+                isArchived: Boolean(mut.payload.isArchived),
+              },
+              update: {
+                name: mut.payload.name,
+                description: mut.payload.description,
+                icon: mut.payload.icon,
+                color: mut.payload.color,
+                targetDays: mut.payload.targetDays,
+                isArchived: mut.payload.isArchived,
+              },
+            });
+
+            if (mut.payload.startedAt) {
+              const activeSession = await tx.abstinenceSession.findFirst({
+                where: { abstinenceTrackerId: mut.entityId, userId, endedAt: null },
+              });
+              if (!activeSession) {
+                await tx.abstinenceSession.create({
+                  data: {
+                    abstinenceTrackerId: mut.entityId,
+                    userId,
+                    startedAt: new Date(mut.payload.startedAt),
+                  },
+                });
+              }
+            }
+
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          } else if (mut.action === "delete") {
+            await tx.abstinenceTracker.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          }
+        } else if (mut.entityType === "prayer_record") {
+          if (mut.action === "create" || mut.action === "update") {
+            await tx.prayerRecord.upsert({
+              where: {
+                userId_date_prayerKey: {
+                  userId,
+                  date: mut.payload.date,
+                  prayerKey: mut.payload.prayerKey,
+                },
+              },
+              create: {
+                id: mut.entityId,
+                userId,
+                date: mut.payload.date,
+                prayerKey: mut.payload.prayerKey,
+                isCompleted: Boolean(mut.payload.isCompleted),
+                completedAt: mut.payload.isCompleted ? new Date() : null,
+                location: mut.payload.location || null,
+                withSunnah: Boolean(mut.payload.withSunnah),
+                notes: mut.payload.notes || null,
+              },
+              update: {
+                isCompleted: mut.payload.isCompleted,
+                completedAt: mut.payload.isCompleted ? new Date() : null,
+                location: mut.payload.location,
+                withSunnah: mut.payload.withSunnah,
+                notes: mut.payload.notes,
+              },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          } else if (mut.action === "delete") {
+            await tx.prayerRecord.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+            results.push({
+              mutationId: mut.mutationId,
+              entityId: mut.entityId,
+              status: "applied",
+            });
+          }
+        } else {
+          // Unsupported or unknown entity type
+          results.push({
+            mutationId: mut.mutationId,
+            entityId: mut.entityId,
+            status: "error",
+            error: `UNSUPPORTED_ENTITY_TYPE: ${mut.entityType}`,
+          });
         }
 
-        // Record Mutation Receipt for idempotency
-        await tx.mutationReceipt.create({
-          data: {
-            id: mut.mutationId,
-            userId,
-            entityType: mut.entityType,
-            entityId: mut.entityId,
-            action: mut.action,
-          },
-        });
+        // Record Mutation Receipt for idempotency ONLY IF applied successfully
+        const isApplied = results.some(
+          (r) => r.mutationId === mut.mutationId && r.status === "applied"
+        );
+
+        if (isApplied) {
+          await tx.mutationReceipt.create({
+            data: {
+              id: mut.mutationId,
+              userId,
+              entityType: mut.entityType,
+              entityId: mut.entityId,
+              action: mut.action,
+            },
+          });
+        }
       } catch (err: any) {
         console.error(`Error processing mutation ${mut.mutationId}:`, err);
         results.push({

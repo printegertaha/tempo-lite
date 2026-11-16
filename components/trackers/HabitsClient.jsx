@@ -16,6 +16,7 @@ import { getDailyEntries } from "@/actions/entries";
 import TrackerCard from "@/components/trackers/TrackerCard";
 import TrackerModal from "@/components/trackers/TrackerModal";
 import LogEntryModal from "@/components/entries/LogEntryModal";
+import RadialHabitWheel from "@/components/trackers/RadialHabitWheel";
 import Link from "next/link";
 import {
   Flame,
@@ -50,6 +51,7 @@ export default function HabitsClient({
   const [isLoading, setIsLoading] = useState(false);
 
   // Filter States
+  const [mainView, setMainView] = useState("cards"); // "cards" | "wheel"
   const [statusTab, setStatusTab] = useState("active"); // "active" | "pinned" | "paused" | "archived"
   const [selectedAreaId, setSelectedAreaId] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,7 +80,7 @@ export default function HabitsClient({
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      return;
+      if (user) return;
     }
 
     let isCancelled = false;
@@ -106,6 +108,21 @@ export default function HabitsClient({
           }
         } catch (err) {
           console.error("Error loading trackers:", err);
+        } finally {
+          if (!isCancelled) setIsLoading(false);
+        }
+      } else {
+        // Guest mode: load from local IndexedDB
+        setIsLoading(true);
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          const localTrackers = await db.getAllFromIndex("trackers", "by-user", "guest");
+          if (!isCancelled) {
+            setTrackers(localTrackers || []);
+          }
+        } catch (err) {
+          console.warn("Failed loading guest trackers from IndexedDB:", err);
         } finally {
           if (!isCancelled) setIsLoading(false);
         }
@@ -352,37 +369,71 @@ export default function HabitsClient({
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleOpenCreate}
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>متعقب جديد</span>
-        </button>
+        <div className="flex items-center gap-2.5">
+          {/* Main View Toggle */}
+          <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
+            <button
+              type="button"
+              onClick={() => setMainView("cards")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+                mainView === "cards"
+                  ? "bg-zinc-800 text-white shadow-sm"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              البطاقات
+            </button>
+            <button
+              type="button"
+              onClick={() => setMainView("wheel")}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+                mainView === "wheel"
+                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
+                  : "text-zinc-400 hover:text-white"
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>عجلة الـ 31 يوماً</span>
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>متعقب جديد</span>
+          </button>
+        </div>
       </div>
 
       {/* Guest Mode Banner */}
       {!user && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-violet-500/10 border border-violet-500/25 text-violet-300">
           <div className="flex items-center gap-2.5">
-            <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400" />
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
             <span className="text-xs font-medium">
-              أنت تتصفح في وضع المعاينة المؤقت. سجّل الدخول بحساب Google لتأسيس وحفظ عاداتك ومتعقباتك الـ 7 سحابياً في قاعدة البيانات.
+              <b>وضع الضيف المحلي (Offline-First):</b> جميع عاداتك ومتعقباتك اليومية محفوظة محلياً على هذا الجهاز في متصفحك، ويمكنك إنشاء حساب في أي وقت لمزامنتها سحابياً.
             </span>
           </div>
           <Link
             href="/login?returnTo=/habits"
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0 active:scale-95"
           >
             <LogIn className="w-3.5 h-3.5" />
-            <span>تسجيل الدخول</span>
+            <span>تسجيل الدخول / حساب جديد</span>
           </Link>
         </div>
       )}
 
-      {/* 2. Controls: Status Tabs, Life Area Pills, Search */}
-      <div className="space-y-4">
+      {/* Main View Conditional Rendering */}
+      {mainView === "wheel" ? (
+        <RadialHabitWheel existingTrackers={trackers} />
+      ) : (
+        <>
+          {/* 2. Controls: Status Tabs, Life Area Pills, Search */}
+          <div className="space-y-4">
         {/* Row 1: Status Tabs & Search */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center p-1 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs overflow-x-auto scrollbar-none">
@@ -580,6 +631,8 @@ export default function HabitsClient({
           ))}
         </div>
       )}
+    </>
+  )}
 
       {/* 4. Tracker Builder / Editor Modal */}
       <TrackerModal

@@ -37,8 +37,8 @@ export function AtharProvider({ children }) {
   const [isMounted, setIsMounted] = useState(false);
 
   // Core App State (SSR safe static defaults)
-  const [appState, setAppState] = useState(getInitialAppState);
-  const [selectedDate, setSelectedDate] = useState("2026-11-05");
+  const [appState, setAppState] = useState(() => getInitialAppState("2026-01-01"));
+  const [selectedDate, setSelectedDate] = useState("2026-01-01");
 
   // Live Timer tick state for smooth UI updates (rerenders active component each second)
   const [timerTick, setTimerTick] = useState(0);
@@ -72,7 +72,9 @@ export function AtharProvider({ children }) {
 
   // Mount effect
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
+    setSelectedDate(getLocalDateString());
     const loaded = loadSavedState();
     setAppState(loaded);
 
@@ -130,15 +132,16 @@ export function AtharProvider({ children }) {
   }, [appState, isMounted]);
 
   // Wall-clock ticker for active timer
+  const isTimerRunning = Boolean(appState.activeTimer?.isRunning);
   useEffect(() => {
     let interval = null;
-    if (appState.activeTimer && appState.activeTimer.isRunning) {
+    if (isTimerRunning) {
       interval = setInterval(() => {
         setTimerTick((t) => t + 1);
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [appState.activeTimer?.isRunning]);
+  }, [isTimerRunning]);
 
   // Helper: get or initialize record structure for any date
   const getDayRecords = (dateStr = selectedDate) => {
@@ -466,7 +469,7 @@ export function AtharProvider({ children }) {
       title: session.workoutType || session.gymName || "تمرين رياضي",
       durationMinutes: Number(session.durationMinutes) || 60,
       notes: session.notes || null,
-    }).catch(() => {});
+    }).catch((err) => console.warn("Could not sync gym workout to server:", err));
     showToast("تم توثيق تمرين الجيم والقوة 💪", "success");
   };
 
@@ -482,7 +485,7 @@ export function AtharProvider({ children }) {
         },
       },
     }));
-    deleteGymWorkout(id).catch(() => {});
+    deleteGymWorkout(id).catch((err) => console.warn("Could not delete gym workout from server:", err));
     showToast("تم حذف جلسة التمرين", "info");
   };
 
@@ -672,7 +675,7 @@ export function AtharProvider({ children }) {
       title: expense.title,
       amount: Number(expense.amount),
       category: expense.category,
-      date: "2026-11-05",
+      date: selectedDate || getLocalDateString(),
       time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
     };
 
@@ -707,7 +710,7 @@ export function AtharProvider({ children }) {
       amount: Number(expense.amount),
       category: expense.category,
       notes: expense.notes || null,
-    }).catch(() => {});
+    }).catch((err) => console.warn("Could not sync expense to server:", err));
     showToast(`تم تسجيل مصروف بقيمة ${expense.amount} ر.س 💳`, "success");
   };
 
@@ -716,7 +719,7 @@ export function AtharProvider({ children }) {
       ...prev,
       transactions: prev.transactions.filter((t) => t.id !== id),
     }));
-    deleteExpenseEntry(String(id)).catch(() => {});
+    deleteExpenseEntry(String(id)).catch((err) => console.warn("Could not delete expense from server:", err));
     showToast("تم حذف المصروف", "info");
   };
 
@@ -762,7 +765,7 @@ export function AtharProvider({ children }) {
       carbs: Number(meal.carbs) || 0,
       fat: Number(meal.fat) || 0,
       notes: meal.notes || null,
-    }).catch(() => {});
+    }).catch((err) => console.warn("Could not sync meal to server:", err));
     showToast("تم تسجيل الوجبة بنجاح 🥗", "success");
   };
 

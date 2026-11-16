@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
 import HabitsClient from "@/components/trackers/HabitsClient";
 import { getTrackers } from "@/actions/trackers";
@@ -8,6 +9,7 @@ import { getLocalDateString } from "@/lib/dates";
 import { Loader2 } from "lucide-react";
 
 async function HabitsServer() {
+  await connection();
   const session = await getServerSession();
   const todayStr = getLocalDateString();
 

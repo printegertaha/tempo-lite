@@ -217,6 +217,117 @@ class SoundManager {
     osc.start(now);
     osc.stop(now + 0.04);
   }
+
+  /**
+   * 6. Scheduled Task Reminder Chime
+   * Soft, peaceful notification chime (F5 -> C6)
+   */
+  public playReminder() {
+    if (!this.enabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    [698.46, 1046.5].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const delay = idx * 0.12;
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq, now + delay);
+
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.25 * this.volume, now + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.6);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.6);
+    });
+  }
+
+  /**
+   * 8. Wheel Tick — luxury ratchet click (Fortune Wheel style)
+   * A crisp, metallic detent snap: sharp attack + fast resonant decay.
+   * Modelled after a ratchet pawl: narrow noise burst + pitched sine body.
+   */
+  public playWheelTick() {
+    if (!this.enabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+
+    // --- Noise transient (ratchet "snap") ---
+    const bufLen = Math.floor(ctx.sampleRate * 0.012); // 12 ms of noise
+    const noiseBuffer = ctx.createBuffer(1, bufLen, ctx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) data[i] = (Math.random() * 2 - 1);
+    const noiseSource = ctx.createBufferSource();
+    noiseSource.buffer = noiseBuffer;
+
+    // High-pass to keep it crisp, not muddy
+    const hpf = ctx.createBiquadFilter();
+    hpf.type = "highpass";
+    hpf.frequency.value = 3200;
+
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.18 * this.volume, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.012);
+
+    noiseSource.connect(hpf);
+    hpf.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noiseSource.start(now);
+    noiseSource.stop(now + 0.012);
+
+    // --- Pitched body (ratchet resonance) ---
+    const osc = ctx.createOscillator();
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(1800, now);
+    osc.frequency.exponentialRampToValueAtTime(900, now + 0.025);
+
+    const oscGain = ctx.createGain();
+    oscGain.gain.setValueAtTime(0.09 * this.volume, now);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.03);
+  }
+
+  /**
+   * 7. Task Interrupt Alert
+   * Double gentle pulse
+   */
+  public playInterrupt() {
+    if (!this.enabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    [880, 880].forEach((freq, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const delay = idx * 0.15;
+
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(freq, now + delay);
+
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.2 * this.volume, now + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.12);
+    });
+  }
 }
 
 export const soundManager = new SoundManager();

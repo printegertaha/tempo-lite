@@ -30,7 +30,7 @@ export default function LogEntryModal({
   onLogged,
   onToast,
 }) {
-  const [localDate, setLocalDate] = useState(defaultLocalDate || "");
+  const [localDate, setLocalDate] = useState(defaultLocalDate || getLocalDateString());
   const [numericValue, setNumericValue] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("30");
   const [timeStart, setTimeStart] = useState("23:00");
@@ -38,15 +38,15 @@ export default function LogEntryModal({
   const [subject, setSubject] = useState("");
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [prevDefaultDate, setPrevDefaultDate] = useState(defaultLocalDate);
 
-  // Sync date when defaultLocalDate changes or on mount
-  useEffect(() => {
+  // Sync date when defaultLocalDate changes
+  if (prevDefaultDate !== defaultLocalDate) {
+    setPrevDefaultDate(defaultLocalDate);
     if (defaultLocalDate) {
       setLocalDate(defaultLocalDate);
-    } else if (!localDate && typeof window !== "undefined") {
-      setLocalDate(getLocalDateString());
     }
-  }, [defaultLocalDate, localDate]);
+  }
 
   // Daily entries state
   const [dayEntries, setDayEntries] = useState([]);

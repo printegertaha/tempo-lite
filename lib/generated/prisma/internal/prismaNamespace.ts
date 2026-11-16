@@ -413,7 +413,8 @@ export const ModelName = {
   MutationReceipt: 'MutationReceipt',
   GymWorkout: 'GymWorkout',
   MealEntry: 'MealEntry',
-  ExpenseEntry: 'ExpenseEntry'
+  ExpenseEntry: 'ExpenseEntry',
+  PrayerRecord: 'PrayerRecord'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -429,7 +430,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "userSettings" | "lifeArea" | "tracker" | "trackerVersion" | "trackerEntry" | "task" | "dailyNote" | "abstinenceTracker" | "abstinenceSession" | "mutationReceipt" | "gymWorkout" | "mealEntry" | "expenseEntry"
+    modelProps: "user" | "session" | "account" | "verification" | "userSettings" | "lifeArea" | "tracker" | "trackerVersion" | "trackerEntry" | "task" | "dailyNote" | "abstinenceTracker" | "abstinenceSession" | "mutationReceipt" | "gymWorkout" | "mealEntry" | "expenseEntry" | "prayerRecord"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1691,6 +1692,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    PrayerRecord: {
+      payload: Prisma.$PrayerRecordPayload<ExtArgs>
+      fields: Prisma.PrayerRecordFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.PrayerRecordFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.PrayerRecordFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        findFirst: {
+          args: Prisma.PrayerRecordFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.PrayerRecordFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        findMany: {
+          args: Prisma.PrayerRecordFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>[]
+        }
+        create: {
+          args: Prisma.PrayerRecordCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        createMany: {
+          args: Prisma.PrayerRecordCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.PrayerRecordCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>[]
+        }
+        delete: {
+          args: Prisma.PrayerRecordDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        update: {
+          args: Prisma.PrayerRecordUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        deleteMany: {
+          args: Prisma.PrayerRecordDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.PrayerRecordUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.PrayerRecordUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>[]
+        }
+        upsert: {
+          args: Prisma.PrayerRecordUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$PrayerRecordPayload>
+        }
+        aggregate: {
+          args: Prisma.PrayerRecordAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregatePrayerRecord>
+        }
+        groupBy: {
+          args: Prisma.PrayerRecordGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PrayerRecordGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.PrayerRecordCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.PrayerRecordCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -2035,6 +2110,23 @@ export const ExpenseEntryScalarFieldEnum = {
 } as const
 
 export type ExpenseEntryScalarFieldEnum = (typeof ExpenseEntryScalarFieldEnum)[keyof typeof ExpenseEntryScalarFieldEnum]
+
+
+export const PrayerRecordScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  prayerKey: 'prayerKey',
+  isCompleted: 'isCompleted',
+  completedAt: 'completedAt',
+  location: 'location',
+  withSunnah: 'withSunnah',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type PrayerRecordScalarFieldEnum = (typeof PrayerRecordScalarFieldEnum)[keyof typeof PrayerRecordScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2391,6 +2483,7 @@ export type GlobalOmitConfig = {
   gymWorkout?: Prisma.GymWorkoutOmit
   mealEntry?: Prisma.MealEntryOmit
   expenseEntry?: Prisma.ExpenseEntryOmit
+  prayerRecord?: Prisma.PrayerRecordOmit
 }
 
 /* Types for Logging */

@@ -19,9 +19,13 @@ export default function EditStartTimeModal({
   const [startTime, setStartTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevStartedAt, setPrevStartedAt] = useState(startedAt);
 
-  // Sync initial date & time when opened
-  useEffect(() => {
+  // Sync initial date & time when opened or startedAt changes
+  if (prevIsOpen !== isOpen || prevStartedAt !== startedAt) {
+    setPrevIsOpen(isOpen);
+    setPrevStartedAt(startedAt);
     if (startedAt) {
       const { localDate, localTime } = splitUtcToLocalDateTime(startedAt, timezone);
       setStartDate(localDate);
@@ -31,7 +35,7 @@ export default function EditStartTimeModal({
       setStartDate(today);
       setStartTime("00:00");
     }
-  }, [startedAt, timezone, isOpen]);
+  }
 
   if (!isOpen || !tracker || !activeSession) return null;
 

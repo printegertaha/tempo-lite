@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="athar-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#4f46e5" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="#08090d" />
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="none" stroke="#27272a" stroke-width="8" />
+  <path d="M 256 110 C 180 110 130 170 130 250 C 130 320 180 390 256 410 C 332 390 382 320 382 250 C 382 170 332 110 256 110 Z" fill="url(#athar-grad)" />
+  <circle cx="256" cy="245" r="45" fill="#08090d" />
+</svg>
+

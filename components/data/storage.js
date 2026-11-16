@@ -11,14 +11,17 @@ export function generateId(prefix = "rec") {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
-// Get standard local calendar date string (YYYY-MM-DD), with SSR-safe static fallback
+// Get standard local calendar date string (YYYY-MM-DD), with dynamic today fallback
 export function getLocalDateString(dateInput) {
-  if (!dateInput) {
-    if (typeof window === "undefined") return "2026-11-05";
-    dateInput = new Date();
+  const d = dateInput
+    ? typeof dateInput === "string"
+      ? new Date(dateInput)
+      : dateInput
+    : new Date();
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    return `${fallback.getFullYear()}-${String(fallback.getMonth() + 1).padStart(2, "0")}-${String(fallback.getDate()).padStart(2, "0")}`;
   }
-  const d = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
-  if (isNaN(d.getTime())) return "2026-11-05";
   const year = d.getFullYear();
   const month = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
@@ -88,9 +91,9 @@ export const DEFAULT_PRAYER_SCHEDULE = {
 };
 
 // Initial state data structure (SSR-deterministic)
-export function getInitialAppState() {
-  const today = "2026-11-05";
-  const yesterday = "2026-11-04";
+export function getInitialAppState(baseDate = "2026-01-01") {
+  const today = baseDate;
+  const yesterday = "2025-12-31";
 
   return {
     version: STORAGE_VERSION,

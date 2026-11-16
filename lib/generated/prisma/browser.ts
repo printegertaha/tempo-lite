@@ -102,3 +102,8 @@ export type MealEntry = Prisma.MealEntryModel
  * 
  */
 export type ExpenseEntry = Prisma.ExpenseEntryModel
+/**
+ * Model PrayerRecord
+ * 
+ */
+export type PrayerRecord = Prisma.PrayerRecordModel

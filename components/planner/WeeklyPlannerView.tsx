@@ -36,18 +36,25 @@ import {
 } from "lucide-react";
 
 interface WeeklyPlannerViewProps {
-  user: any;
+  user?: any;
+  userId?: string;
   initialTasks?: any[];
   initialDate?: string;
+  initialLocalDate?: string;
   lifeAreas?: any[];
 }
 
 export default function WeeklyPlannerView({
   user,
+  userId,
   initialTasks = [],
-  initialDate = getLocalDateString(),
+  initialDate,
+  initialLocalDate,
   lifeAreas = [],
 }: WeeklyPlannerViewProps) {
+  const effectiveUserId = user?.id || userId || "guest";
+  const startDay = initialDate || initialLocalDate || getLocalDateString();
+
   const {
     tasks,
     addTask,
@@ -55,9 +62,9 @@ export default function WeeklyPlannerView({
     toggleTaskStatus,
     deleteTask,
     postponeTask,
-  } = useLocalTasks(user?.id, initialTasks);
+  } = useLocalTasks(effectiveUserId, initialTasks);
 
-  const [anchorDate, setAnchorDate] = useState<string>(initialDate);
+  const [anchorDate, setAnchorDate] = useState<string>(startDay);
   const [selectedTaskForZen, setSelectedTaskForZen] = useState<any>(null);
   const [soundEnabled, setSoundEnabled] = useState(() => soundManager.isEnabled());
   const [activeDayInput, setActiveDayInput] = useState<{ dateStr: string; title: string }>({

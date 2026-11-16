@@ -12,18 +12,20 @@ export interface SyncStatusInfo {
 }
 
 export function useSyncStatus(): SyncStatusInfo {
+  // Deterministic initial state for SSR & client hydration parity
   const [state, setState] = useState<{
     status: SyncState;
     pendingCount: number;
     lastSyncedAt: number | null;
     error?: string;
   }>({
-    status: typeof navigator !== "undefined" && !navigator.onLine ? "offline" : "idle",
+    status: "idle",
     pendingCount: 0,
     lastSyncedAt: null,
   });
 
   useEffect(() => {
+    // syncEngine.subscribe() asynchronously notifies the listener with the true live state
     const unsubscribe = syncEngine.subscribe((updated) => {
       setState(updated);
     });

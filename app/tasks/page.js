@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
 import TasksView from "@/components/tasks/TasksView";
 import Link from "next/link";
@@ -9,34 +10,25 @@ import { getTrackers } from "@/actions/trackers";
 import { getLocalDateString } from "@/lib/dates";
 
 async function TasksServer() {
+  await connection();
   const session = await getServerSession();
+  const todayStr = getLocalDateString();
 
+  // Guest Mode: Allow immediate full offline task management
   if (!session?.user) {
     return (
-      <div className="max-w-md mx-auto py-20 px-4 text-center">
-        <div className="p-8 rounded-3xl bg-zinc-950/80 border border-zinc-800 shadow-2xl space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto text-violet-400">
-            <ListTodo className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-zinc-100">سجل الدخول لإدارة مهامك</h2>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              تتيح لك منصة أثـر تنظيم مهامك اليومية والمستقبلية، وتحديد الأولويات، وربط المهام بمجالات حياتك وعاداتك اليومية.
-            </p>
-          </div>
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-lg shadow-violet-600/20 transition-all active:scale-95"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>تسجيل الدخول عبر Google</span>
-          </Link>
-        </div>
+      <div className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+        <TasksView
+          userId="guest"
+          initialLocalDate={todayStr}
+          initialTasks={[]}
+          initialStats={{ todayCount: 0, overdueCount: 0 }}
+          initialLifeAreas={[]}
+          initialTrackers={[]}
+        />
       </div>
     );
   }
-
-  const todayStr = getLocalDateString();
 
   // Server-side parallel fetch to eliminate client waterfall
   const [tasksRes, statsRes, areasRes, trackersRes] = await Promise.all([

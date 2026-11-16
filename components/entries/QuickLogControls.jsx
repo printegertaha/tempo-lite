@@ -119,10 +119,12 @@ export default function QuickLogControls({
 function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToast }) {
   const [optimisticCompleted, setOptimisticCompleted] = useState(serverCompleted);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [prevServerCompleted, setPrevServerCompleted] = useState(serverCompleted);
 
-  useEffect(() => {
+  if (prevServerCompleted !== serverCompleted) {
+    setPrevServerCompleted(serverCompleted);
     setOptimisticCompleted(serverCompleted);
-  }, [serverCompleted]);
+  }
 
   const handleToggle = async () => {
     if (isSyncing) return;
@@ -180,11 +182,13 @@ function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToas
 function CounterControls({ tracker, localDate, serverCount, onLogged, onToast }) {
   const [optimisticCount, setOptimisticCount] = useState(serverCount);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [prevServerCount, setPrevServerCount] = useState(serverCount);
   const step = tracker.trackerConfig?.step || 1;
 
-  useEffect(() => {
+  if (prevServerCount !== serverCount) {
+    setPrevServerCount(serverCount);
     setOptimisticCount(serverCount);
-  }, [serverCount]);
+  }
 
   const handleIncrement = async (amount) => {
     if (isSyncing) return;
@@ -251,10 +255,12 @@ function DurationControls({
 }) {
   const [optimisticSeconds, setOptimisticSeconds] = useState(serverSeconds);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [prevServerSeconds, setPrevServerSeconds] = useState(serverSeconds);
 
-  useEffect(() => {
+  if (prevServerSeconds !== serverSeconds) {
+    setPrevServerSeconds(serverSeconds);
     setOptimisticSeconds(serverSeconds);
-  }, [serverSeconds]);
+  }
 
   const totalMinutes = Math.round(optimisticSeconds / 60);
 
@@ -332,10 +338,12 @@ function ChecklistControls({
 }) {
   const items = tracker.trackerConfig?.items || [];
   const [optimisticIds, setOptimisticIds] = useState(serverCompletedIds);
+  const [prevCompletedIds, setPrevCompletedIds] = useState(serverCompletedIds);
 
-  useEffect(() => {
+  if (prevCompletedIds !== serverCompletedIds) {
+    setPrevCompletedIds(serverCompletedIds);
     setOptimisticIds(serverCompletedIds);
-  }, [serverCompletedIds]);
+  }
 
   const handleToggleItem = async (itemId) => {
     const previous = [...optimisticIds];
@@ -405,10 +413,12 @@ function AvoidanceControls({
 }) {
   const [optimisticClean, setOptimisticClean] = useState(serverClean);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [prevServerClean, setPrevServerClean] = useState(serverClean);
 
-  useEffect(() => {
+  if (prevServerClean !== serverClean) {
+    setPrevServerClean(serverClean);
     setOptimisticClean(serverClean);
-  }, [serverClean]);
+  }
 
   const handleLogAvoidance = async (clean) => {
     if (isSyncing) return;

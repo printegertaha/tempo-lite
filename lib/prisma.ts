@@ -46,10 +46,13 @@ function createPrismaClient(): PrismaClient {
 
 export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
+// Ensure bulletproof interoperability across both CommonJS and ES Modules
+(prisma as any).default = prisma;
+(prisma as any).prisma = prisma;
+
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
 }
 
 export default prisma;
-export * from "./generated/prisma/client";
 

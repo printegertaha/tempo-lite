@@ -284,8 +284,13 @@ export default function TaskCard({
                 </button>
 
                 {postponeMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-20"
+                      onClick={() => setPostponeMenuOpen(false)}
+                    />
                   <div
-                    className="absolute left-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
+                    className="absolute right-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="px-2.5 py-1 text-[10px] text-zinc-400 font-semibold border-b border-zinc-800/80">
@@ -313,6 +318,7 @@ export default function TaskCard({
                       +أسبوع
                     </button>
                   </div>
+                  </>
                 )}
               </div>
             )}
@@ -329,8 +335,13 @@ export default function TaskCard({
               </button>
 
               {menuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setMenuOpen(false)}
+                  />
                 <div
-                  className="absolute left-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
+                  className="absolute right-0 mt-1 w-36 rounded-2xl bg-zinc-900 border border-zinc-800 shadow-2xl py-1 z-30 text-xs"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -380,6 +391,7 @@ export default function TaskCard({
                     <span>حذف</span>
                   </button>
                 </div>
+                </>
               )}
             </div>
           </div>

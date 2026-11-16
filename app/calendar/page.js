@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
 import { getCalendarMonthSummary } from "@/actions/history";
 import { getLocalDateString } from "@/lib/dates";
@@ -6,6 +7,7 @@ import CalendarClient from "@/components/calendar/CalendarClient";
 import { Loader2 } from "lucide-react";
 
 async function CalendarServer() {
+  await connection();
   const session = await getServerSession();
   const todayStr = getLocalDateString();
   const [initialYear, initialMonth] = todayStr.split("-").map(Number);

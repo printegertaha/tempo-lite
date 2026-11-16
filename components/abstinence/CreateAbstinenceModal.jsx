@@ -81,7 +81,33 @@ export default function CreateAbstinenceModal({
         onCreated?.(res.data);
         onClose();
       } else {
-        setErrorMsg(res.error || "تعذر إنشاء هدف الامتناع");
+        // Local-first guest fallback: persist into IndexedDB
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          const guestTracker = {
+            id: `guest_abs_${Date.now()}`,
+            userId: "guest",
+            name: name.trim(),
+            description: description.trim() || null,
+            targetDays: targetDays ? parseInt(targetDays, 10) : 30,
+            color: "rose",
+            icon: "ShieldCheck",
+            activeSession: {
+              id: `guest_sess_${Date.now()}`,
+              startedAt: new Date().toISOString(),
+            },
+            longestStreakSeconds: 0,
+            totalAbstinentSeconds: 0,
+          };
+          await db.put("abstinence_trackers", guestTracker);
+          setName("");
+          setDescription("");
+          onCreated?.(guestTracker);
+          onClose();
+        } catch {
+          setErrorMsg(res.error || "تعذر إنشاء هدف الامتناع");
+        }
       }
     } catch (err) {
       setErrorMsg(err?.message || "حدث خطأ غير متوقع");

@@ -35,15 +35,22 @@ export default function ZenFocusModal({
   const workSeconds = (task?.workCycle || 25) * 60;
   const breakSeconds = (task?.breakCycle || 5) * 60;
 
-  // Reset when task opens
-  useEffect(() => {
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  if (prevIsOpen !== isOpen) {
+    setPrevIsOpen(isOpen);
     if (isOpen) {
       setIsBreak(false);
       setIsRunning(true);
       setSecondsRemaining(workSeconds);
+    }
+  }
+
+  // Play audio when modal opens
+  useEffect(() => {
+    if (isOpen) {
       soundManager.playTaskStart();
     }
-  }, [isOpen, workSeconds]);
+  }, [isOpen]);
 
   // Timer loop
   useEffect(() => {

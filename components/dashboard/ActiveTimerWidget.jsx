@@ -23,6 +23,8 @@ function formatSeconds(totalSeconds) {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
+const TIMER_STORAGE_KEY = "athar_active_timer_v2";
+
 export default function ActiveTimerWidget({
   durationTrackers = [],
   dailyEntries = [],
@@ -31,28 +33,66 @@ export default function ActiveTimerWidget({
 }) {
   const [isRunning, setIsRunning] = useState(false);
   const [elapsed, setElapsed] = useState(0);
-  const [selectedTrackerId, setSelectedTrackerId] = useState("");
+  const [selectedTrackerId, setSelectedTrackerId] = useState(
+    () => durationTrackers[0]?.id || ""
+  );
   const [subject, setSubject] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const intervalRef = useRef(null);
+  const timerStateRef = useRef({ startedAt: 0, accumulated: 0 });
 
   // Initialize selectedTrackerId if durationTrackers exist
-  useEffect(() => {
-    if (!selectedTrackerId && durationTrackers.length > 0) {
-      setSelectedTrackerId(durationTrackers[0].id);
-    }
-  }, [durationTrackers, selectedTrackerId]);
+  if (!selectedTrackerId && durationTrackers.length > 0) {
+    setSelectedTrackerId(durationTrackers[0].id);
+  }
 
-  // Timer interval
+  // 1. Restore persistent timer from localStorage on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          if (parsed.selectedTrackerId) setSelectedTrackerId(parsed.selectedTrackerId);
+          if (parsed.subject) setSubject(parsed.subject);
+
+          const accumulated = parsed.accumulated || 0;
+          timerStateRef.current.accumulated = accumulated;
+
+          if (parsed.isRunning && parsed.startedAt) {
+            const now = Date.now();
+            const currentSession = Math.max(0, Math.floor((now - parsed.startedAt) / 1000));
+            const total = accumulated + currentSession;
+            setElapsed(total);
+            timerStateRef.current.startedAt = parsed.startedAt;
+            setIsRunning(true);
+          } else {
+            setElapsed(accumulated);
+            setIsRunning(false);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to restore timer state from storage:", e);
+    }
+  }, []);
+
+  // Accurate timestamp-based timer interval
   useEffect(() => {
     if (isRunning) {
       intervalRef.current = setInterval(() => {
-        setElapsed((prev) => prev + 1);
+        const now = Date.now();
+        const startedAt = timerStateRef.current.startedAt || now;
+        const currentSession = Math.max(0, Math.floor((now - startedAt) / 1000));
+        setElapsed(timerStateRef.current.accumulated + currentSession);
       }, 1000);
     } else {
-      clearInterval(intervalRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
     }
-    return () => clearInterval(intervalRef.current);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [isRunning]);
 
   // Compute total duration logged today across all duration entries
@@ -61,12 +101,51 @@ export default function ActiveTimerWidget({
     0
   );
 
+  const saveTimerStateToStorage = (running, startedAt, accumulated, trackerId, subj) => {
+    try {
+      if (!running && accumulated === 0) {
+        localStorage.removeItem(TIMER_STORAGE_KEY);
+      } else {
+        localStorage.setItem(
+          TIMER_STORAGE_KEY,
+          JSON.stringify({
+            isRunning: running,
+            startedAt,
+            accumulated,
+            selectedTrackerId: trackerId,
+            subject: subj,
+            updatedAt: Date.now(),
+          })
+        );
+      }
+    } catch {}
+  };
+
   const handleStart = () => {
+    const now = Date.now();
+    timerStateRef.current.startedAt = now;
     setIsRunning(true);
+    saveTimerStateToStorage(
+      true,
+      now,
+      timerStateRef.current.accumulated,
+      selectedTrackerId,
+      subject
+    );
   };
 
   const handlePause = () => {
+    const now = Date.now();
+    const currentSession = Math.max(
+      0,
+      Math.floor((now - timerStateRef.current.startedAt) / 1000)
+    );
+    const newAccumulated = timerStateRef.current.accumulated + currentSession;
+    timerStateRef.current.accumulated = newAccumulated;
+    timerStateRef.current.startedAt = 0;
     setIsRunning(false);
+    setElapsed(newAccumulated);
+    saveTimerStateToStorage(false, 0, newAccumulated, selectedTrackerId, subject);
   };
 
   const handleFinish = async () => {
@@ -74,24 +153,29 @@ export default function ActiveTimerWidget({
       if (!confirm("مدة الجلسة قصيرة جداً (أقل من 10 ثوانٍ)، هل تريد حفظها؟")) {
         setIsRunning(false);
         setElapsed(0);
+        timerStateRef.current = { startedAt: 0, accumulated: 0 };
+        localStorage.removeItem(TIMER_STORAGE_KEY);
         return;
       }
     }
 
     setIsSaving(true);
     setIsRunning(false);
+    const finalElapsed = elapsed;
 
     try {
       if (selectedTrackerId) {
         await logDurationSession({
           trackerId: selectedTrackerId,
-          durationSeconds: elapsed,
+          durationSeconds: finalElapsed,
           localDate: selectedDate,
           subject: subject.trim() || undefined,
         });
       }
       setElapsed(0);
       setSubject("");
+      timerStateRef.current = { startedAt: 0, accumulated: 0 };
+      localStorage.removeItem(TIMER_STORAGE_KEY);
       if (onSessionLogged) {
         onSessionLogged();
       }
@@ -104,6 +188,8 @@ export default function ActiveTimerWidget({
     if (confirm("هل أنت متأكد من إلغاء هذه الجلسة دون حفظ؟")) {
       setIsRunning(false);
       setElapsed(0);
+      timerStateRef.current = { startedAt: 0, accumulated: 0 };
+      localStorage.removeItem(TIMER_STORAGE_KEY);
     }
   };
 

@@ -76,37 +76,24 @@ function RegisterContent() {
   };
 
   return (
-    <div className="min-h-screen bg-[#08090d] flex flex-col justify-center py-12 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-start sm:justify-center py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background ambient glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-violet-600/15 blur-[130px] pointer-events-none rounded-full" />
       <div className="absolute bottom-10 left-10 w-64 h-64 bg-indigo-600/10 blur-[100px] pointer-events-none rounded-full" />
 
       {/* Brand Header */}
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-3 relative z-10 px-4">
-        <Link href="/" className="inline-flex items-center gap-3 group">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white flex items-center justify-center shadow-xl shadow-violet-600/30 group-hover:scale-105 transition-transform">
-            <Flame className="w-6 h-6 fill-white" />
-          </div>
-          <div className="text-right">
-            <span className="text-2xl font-black text-zinc-100 tracking-tight block">
-              أثـر (Athar)
-            </span>
-            <span className="text-xs text-zinc-400">
-              منظومة إتقان العادات وعمارة الوقت
-            </span>
-          </div>
-        </Link>
-        <h2 className="text-xl sm:text-2xl font-black text-zinc-100 pt-2">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-1.5 relative z-10 px-4">
+        <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
           إنشاء حساب جديد
         </h2>
         <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-          سجل باسمك وبريدك وكلمة المرور دون أي تعقيدات أو تأكيدات إضافية
+          إكتب إسمك وبريدك الإلكتروني وإعمل باسورد وشكراً
         </p>
       </div>
 
       {/* Main Card */}
-      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="p-7 sm:p-8 rounded-3xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-6">
+      <div className="mt-5 sm:mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
+        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
           {/* Error Banner */}
           {errorMessage && (
             <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs animate-in fade-in duration-200">
@@ -125,6 +112,7 @@ function RegisterContent() {
                 <input
                   type="text"
                   required
+                  autoFocus
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: طه"
@@ -186,16 +174,8 @@ function RegisterContent() {
             </button>
           </form>
 
-          {/* Google Sign Up */}
-          <div className="space-y-3">
-            <GoogleSignInButton
-              returnTo={returnTo}
-              label="التسجيل عبر Google"
-            />
-          </div>
-
           {/* Switch to Login */}
-          <div className="pt-2 text-center text-xs text-zinc-400 border-t border-zinc-850">
+          <div className="flex items-center justify-center gap-1 pt-3 text-center text-xs text-zinc-400 border-t border-zinc-800/80">
             <span>لديك حساب بالفعل؟ </span>
             <Link
               href="/login"
@@ -204,12 +184,6 @@ function RegisterContent() {
               تسجيل الدخول
             </Link>
           </div>
-        </div>
-
-        {/* Privacy Note */}
-        <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-zinc-400 text-center">
-          <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-          <span>تشفير وحماية لكلمة المرور عبر معايير التجزئة الآمنة.</span>
         </div>
       </div>
     </div>

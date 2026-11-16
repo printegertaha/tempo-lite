@@ -1,0 +1,28 @@
+{
+  "name": "Athar - أثـر | منصة تتبع الحياة والإنتاجية",
+  "short_name": "أثـر",
+  "description": "منصة تتبع الحياة اليومية، تنظيم المهام، بناء العادات، وإدارة الأهداف بنمط العمل المحلي أولاً دون انقطاع.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08090d",
+  "theme_color": "#08090d",
+  "orientation": "portrait",
+  "dir": "rtl",
+  "lang": "ar",
+  "categories": ["productivity", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
+

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
 import { getDailyOverview } from "@/actions/history";
 import { getLocalDateString } from "@/lib/dates";
@@ -6,6 +7,7 @@ import JournalClient from "@/components/journal/JournalClient";
 import { Loader2 } from "lucide-react";
 
 async function JournalServer() {
+  await connection();
   const session = await getServerSession();
   const todayStr = getLocalDateString();
 

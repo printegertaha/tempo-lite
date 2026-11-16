@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import Link from "next/link";
 import { getTrackers } from "@/actions/trackers";
 import { getDailyEntries } from "@/actions/entries";
 import { getTasks, getTaskStats } from "@/actions/tasks";
@@ -70,6 +71,25 @@ export default function DashboardClient({
   const [logEntryModalOpen, setLogEntryModalOpen] = useState(false);
   const [detailedTracker, setDetailedTracker] = useState(null);
 
+  // Load guest trackers from IndexedDB on mount if guest mode
+  useEffect(() => {
+    if (user?.isGuest || !user?.id) {
+      async function loadGuestTrackers() {
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          const guestTrackers = await db.getAllFromIndex("trackers", "by-user", "guest");
+          if (guestTrackers && guestTrackers.length > 0) {
+            setTrackers(guestTrackers);
+          }
+        } catch (err) {
+          console.warn("Could not load guest trackers from IndexedDB:", err);
+        }
+      }
+      loadGuestTrackers();
+    }
+  }, [user]);
+
   // Background refresh handler for mutations and date switching
   const refreshDashboardData = async (targetDate) => {
     const activeDate = targetDate || selectedDate;
@@ -89,7 +109,9 @@ export default function DashboardClient({
       if (entriesRes.success) setDailyEntries(entriesRes.data || []);
       if (statsRes.success && statsRes.data) setTaskStats(statsRes.data);
       if (areasRes.success) setLifeAreas(areasRes.data || []);
-      localTasksHelper.refreshFromDb().catch(() => {});
+      if (typeof localTasksHelper.refreshTasks === "function") {
+        await localTasksHelper.refreshTasks();
+      }
     } catch (err) {
       console.error("Error refreshing dashboard data:", err);
     } finally {
@@ -125,6 +147,26 @@ export default function DashboardClient({
         onOpenCreateTask={() => setTaskModalOpen(true)}
         onOpenQuickLog={() => setQuickLogModalOpen(true)}
       />
+
+      {/* Guest Mode Informational Banner (Zero friction first visit) */}
+      {user?.isGuest && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 rounded-2xl bg-gradient-to-r from-violet-950/40 via-indigo-950/30 to-zinc-950/50 border border-violet-500/20 text-xs">
+          <div className="flex items-center gap-2.5 text-zinc-300">
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
+            <span>
+              <b className="text-white">وضع الضيف المحلي (Offline-First):</b> جميع مهامك وعاداتك وتدويناتك محفوظة بالكامل على هذا الجهاز في متصفحك.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/register"
+              className="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white font-bold text-xs shadow-md shadow-violet-600/20 transition-all active:scale-95"
+            >
+              إنشاء حساب لحفظ ومزامنة بياناتك
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Localized non-blocking refresh indicator */}
       {isRefreshing && (

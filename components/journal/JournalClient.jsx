@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   getDailyOverview,
   saveDailyNote,
@@ -62,12 +62,52 @@ export default function JournalClient({ user, initialDate, initialData }) {
   };
 
   // Load day overview on date change
-  const loadDayData = async (targetDate) => {
-    if (!user) return;
+  const loadDayData = useCallback(async (targetDate) => {
     const dateToLoad = targetDate || selectedDate;
     if (!dateToLoad) return;
 
     setIsLoading(true);
+
+    // Guest Mode: load directly from IndexedDB without server requests
+    if (!user || user.isGuest || user.id === "guest") {
+      try {
+        const { getLocalDB } = await import("@/lib/local-db");
+        const db = await getLocalDB();
+        const allNotes = await db.getAll("daily_notes");
+        const matchingNote = allNotes.find(
+          (n) => n.localDate === dateToLoad && (n.userId === "guest" || !n.userId)
+        );
+        const guestTasks = await db.getAllFromIndex("tasks", "by-user", "guest");
+        const dayTasks = guestTasks.filter((t) => t.dueDate === dateToLoad);
+
+        setData({
+          date: dateToLoad,
+          dailyNote: matchingNote || null,
+          tasksSummary: {
+            total: dayTasks.length,
+            completed: dayTasks.filter((t) => t.status === "COMPLETED").length,
+            tasks: dayTasks,
+          },
+          trackersSummary: [],
+        });
+
+        if (matchingNote) {
+          setNoteTitle(matchingNote.title || "");
+          setNoteContent(matchingNote.content || "");
+          setNoteMood(matchingNote.mood || "good");
+        } else {
+          setNoteTitle("");
+          setNoteContent("");
+          setNoteMood("good");
+        }
+      } catch (err) {
+        console.error("Error loading guest day data from IndexedDB:", err);
+      } finally {
+        setIsLoading(false);
+      }
+      return;
+    }
+
     try {
       const res = await getDailyOverview(dateToLoad);
       if (res.success && res.data) {
@@ -81,14 +121,34 @@ export default function JournalClient({ user, initialDate, initialData }) {
           setNoteContent("");
           setNoteMood("good");
         }
+      } else {
+        // Fallback for offline / network issues: load local note from IndexedDB
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          const allNotes = await db.getAll("daily_notes");
+          const matchingNote = allNotes.find((n) => n.localDate === dateToLoad);
+          if (matchingNote) {
+            setData((prev) => ({
+              ...prev,
+              dailyNote: matchingNote,
+            }));
+            setNoteTitle(matchingNote.title || "");
+            setNoteContent(matchingNote.content || "");
+            setNoteMood(matchingNote.mood || "good");
+          } else {
+            setNoteTitle("");
+            setNoteContent("");
+            setNoteMood("good");
+          }
+        } catch {}
       }
     } catch (err) {
       console.error("Error loading daily overview:", err);
-      showToast("حدث خطأ أثناء تحميل بيانات اليوم");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [user, selectedDate]);
 
   useEffect(() => {
     if (isInitialMount.current) {
@@ -96,7 +156,7 @@ export default function JournalClient({ user, initialDate, initialData }) {
       return;
     }
     loadDayData(selectedDate);
-  }, [selectedDate]);
+  }, [selectedDate, loadDayData]);
 
   // Date Navigation Handlers
   const handlePrevDay = () => {
@@ -136,7 +196,28 @@ export default function JournalClient({ user, initialDate, initialData }) {
         showToast("تم حفظ اليومية والملاحظات بنجاح");
         loadDayData(selectedDate);
       } else {
-        showToast(res.error || "فشل حفظ اليومية");
+        // Guest / offline local persistence fallback
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          const noteObj = {
+            id: `guest_note_${selectedDate}`,
+            userId: "guest",
+            localDate: selectedDate,
+            title: noteTitle.trim() || undefined,
+            content: noteContent.trim(),
+            mood: noteMood,
+            updatedAt: Date.now(),
+          };
+          await db.put("daily_notes", noteObj);
+          showToast("تم حفظ اليومية محلياً بنجاح (وضع الضيف) ✍️");
+          setData((prev) => ({
+            ...prev,
+            dailyNote: noteObj,
+          }));
+        } catch {
+          showToast(res.error || "فشل حفظ اليومية");
+        }
       }
     } catch {
       showToast("حدث خطأ أثناء حفظ اليومية");
@@ -149,6 +230,21 @@ export default function JournalClient({ user, initialDate, initialData }) {
     if (!confirm("هل أنت متأكد من حذف هذه اليومية؟")) return;
     setIsSavingNote(true);
     try {
+      if (!user || user.isGuest || user.id === "guest") {
+        try {
+          const { getLocalDB } = await import("@/lib/local-db");
+          const db = await getLocalDB();
+          await db.delete("daily_notes", `guest_note_${selectedDate}`);
+          setNoteTitle("");
+          setNoteContent("");
+          setData((prev) => ({ ...prev, dailyNote: null }));
+          showToast("تم حذف اليومية محلياً");
+        } catch (err) {
+          console.error("Failed to delete local note:", err);
+        }
+        return;
+      }
+
       const res = await deleteDailyNote(selectedDate);
       if (res.success) {
         setNoteTitle("");
@@ -173,31 +269,6 @@ export default function JournalClient({ user, initialDate, initialData }) {
     await deleteTrackerEntry(entryId);
     loadDayData(selectedDate);
   };
-
-  if (!user) {
-    return (
-      <div className="max-w-md mx-auto py-24 px-4 text-center">
-        <div className="p-8 rounded-3xl bg-zinc-950/80 border border-zinc-800 shadow-2xl space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center mx-auto text-violet-400">
-            <BookMarked className="w-7 h-7" />
-          </div>
-          <div>
-            <h2 className="text-lg font-bold text-zinc-100">سجل الدخول لاستعراض اليوميات</h2>
-            <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
-              سجل يومياتك الشخصية وتفاصيل إنجازاتك وجلسات تركيزك في سجل تاريخي مستمر عبر الأيام.
-            </p>
-          </div>
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-2 w-full py-3 px-4 rounded-2xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-semibold shadow-lg shadow-violet-600/20 transition-all active:scale-95"
-          >
-            <LogIn className="w-4 h-4" />
-            <span>تسجيل الدخول عبر Google</span>
-          </Link>
-        </div>
-      </div>
-    );
-  }
 
   const todayStr = getLocalDateString();
   const isToday = selectedDate === todayStr;
@@ -231,6 +302,25 @@ export default function JournalClient({ user, initialDate, initialData }) {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8 space-y-8">
+      {/* Guest Mode Informational Banner */}
+      {!user && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-violet-500/10 border border-violet-500/25 text-violet-300">
+          <div className="flex items-center gap-2.5">
+            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
+            <span className="text-xs font-medium">
+              <b>وضع الضيف المحلي (Offline-First):</b> تدويناتك وملاحظاتك اليومية محفوظة محلياً على هذا الجهاز في متصفحك، ويمكنك إنشاء حساب في أي وقت لمزامنتها سحابياً.
+            </span>
+          </div>
+          <Link
+            href="/login?returnTo=/journal"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0 active:scale-95"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            <span>تسجيل الدخول / حساب جديد</span>
+          </Link>
+        </div>
+      )}
+
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed bottom-6 left-6 z-50 bg-zinc-900 border border-violet-500/40 text-zinc-100 text-xs px-4 py-2.5 rounded-2xl shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-4">

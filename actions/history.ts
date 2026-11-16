@@ -40,7 +40,7 @@ export async function getDailyOverview(localDateInput?: string) {
     DailyOverviewQuerySchema.parse({ localDate });
 
     // Date-scoped parallel queries (only fetches for this specific localDate)
-    const [trackers, entries, tasks, dailyNote] = await Promise.all([
+    const [trackers, entries, tasks, dailyNote, prayerRecords] = await Promise.all([
       // 1. Active Trackers (not archived, not paused)
       prisma.tracker.findMany({
         where: { userId, isArchived: false, isPaused: false },
@@ -86,6 +86,11 @@ export async function getDailyOverview(localDateInput?: string) {
         where: {
           userId_localDate: { userId, localDate },
         },
+      }),
+      // 5. Prayer Records for this date
+      prisma.prayerRecord.findMany({
+        where: { userId, date: localDate },
+        orderBy: { prayerKey: "asc" },
       }),
     ]);
 
@@ -170,10 +175,12 @@ export async function getDailyOverview(localDateInput?: string) {
           completed: tasksCompletedToday,
         },
         dailyNote,
+        prayers: prayerRecords,
         summary: {
           totalTrackers: trackers.length,
           completedTrackers: trackersWithProgress.filter((t) => t.isCompleted).length,
           completedTasksCount: tasksCompletedToday.length,
+          completedPrayersCount: prayerRecords.filter((p) => p.isCompleted).length,
           totalDurationMinutes: Math.round(totalDurationSeconds / 60),
           hasNote: Boolean(dailyNote?.content),
         },
@@ -214,7 +221,7 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
     const todayStr = getLocalDateString(new Date(), userSettings?.timezone || "Asia/Riyadh");
 
     // Date-scoped queries for the month
-    const [entries, tasks, notes] = await Promise.all([
+    const [entries, tasks, notes, prayers] = await Promise.all([
       prisma.trackerEntry.findMany({
         where: {
           userId,
@@ -251,6 +258,19 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
           mood: true,
         },
       }),
+      prisma.prayerRecord.findMany({
+        where: {
+          userId,
+          date: { gte: startDate, lte: endDate },
+          isCompleted: true,
+        },
+        select: {
+          id: true,
+          date: true,
+          prayerKey: true,
+          isCompleted: true,
+        },
+      }),
     ]);
 
     // Group by localDate
@@ -264,11 +284,13 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
       const dayEntries = entries.filter((e) => e.localDate === dateStr);
       const dayTasks = tasks.filter((t) => t.dueDate === dateStr);
       const dayNote = notes.find((n) => n.localDate === dateStr);
+      const dayPrayers = prayers.filter((p) => p.date === dateStr);
 
       const entriesCount = dayEntries.length;
       const totalDurationSeconds = dayEntries.reduce((sum, e) => sum + (e.valueDuration || 0), 0);
       const completedTasksCount = dayTasks.filter((t) => t.status === "COMPLETED").length;
-      const hasData = entriesCount > 0 || Boolean(dayNote) || completedTasksCount > 0;
+      const completedPrayersCount = dayPrayers.length;
+      const hasData = entriesCount > 0 || Boolean(dayNote) || completedTasksCount > 0 || completedPrayersCount > 0;
 
       // Status indicator:
       // - "future": upcoming days
@@ -293,6 +315,7 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
         entriesCount,
         totalDurationSeconds,
         completedTasksCount,
+        completedPrayersCount,
         hasNote: Boolean(dayNote),
         mood: dayNote?.mood || null,
       };

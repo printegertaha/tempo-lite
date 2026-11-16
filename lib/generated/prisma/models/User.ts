@@ -213,6 +213,7 @@ export type UserWhereInput = {
   gymWorkouts?: Prisma.GymWorkoutListRelationFilter
   mealEntries?: Prisma.MealEntryListRelationFilter
   expenseEntries?: Prisma.ExpenseEntryListRelationFilter
+  prayerRecords?: Prisma.PrayerRecordListRelationFilter
 }
 
 export type UserOrderByWithRelationInput = {
@@ -238,6 +239,7 @@ export type UserOrderByWithRelationInput = {
   gymWorkouts?: Prisma.GymWorkoutOrderByRelationAggregateInput
   mealEntries?: Prisma.MealEntryOrderByRelationAggregateInput
   expenseEntries?: Prisma.ExpenseEntryOrderByRelationAggregateInput
+  prayerRecords?: Prisma.PrayerRecordOrderByRelationAggregateInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -266,6 +268,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   gymWorkouts?: Prisma.GymWorkoutListRelationFilter
   mealEntries?: Prisma.MealEntryListRelationFilter
   expenseEntries?: Prisma.ExpenseEntryListRelationFilter
+  prayerRecords?: Prisma.PrayerRecordListRelationFilter
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -317,6 +320,7 @@ export type UserCreateInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -342,6 +346,7 @@ export type UserUncheckedCreateInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -367,6 +372,7 @@ export type UserUpdateInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -392,6 +398,7 @@ export type UserUncheckedUpdateInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -685,6 +692,20 @@ export type UserUpdateOneRequiredWithoutExpenseEntriesNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutExpenseEntriesInput, Prisma.UserUpdateWithoutExpenseEntriesInput>, Prisma.UserUncheckedUpdateWithoutExpenseEntriesInput>
 }
 
+export type UserCreateNestedOneWithoutPrayerRecordsInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutPrayerRecordsInput, Prisma.UserUncheckedCreateWithoutPrayerRecordsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutPrayerRecordsInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutPrayerRecordsNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutPrayerRecordsInput, Prisma.UserUncheckedCreateWithoutPrayerRecordsInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutPrayerRecordsInput
+  upsert?: Prisma.UserUpsertWithoutPrayerRecordsInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPrayerRecordsInput, Prisma.UserUpdateWithoutPrayerRecordsInput>, Prisma.UserUncheckedUpdateWithoutPrayerRecordsInput>
+}
+
 export type UserCreateWithoutSessionsInput = {
   id?: string
   name: string
@@ -707,6 +728,7 @@ export type UserCreateWithoutSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSessionsInput = {
@@ -731,6 +753,7 @@ export type UserUncheckedCreateWithoutSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSessionsInput = {
@@ -771,6 +794,7 @@ export type UserUpdateWithoutSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSessionsInput = {
@@ -795,6 +819,7 @@ export type UserUncheckedUpdateWithoutSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAccountsInput = {
@@ -819,6 +844,7 @@ export type UserCreateWithoutAccountsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAccountsInput = {
@@ -843,6 +869,7 @@ export type UserUncheckedCreateWithoutAccountsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAccountsInput = {
@@ -883,6 +910,7 @@ export type UserUpdateWithoutAccountsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAccountsInput = {
@@ -907,6 +935,7 @@ export type UserUncheckedUpdateWithoutAccountsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutSettingsInput = {
@@ -931,6 +960,7 @@ export type UserCreateWithoutSettingsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutSettingsInput = {
@@ -955,6 +985,7 @@ export type UserUncheckedCreateWithoutSettingsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutSettingsInput = {
@@ -995,6 +1026,7 @@ export type UserUpdateWithoutSettingsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutSettingsInput = {
@@ -1019,6 +1051,7 @@ export type UserUncheckedUpdateWithoutSettingsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutLifeAreasInput = {
@@ -1043,6 +1076,7 @@ export type UserCreateWithoutLifeAreasInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutLifeAreasInput = {
@@ -1067,6 +1101,7 @@ export type UserUncheckedCreateWithoutLifeAreasInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutLifeAreasInput = {
@@ -1107,6 +1142,7 @@ export type UserUpdateWithoutLifeAreasInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutLifeAreasInput = {
@@ -1131,6 +1167,7 @@ export type UserUncheckedUpdateWithoutLifeAreasInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackersInput = {
@@ -1155,6 +1192,7 @@ export type UserCreateWithoutTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackersInput = {
@@ -1179,6 +1217,7 @@ export type UserUncheckedCreateWithoutTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackersInput = {
@@ -1219,6 +1258,7 @@ export type UserUpdateWithoutTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackersInput = {
@@ -1243,6 +1283,7 @@ export type UserUncheckedUpdateWithoutTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackerVersionsInput = {
@@ -1267,6 +1308,7 @@ export type UserCreateWithoutTrackerVersionsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackerVersionsInput = {
@@ -1291,6 +1333,7 @@ export type UserUncheckedCreateWithoutTrackerVersionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackerVersionsInput = {
@@ -1331,6 +1374,7 @@ export type UserUpdateWithoutTrackerVersionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackerVersionsInput = {
@@ -1355,6 +1399,7 @@ export type UserUncheckedUpdateWithoutTrackerVersionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTrackerEntriesInput = {
@@ -1379,6 +1424,7 @@ export type UserCreateWithoutTrackerEntriesInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTrackerEntriesInput = {
@@ -1403,6 +1449,7 @@ export type UserUncheckedCreateWithoutTrackerEntriesInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTrackerEntriesInput = {
@@ -1443,6 +1490,7 @@ export type UserUpdateWithoutTrackerEntriesInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTrackerEntriesInput = {
@@ -1467,6 +1515,7 @@ export type UserUncheckedUpdateWithoutTrackerEntriesInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutTasksInput = {
@@ -1491,6 +1540,7 @@ export type UserCreateWithoutTasksInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutTasksInput = {
@@ -1515,6 +1565,7 @@ export type UserUncheckedCreateWithoutTasksInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutTasksInput = {
@@ -1555,6 +1606,7 @@ export type UserUpdateWithoutTasksInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutTasksInput = {
@@ -1579,6 +1631,7 @@ export type UserUncheckedUpdateWithoutTasksInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutDailyNotesInput = {
@@ -1603,6 +1656,7 @@ export type UserCreateWithoutDailyNotesInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutDailyNotesInput = {
@@ -1627,6 +1681,7 @@ export type UserUncheckedCreateWithoutDailyNotesInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutDailyNotesInput = {
@@ -1667,6 +1722,7 @@ export type UserUpdateWithoutDailyNotesInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutDailyNotesInput = {
@@ -1691,6 +1747,7 @@ export type UserUncheckedUpdateWithoutDailyNotesInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAbstinenceTrackersInput = {
@@ -1715,6 +1772,7 @@ export type UserCreateWithoutAbstinenceTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAbstinenceTrackersInput = {
@@ -1739,6 +1797,7 @@ export type UserUncheckedCreateWithoutAbstinenceTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAbstinenceTrackersInput = {
@@ -1779,6 +1838,7 @@ export type UserUpdateWithoutAbstinenceTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAbstinenceTrackersInput = {
@@ -1803,6 +1863,7 @@ export type UserUncheckedUpdateWithoutAbstinenceTrackersInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutAbstinenceSessionsInput = {
@@ -1827,6 +1888,7 @@ export type UserCreateWithoutAbstinenceSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutAbstinenceSessionsInput = {
@@ -1851,6 +1913,7 @@ export type UserUncheckedCreateWithoutAbstinenceSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutAbstinenceSessionsInput = {
@@ -1891,6 +1954,7 @@ export type UserUpdateWithoutAbstinenceSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutAbstinenceSessionsInput = {
@@ -1915,6 +1979,7 @@ export type UserUncheckedUpdateWithoutAbstinenceSessionsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutMutationReceiptsInput = {
@@ -1939,6 +2004,7 @@ export type UserCreateWithoutMutationReceiptsInput = {
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutMutationReceiptsInput = {
@@ -1963,6 +2029,7 @@ export type UserUncheckedCreateWithoutMutationReceiptsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutMutationReceiptsInput = {
@@ -2003,6 +2070,7 @@ export type UserUpdateWithoutMutationReceiptsInput = {
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutMutationReceiptsInput = {
@@ -2027,6 +2095,7 @@ export type UserUncheckedUpdateWithoutMutationReceiptsInput = {
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutGymWorkoutsInput = {
@@ -2051,6 +2120,7 @@ export type UserCreateWithoutGymWorkoutsInput = {
   mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutGymWorkoutsInput = {
@@ -2075,6 +2145,7 @@ export type UserUncheckedCreateWithoutGymWorkoutsInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutGymWorkoutsInput = {
@@ -2115,6 +2186,7 @@ export type UserUpdateWithoutGymWorkoutsInput = {
   mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutGymWorkoutsInput = {
@@ -2139,6 +2211,7 @@ export type UserUncheckedUpdateWithoutGymWorkoutsInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutMealEntriesInput = {
@@ -2163,6 +2236,7 @@ export type UserCreateWithoutMealEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutMealEntriesInput = {
@@ -2187,6 +2261,7 @@ export type UserUncheckedCreateWithoutMealEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutMealEntriesInput = {
@@ -2227,6 +2302,7 @@ export type UserUpdateWithoutMealEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutMealEntriesInput = {
@@ -2251,6 +2327,7 @@ export type UserUncheckedUpdateWithoutMealEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
 }
 
 export type UserCreateWithoutExpenseEntriesInput = {
@@ -2275,6 +2352,7 @@ export type UserCreateWithoutExpenseEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
   gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordCreateNestedManyWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutExpenseEntriesInput = {
@@ -2299,6 +2377,7 @@ export type UserUncheckedCreateWithoutExpenseEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
   gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
   mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedCreateNestedManyWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutExpenseEntriesInput = {
@@ -2339,6 +2418,7 @@ export type UserUpdateWithoutExpenseEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
   gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUpdateManyWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutExpenseEntriesInput = {
@@ -2363,6 +2443,123 @@ export type UserUncheckedUpdateWithoutExpenseEntriesInput = {
   mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
   gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
   mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  prayerRecords?: Prisma.PrayerRecordUncheckedUpdateManyWithoutUserNestedInput
+}
+
+export type UserCreateWithoutPrayerRecordsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryCreateNestedManyWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutPrayerRecordsInput = {
+  id?: string
+  name: string
+  email: string
+  emailVerified?: boolean
+  image?: string | null
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  sessions?: Prisma.SessionUncheckedCreateNestedManyWithoutUserInput
+  accounts?: Prisma.AccountUncheckedCreateNestedManyWithoutUserInput
+  settings?: Prisma.UserSettingsUncheckedCreateNestedOneWithoutUserInput
+  lifeAreas?: Prisma.LifeAreaUncheckedCreateNestedManyWithoutUserInput
+  trackers?: Prisma.TrackerUncheckedCreateNestedManyWithoutUserInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedCreateNestedManyWithoutUserInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedCreateNestedManyWithoutUserInput
+  tasks?: Prisma.TaskUncheckedCreateNestedManyWithoutUserInput
+  dailyNotes?: Prisma.DailyNoteUncheckedCreateNestedManyWithoutUserInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedCreateNestedManyWithoutUserInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedCreateNestedManyWithoutUserInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedCreateNestedManyWithoutUserInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedCreateNestedManyWithoutUserInput
+  mealEntries?: Prisma.MealEntryUncheckedCreateNestedManyWithoutUserInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedCreateNestedManyWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutPrayerRecordsInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutPrayerRecordsInput, Prisma.UserUncheckedCreateWithoutPrayerRecordsInput>
+}
+
+export type UserUpsertWithoutPrayerRecordsInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutPrayerRecordsInput, Prisma.UserUncheckedUpdateWithoutPrayerRecordsInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutPrayerRecordsInput, Prisma.UserUncheckedCreateWithoutPrayerRecordsInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutPrayerRecordsInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutPrayerRecordsInput, Prisma.UserUncheckedUpdateWithoutPrayerRecordsInput>
+}
+
+export type UserUpdateWithoutPrayerRecordsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUpdateManyWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutPrayerRecordsInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  name?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  emailVerified?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  image?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  sessions?: Prisma.SessionUncheckedUpdateManyWithoutUserNestedInput
+  accounts?: Prisma.AccountUncheckedUpdateManyWithoutUserNestedInput
+  settings?: Prisma.UserSettingsUncheckedUpdateOneWithoutUserNestedInput
+  lifeAreas?: Prisma.LifeAreaUncheckedUpdateManyWithoutUserNestedInput
+  trackers?: Prisma.TrackerUncheckedUpdateManyWithoutUserNestedInput
+  trackerVersions?: Prisma.TrackerVersionUncheckedUpdateManyWithoutUserNestedInput
+  trackerEntries?: Prisma.TrackerEntryUncheckedUpdateManyWithoutUserNestedInput
+  tasks?: Prisma.TaskUncheckedUpdateManyWithoutUserNestedInput
+  dailyNotes?: Prisma.DailyNoteUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceTrackers?: Prisma.AbstinenceTrackerUncheckedUpdateManyWithoutUserNestedInput
+  abstinenceSessions?: Prisma.AbstinenceSessionUncheckedUpdateManyWithoutUserNestedInput
+  mutationReceipts?: Prisma.MutationReceiptUncheckedUpdateManyWithoutUserNestedInput
+  gymWorkouts?: Prisma.GymWorkoutUncheckedUpdateManyWithoutUserNestedInput
+  mealEntries?: Prisma.MealEntryUncheckedUpdateManyWithoutUserNestedInput
+  expenseEntries?: Prisma.ExpenseEntryUncheckedUpdateManyWithoutUserNestedInput
 }
 
 
@@ -2385,6 +2582,7 @@ export type UserCountOutputType = {
   gymWorkouts: number
   mealEntries: number
   expenseEntries: number
+  prayerRecords: number
 }
 
 export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
@@ -2402,6 +2600,7 @@ export type UserCountOutputTypeSelect<ExtArgs extends runtime.Types.Extensions.I
   gymWorkouts?: boolean | UserCountOutputTypeCountGymWorkoutsArgs
   mealEntries?: boolean | UserCountOutputTypeCountMealEntriesArgs
   expenseEntries?: boolean | UserCountOutputTypeCountExpenseEntriesArgs
+  prayerRecords?: boolean | UserCountOutputTypeCountPrayerRecordsArgs
 }
 
 /**
@@ -2512,6 +2711,13 @@ export type UserCountOutputTypeCountExpenseEntriesArgs<ExtArgs extends runtime.T
   where?: Prisma.ExpenseEntryWhereInput
 }
 
+/**
+ * UserCountOutputType without action
+ */
+export type UserCountOutputTypeCountPrayerRecordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  where?: Prisma.PrayerRecordWhereInput
+}
+
 
 export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
   id?: boolean
@@ -2536,6 +2742,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   gymWorkouts?: boolean | Prisma.User$gymWorkoutsArgs<ExtArgs>
   mealEntries?: boolean | Prisma.User$mealEntriesArgs<ExtArgs>
   expenseEntries?: boolean | Prisma.User$expenseEntriesArgs<ExtArgs>
+  prayerRecords?: boolean | Prisma.User$prayerRecordsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
@@ -2586,6 +2793,7 @@ export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = 
   gymWorkouts?: boolean | Prisma.User$gymWorkoutsArgs<ExtArgs>
   mealEntries?: boolean | Prisma.User$mealEntriesArgs<ExtArgs>
   expenseEntries?: boolean | Prisma.User$expenseEntriesArgs<ExtArgs>
+  prayerRecords?: boolean | Prisma.User$prayerRecordsArgs<ExtArgs>
   _count?: boolean | Prisma.UserCountOutputTypeDefaultArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -2609,6 +2817,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     gymWorkouts: Prisma.$GymWorkoutPayload<ExtArgs>[]
     mealEntries: Prisma.$MealEntryPayload<ExtArgs>[]
     expenseEntries: Prisma.$ExpenseEntryPayload<ExtArgs>[]
+    prayerRecords: Prisma.$PrayerRecordPayload<ExtArgs>[]
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -3027,6 +3236,7 @@ export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Typ
   gymWorkouts<T extends Prisma.User$gymWorkoutsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$gymWorkoutsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$GymWorkoutPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   mealEntries<T extends Prisma.User$mealEntriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$mealEntriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$MealEntryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   expenseEntries<T extends Prisma.User$expenseEntriesArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$expenseEntriesArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$ExpenseEntryPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
+  prayerRecords<T extends Prisma.User$prayerRecordsArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$prayerRecordsArgs<ExtArgs>>): Prisma.PrismaPromise<runtime.Types.Result.GetResult<Prisma.$PrayerRecordPayload<ExtArgs>, T, "findMany", GlobalOmitOptions> | Null>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -3808,6 +4018,30 @@ export type User$expenseEntriesArgs<ExtArgs extends runtime.Types.Extensions.Int
   take?: number
   skip?: number
   distinct?: Prisma.ExpenseEntryScalarFieldEnum | Prisma.ExpenseEntryScalarFieldEnum[]
+}
+
+/**
+ * User.prayerRecords
+ */
+export type User$prayerRecordsArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the PrayerRecord
+   */
+  select?: Prisma.PrayerRecordSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the PrayerRecord
+   */
+  omit?: Prisma.PrayerRecordOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.PrayerRecordInclude<ExtArgs> | null
+  where?: Prisma.PrayerRecordWhereInput
+  orderBy?: Prisma.PrayerRecordOrderByWithRelationInput | Prisma.PrayerRecordOrderByWithRelationInput[]
+  cursor?: Prisma.PrayerRecordWhereUniqueInput
+  take?: number
+  skip?: number
+  distinct?: Prisma.PrayerRecordScalarFieldEnum | Prisma.PrayerRecordScalarFieldEnum[]
 }
 
 /**

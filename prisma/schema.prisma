@@ -41,6 +41,7 @@ model User {
   gymWorkouts        GymWorkout[]
   mealEntries        MealEntry[]
   expenseEntries     ExpenseEntry[]
+  prayerRecords      PrayerRecord[]
 
   @@map("user")
 }
@@ -495,6 +496,30 @@ model ExpenseEntry {
   @@index([userId, date])
   @@map("expense_entry")
 }
+
+// -----------------------------------------------------------------------------
+// 12. DEDICATED PRAYER TRACKING (FIRST-CLASS DOMAIN)
+// -----------------------------------------------------------------------------
+
+model PrayerRecord {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        String    // Local calendar date "YYYY-MM-DD"
+  prayerKey   String    // "fajr" | "dhuhr" | "asr" | "maghrib" | "isha"
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  location    String?   // "mosque" | "home" | "work" | "other"
+  withSunnah  Boolean   @default(false)
+  notes       String?   @db.Text
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, date, prayerKey])
+  @@index([userId, date])
+  @@map("prayer_record")
+}
+
 
 
 

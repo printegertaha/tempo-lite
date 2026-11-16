@@ -1,13 +1,29 @@
 import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
+import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import { AtharProvider } from "@/components/context/AtharContext";
 import Toast from "@/components/Toast";
+import PwaRegister from "@/components/pwa/PwaRegister";
+import GuestImportModal from "@/components/auth/GuestImportModal";
 import "./globals.css";
 
 export const metadata = {
-  title: "Athar - أثـر | منصة تتبع الحياة واليوميات وبناء العادات",
+  title: "Athar - أثـر ",
   description:
     "دوّن وتابع مسار حياتك كلها في مكان واحد، واجعل من أيامك وعاداتك أثراً باقياً واستثماراً في ذاتك.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "أثـر",
+  },
+};
+
+export const viewport = {
+  themeColor: "#08090d",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
 };
 
 export default function RootLayout({ children }) {
@@ -42,9 +58,15 @@ export default function RootLayout({ children }) {
             <main className="flex-1 pb-24 md:pb-16">
               {children}
             </main>
+            {/* Mobile Bottom Navigation */}
+            <Suspense fallback={null}>
+              <MobileBottomNav />
+            </Suspense>
           </div>
 
           <Toast />
+          <PwaRegister />
+          <GuestImportModal />
         </AtharProvider>
       </body>
     </html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useMemo } from "react";
 import { 
   Plus, 
   Calendar,
@@ -21,12 +21,8 @@ export default function DashboardHeader({
   onOpenCreateTask,
   onOpenQuickLog,
 }) {
-  const [dayName, setDayName] = useState("");
-  const [formattedDate, setFormattedDate] = useState("");
-  const [isToday, setIsToday] = useState(true);
-
-  useEffect(() => {
-    if (!selectedDate) return;
+  const { dayName, formattedDate, isToday } = useMemo(() => {
+    if (!selectedDate) return { dayName: "", formattedDate: "", isToday: true };
     try {
       const [year, month, day] = selectedDate.split("-").map(Number);
       const dateObj = new Date(year, month - 1, day);
@@ -38,13 +34,18 @@ export default function DashboardHeader({
         year: "numeric" 
       }).format(dateObj);
 
-      setDayName(weekday);
-      setFormattedDate(full);
-
       const todayStr = getLocalDateString();
-      setIsToday(selectedDate === todayStr);
+      return {
+        dayName: weekday,
+        formattedDate: full,
+        isToday: selectedDate === todayStr,
+      };
     } catch {
-      setFormattedDate(selectedDate);
+      return {
+        dayName: "",
+        formattedDate: selectedDate,
+        isToday: false,
+      };
     }
   }, [selectedDate]);
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   ShieldCheck,
   ShieldAlert,
@@ -21,6 +21,7 @@ import CreateAbstinenceModal from "./CreateAbstinenceModal";
 import LogRelapseModal from "./LogRelapseModal";
 import EditStartTimeModal from "./EditStartTimeModal";
 import AbstinenceHistoryList from "./AbstinenceHistoryList";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { deleteAbstinenceTracker, getAbstinenceTrackers } from "@/actions/abstinence";
 import { calculateAbstinenceDuration } from "@/lib/dates";
 
@@ -39,24 +40,44 @@ export default function AbstinenceHub({
   const [relapseModalOpen, setRelapseModalOpen] = useState(false);
   const [editStartModalOpen, setEditStartModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
 
   // Active selected tracker object
   const selectedTracker =
     trackers.find((t) => t.id === selectedTrackerId) || trackers[0] || null;
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     try {
       const res = await getAbstinenceTrackers();
-      if (res.success && res.data) {
+      if (res.success && res.data && res.data.length > 0) {
         setTrackers(res.data);
         if (!selectedTrackerId && res.data.length > 0) {
           setSelectedTrackerId(res.data[0].id);
         }
+        return;
       }
-    } catch (err) {
-      console.error("Error refreshing abstinence data:", err);
+    } catch {
+      // Offline / unauthenticated fallback
     }
-  };
+
+    // Load guest/local cached abstinence trackers
+    try {
+      const { getLocalDB } = await import("@/lib/local-db");
+      const db = await getLocalDB();
+      const localAbs = await db.getAllFromIndex("abstinence_trackers", "by-user", "guest");
+      if (localAbs.length > 0) {
+        setTrackers(localAbs);
+        if (!selectedTrackerId) {
+          setSelectedTrackerId(localAbs[0].id);
+        }
+      }
+    } catch {}
+  }, [selectedTrackerId]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    refreshData();
+  }, [refreshData]);
 
   const handleCreated = (newTracker) => {
     refreshData();
@@ -65,13 +86,8 @@ export default function AbstinenceHub({
     }
   };
 
-  const handleDeleteTracker = async () => {
+  const handleConfirmDelete = async () => {
     if (!selectedTracker) return;
-    const confirmDelete = window.confirm(
-      `هل أنت متأكد من حذف هدف الامتناع "${selectedTracker.name}" وكل جلساته السابقة؟`
-    );
-    if (!confirmDelete) return;
-
     setIsDeleting(true);
     try {
       const res = await deleteAbstinenceTracker(selectedTracker.id);
@@ -82,6 +98,7 @@ export default function AbstinenceHub({
       }
     } finally {
       setIsDeleting(false);
+      setIsConfirmDeleteOpen(false);
     }
   };
 
@@ -106,26 +123,14 @@ export default function AbstinenceHub({
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
         <div className="space-y-1">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs font-semibold">
-            <ShieldCheck className="w-3.5 h-3.5" />
-            <span>نظام الامتناع والتعافي (Abstinence Tracking)</span>
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-black text-zinc-100 tracking-tight">
+      
+          <h1 className="text-2xl sm:text-3xl font-black tracking-wider text-zinc-100 ">
             سجل الامتناع وإدارة الانتكاسات
           </h1>
-          <p className="text-xs sm:text-sm text-zinc-400">
-            تتبع دقيق مبني على timestamps حقيقية بالثواني، دون عداد منفصل أو وهمي.
-          </p>
+     
         </div>
 
-        <button
-          type="button"
-          onClick={() => setCreateModalOpen(true)}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-rose-600/25 transition-all active:scale-95 shrink-0 cursor-pointer"
-        >
-          <Plus className="w-4 h-4 stroke-[2.5]" />
-          <span>هدف امتناع جديد</span>
-        </button>
+   
       </div>
 
       {/* Zero State if user has no goals */}
@@ -248,7 +253,7 @@ export default function AbstinenceHub({
                 </span>
                 <button
                   type="button"
-                  onClick={handleDeleteTracker}
+                  onClick={() => setIsConfirmDeleteOpen(true)}
                   disabled={isDeleting}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors cursor-pointer"
                 >
@@ -283,6 +288,18 @@ export default function AbstinenceHub({
         tracker={selectedTracker}
         timezone={timezone}
         onUpdated={refreshData}
+      />
+
+      <ConfirmDialog
+        isOpen={isConfirmDeleteOpen}
+        onClose={() => setIsConfirmDeleteOpen(false)}
+        onConfirm={handleConfirmDelete}
+        title="تأكيد حذف الهدف"
+        description={`هل أنت متأكد من حذف هدف الامتناع "${selectedTracker?.name || ""}" وكل جلساته السابقة؟ لا يمكن التراجع عن هذا الإجراء.`}
+        confirmLabel="حذف نهائي"
+        cancelLabel="إلغاء"
+        isDestructive
+        isLoading={isDeleting}
       />
     </div>
   );
