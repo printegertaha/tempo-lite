@@ -17,11 +17,24 @@
   --color-zinc-950: #09090b;
 }
 
+html {
+  scrollbar-gutter: stable;
+  overflow-y: scroll;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
     'Noto Sans Arabic', 'Cairo', 'Tajawal', sans-serif;
+  scrollbar-gutter: stable;
+}
+
+/* Prevent layout shift from scroll lock attributes/libraries */
+[data-scroll-locked] {
+  margin-right: 0px !important;
+  padding-right: 0px !important;
+  overflow: hidden !important;
 }
 
 /* RTL-safe scrollbar */
@@ -41,7 +54,8 @@ body {
   height: 0 !important;
 }
 
-/* Safe area padding for PWA bottom nav */
-.safe-area-bottom {
+/* Safe area padding for mobile navigation & toolbars (iOS Safari, Brave) */
+.safe-area-bottom,
+.pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }

@@ -15,22 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   ListTree,
-  Sparkles,
 } from "lucide-react";
-import { soundManager } from "@/lib/audio";
-import { LocalTask } from "@/lib/local-db";
-
-interface TaskCardItemProps {
-  task: LocalTask;
-  onToggleStatus: (taskId: string) => void;
-  onStartTimer?: (task: LocalTask) => void;
-  onEdit?: (task: LocalTask) => void;
-  onPostpone?: (taskId: string, days?: number, customDate?: string) => void;
-  onCopy?: (task: LocalTask) => void;
-  onDelete?: (taskId: string) => void;
-  isDraggable?: boolean;
-  dragHandleProps?: any;
-}
 
 export default function TaskCardItem({
   task,
@@ -42,15 +27,15 @@ export default function TaskCardItem({
   onDelete,
   isDraggable = true,
   dragHandleProps,
-}: TaskCardItemProps) {
+}) {
   const isCompleted = task.status === "COMPLETED";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
   const subtasks = Array.isArray(task.subtasks) ? task.subtasks : [];
-  const completedSubtasksCount = subtasks.filter((s: any) => s.completed).length;
+  const completedSubtasksCount = subtasks.filter((s) => s.completed).length;
 
-  const handleCheck = (e: React.MouseEvent) => {
+  const handleCheck = (e) => {
     e.stopPropagation();
     onToggleStatus(task.id);
   };
@@ -71,9 +56,8 @@ export default function TaskCardItem({
 
   // Handle long title safely
   const isLongTitle = (task.title || "").length > 70;
-  const displayTitle = isLongTitle && !isExpanded
-    ? `${task.title.slice(0, 68)}...`
-    : task.title;
+  const displayTitle =
+    isLongTitle && !isExpanded ? `${task.title.slice(0, 68)}...` : task.title;
 
   return (
     <div
@@ -165,7 +149,7 @@ export default function TaskCardItem({
                   className="fixed inset-0 z-20"
                   onClick={() => setIsMenuOpen(false)}
                 />
-                <div className="absolute right-0 mt-1 w-44 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl p-1.5 z-30 space-y-0.5 text-right text-xs">
+                <div className="absolute left-0 mt-1 w-44 rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl p-1.5 z-30 space-y-0.5 text-right text-xs">
                   {onEdit && (
                     <button
                       type="button"
@@ -226,12 +210,13 @@ export default function TaskCardItem({
             )}
           </div>
 
-          {/* Drag Grip Handle */}
+          {/* Drag Grip Handle with touch-none for smooth mobile reordering */}
           {isDraggable && (
             <div
               {...dragHandleProps}
-              className="p-1 text-zinc-600 hover:text-zinc-400 cursor-grab active:cursor-grabbing"
+              className="p-1 text-zinc-500 hover:text-zinc-300 cursor-grab active:cursor-grabbing touch-none select-none"
               title="سحب لإعادة الترتيب"
+              aria-label="سحب لإعادة الترتيب"
             >
               <GripVertical className="w-4 h-4" />
             </div>
@@ -276,7 +261,7 @@ export default function TaskCardItem({
         )}
 
         {/* Life Area Category if attached */}
-        {(task as any).lifeArea && (
+        {task.lifeArea && (
           <span
             className="px-2 py-0.5 rounded-lg text-xs font-medium border"
             style={{
@@ -285,7 +270,7 @@ export default function TaskCardItem({
               color: "#c4b5fd",
             }}
           >
-            {(task as any).lifeArea.name}
+            {task.lifeArea.name}
           </span>
         )}
       </div>

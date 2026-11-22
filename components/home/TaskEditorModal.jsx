@@ -1,33 +1,19 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Modal from "@/components/ui/Modal";
 import DatePickerModal from "@/components/ui/DatePickerModal";
 import TimePickerModal from "@/components/ui/TimePickerModal";
 import {
   Calendar,
   Clock,
-  Flag,
   ListTree,
-  Plus,
   Trash2,
   Timer,
   Check,
-  Sparkles,
   Repeat,
   Moon,
 } from "lucide-react";
-import { LocalTask } from "@/lib/local-db";
-import { TaskPriorityType, SubtaskItem } from "@/lib/validations/task";
-
-interface TaskEditorModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  task?: LocalTask | null;
-  onSave: (taskData: any) => Promise<void> | void;
-  lifeAreas?: any[];
-  todayStr: string;
-}
 
 export default function TaskEditorModal({
   isOpen,
@@ -36,19 +22,19 @@ export default function TaskEditorModal({
   onSave,
   lifeAreas = [],
   todayStr,
-}: TaskEditorModalProps) {
+}) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [priority, setPriority] = useState<TaskPriorityType>("MEDIUM");
-  const [dueDate, setDueDate] = useState<string | null>(todayStr);
-  const [startTime, setStartTime] = useState<string | null>(null);
-  const [durationMinutes, setDurationMinutes] = useState<number>(25);
-  const [lifeAreaId, setLifeAreaId] = useState<string>("");
+  const [priority, setPriority] = useState("MEDIUM");
+  const [dueDate, setDueDate] = useState(todayStr);
+  const [startTime, setStartTime] = useState(null);
+  const [durationMinutes, setDurationMinutes] = useState(25);
+  const [lifeAreaId, setLifeAreaId] = useState("");
   const [isPomodoro, setIsPomodoro] = useState(false);
   const [workCycle, setWorkCycle] = useState(25);
   const [breakCycle, setBreakCycle] = useState(5);
   const [isRecurring, setIsRecurring] = useState(false);
-  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
+  const [subtasks, setSubtasks] = useState([]);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
@@ -109,17 +95,17 @@ export default function TaskEditorModal({
     setNewSubtaskTitle("");
   };
 
-  const handleToggleSubtask = (id: string) => {
+  const handleToggleSubtask = (id) => {
     setSubtasks((prev) =>
       prev.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
     );
   };
 
-  const handleDeleteSubtask = (id: string) => {
+  const handleDeleteSubtask = (id) => {
     setSubtasks((prev) => prev.filter((s) => s.id !== id));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!title.trim() || isSaving) return;
 
@@ -248,7 +234,7 @@ export default function TaskEditorModal({
               <label className="text-xs font-bold text-zinc-300">الأولوية</label>
               <select
                 value={priority}
-                onChange={(e) => setPriority(e.target.value as TaskPriorityType)}
+                onChange={(e) => setPriority(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-violet-500"
               >
                 <option value="LOW">منخفضة</option>

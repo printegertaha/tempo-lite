@@ -613,7 +613,32 @@ export async function deleteTask(taskId: string) {
 }
 
 /**
- * 9. Reorder Tasks Array
+ * 9. Delete All Tasks for the authenticated user
+ */
+export async function deleteAllTasks() {
+  try {
+    const userId = await requireAuth();
+
+    await prisma.task.deleteMany({
+      where: { userId },
+    });
+
+    revalidatePath("/tasks");
+    revalidatePath("/journal");
+    revalidatePath("/");
+
+    return { success: true, message: "تم حذف جميع المهام بنجاح" };
+  } catch (error: any) {
+    console.error("Error deleting all tasks:", error);
+    return {
+      success: false,
+      error: error?.message || "فشل حذف جميع المهام",
+    };
+  }
+}
+
+/**
+ * 10. Reorder Tasks Array
  */
 export async function reorderTasks(taskIds: string[]) {
   try {

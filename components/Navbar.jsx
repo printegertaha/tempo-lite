@@ -71,11 +71,14 @@ export default function Navbar() {
   // Lock body scroll when mobile menu is open
   useEffect(() => {
     if (mobileMenuOpen) {
+      document.body.classList.add("overflow-hidden");
       document.body.style.overflow = "hidden";
     } else {
+      document.body.classList.remove("overflow-hidden");
       document.body.style.overflow = "";
     }
     return () => {
+      document.body.classList.remove("overflow-hidden");
       document.body.style.overflow = "";
     };
   }, [mobileMenuOpen]);
@@ -112,7 +115,7 @@ export default function Navbar() {
 
   const primaryLinks = [
     { href: "/", label: "الرئيسية", icon: LayoutDashboard },
-    { href: "/planner", label: "المخطط", icon: CalendarRange },
+    // { href: "/planner", label: "المخطط", icon: CalendarRange },
     { href: "/tasks", label: "المهام", icon: CheckSquare },
     { href: "/habits", label: "العادات", icon: Flame },
     { href: "/journal", label: "اليوميات", icon: BookMarked },
@@ -467,7 +470,7 @@ export default function Navbar() {
           <>
             {/* Backdrop Blur Overlay: prevents seeing content underneath and closes on click */}
             <div
-              className="fixed inset-0 top-[65px] bg-black/80 backdrop-blur-xl z-40 lg:hidden transition-all duration-300"
+              className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 lg:hidden transition-all duration-300"
               onClick={() => setMobileMenuOpen(false)}
               aria-hidden="true"
             />
@@ -584,82 +587,6 @@ export default function Navbar() {
         </>
       )}
       </header>
-
-      {/* ------------------------------------------------------------------- */}
-      {/* Mobile Floating Bottom Bar (App Style Navigation) */}
-      {/* ------------------------------------------------------------------- */}
-      <nav
-        aria-label="التنقل السريع"
-        className="fixed bottom-3 inset-x-3 z-40 md:hidden bg-[#0a0c16]/95 backdrop-blur-2xl border border-zinc-800/90 rounded-2xl px-2 py-1.5 shadow-2xl shadow-black/80 flex items-center justify-around"
-      >
-        <Link
-          href="/"
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
-            pathname === "/"
-              ? "text-emerald-400 font-bold"
-              : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          <Flame className="w-5 h-5" />
-          <span className="text-[10px]">اليوم</span>
-        </Link>
-
-        <Link
-          href="/habits"
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
-            isActive("/habits")
-              ? "text-violet-400 font-bold"
-              : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          <Sparkles className="w-5 h-5" />
-          <span className="text-[10px]">العادات</span>
-        </Link>
-
-        {/* Center Floating Action Button (Only for authenticated users) */}
-        {isAuthenticated ? (
-          <Link
-            href="/planner"
-            className="flex items-center justify-center -mt-6 w-13 h-13 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xl shadow-violet-600/40 border-2 border-[#0a0c16] active:scale-95 transition-transform"
-            aria-label="المخطط الأسبوعي وإدارة المهام"
-            title="المخطط الأسبوعي"
-          >
-            <Plus className="w-6 h-6 stroke-[2.5]" />
-          </Link>
-        ) : (
-          <Link
-            href="/login"
-            className="flex items-center justify-center -mt-6 w-13 h-13 rounded-2xl bg-gradient-to-tr from-violet-600 to-indigo-600 text-white shadow-xl shadow-violet-600/40 border-2 border-[#0a0c16] active:scale-95 transition-transform"
-            aria-label="تسجيل الدخول"
-          >
-            <UserIcon className="w-6 h-6 stroke-[2.2]" />
-          </Link>
-        )}
-
-        <Link
-          href="/tasks"
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
-            isActive("/tasks")
-              ? "text-violet-400 font-bold"
-              : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          <CheckSquare className="w-5 h-5" />
-          <span className="text-[10px]">المهام</span>
-        </Link>
-
-        <Link
-          href="/journal"
-          className={`flex flex-col items-center gap-1 py-1.5 px-3 rounded-xl transition-colors ${
-            isActive("/journal")
-              ? "text-violet-400 font-bold"
-              : "text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          <BookMarked className="w-5 h-5" />
-          <span className="text-[10px]">اليومية</span>
-        </Link>
-      </nav>
     </>
   );
 }

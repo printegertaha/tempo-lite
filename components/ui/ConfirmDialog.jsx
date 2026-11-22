@@ -1,21 +1,7 @@
 "use client";
 
-import { ReactNode } from "react";
 import Modal from "./Modal";
 import { AlertTriangle } from "lucide-react";
-
-interface ConfirmDialogProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onConfirm: () => void;
-  title: string;
-  description: string;
-  confirmLabel?: string;
-  cancelLabel?: string;
-  isDestructive?: boolean;
-  isLoading?: boolean;
-  icon?: ReactNode;
-}
 
 export default function ConfirmDialog({
   isOpen,
@@ -28,7 +14,7 @@ export default function ConfirmDialog({
   isDestructive = false,
   isLoading = false,
   icon,
-}: ConfirmDialogProps) {
+}) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" showCloseButton={false}>
       <div className="space-y-4 text-center">
@@ -73,4 +59,3 @@ export default function ConfirmDialog({
     </Modal>
   );
 }
-

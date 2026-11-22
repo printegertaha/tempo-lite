@@ -347,35 +347,35 @@ export default function HabitsClient({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-      {/* 1. Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-2xl backdrop-blur-xl">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-zinc-800/80 border border-zinc-700/80 text-emerald-400 shadow-inner">
-            <Flame className="w-6 h-6" />
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-8">
+      {/* 1. Compact Sleek Header (Single-row on mobile) */}
+      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-zinc-800/80 border border-zinc-700/80 text-emerald-400 shrink-0 shadow-inner">
+            <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-zinc-100">
+              <h1 className="text-base sm:text-2xl font-black text-zinc-100 truncate">
                 العادات ومنظومة التتبع
               </h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25">
-                {user ? `${filteredTrackers.length} متعقب` : "وضع المعاينة"}
+              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 shrink-0">
+                {user ? `${filteredTrackers.length}` : "معاينة"}
               </span>
             </div>
-            <p className="text-zinc-400 text-xs mt-1">
+            <p className="text-zinc-400 text-xs mt-0.5 hidden sm:block">
               حرية كاملة لتأسيس وتعديل أنظمة القياس الـ 7: إنجاز، عداد، قياس، مدة، نطاق وقت، قائمة تدقيق، وامتناع
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 shrink-0">
           {/* Main View Toggle */}
-          <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
+          <div className="hidden sm:flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
             <button
               type="button"
               onClick={() => setMainView("cards")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
                 mainView === "cards"
                   ? "bg-zinc-800 text-white shadow-sm"
                   : "text-zinc-400 hover:text-white"
@@ -386,21 +386,21 @@ export default function HabitsClient({
             <button
               type="button"
               onClick={() => setMainView("wheel")}
-              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
+              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
                 mainView === "wheel"
                   ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
                   : "text-zinc-400 hover:text-white"
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>عجلة الـ 31 يوماً</span>
+              <span>العجلة</span>
             </button>
           </div>
 
           <button
             type="button"
             onClick={handleOpenCreate}
-            className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer shrink-0"
           >
             <Plus className="w-4 h-4" />
             <span>متعقب جديد</span>
@@ -408,107 +408,105 @@ export default function HabitsClient({
         </div>
       </div>
 
-      {/* Guest Mode Banner */}
-      {!user && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-violet-500/10 border border-violet-500/25 text-violet-300">
-          <div className="flex items-center gap-2.5">
-            <span className="w-2 h-2 rounded-full bg-violet-400 animate-pulse shrink-0" />
-            <span className="text-xs font-medium">
-              <b>وضع الضيف المحلي (Offline-First):</b> جميع عاداتك ومتعقباتك اليومية محفوظة محلياً على هذا الجهاز في متصفحك، ويمكنك إنشاء حساب في أي وقت لمزامنتها سحابياً.
-            </span>
-          </div>
-          <Link
-            href="/login?returnTo=/habits"
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0 active:scale-95"
-          >
-            <LogIn className="w-3.5 h-3.5" />
-            <span>تسجيل الدخول / حساب جديد</span>
-          </Link>
-        </div>
-      )}
+
 
       {/* Main View Conditional Rendering */}
       {mainView === "wheel" ? (
         <RadialHabitWheel existingTrackers={trackers} />
       ) : (
         <>
-          {/* 2. Controls: Status Tabs, Life Area Pills, Search */}
-          <div className="space-y-4">
-        {/* Row 1: Status Tabs & Search */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center p-1 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs overflow-x-auto scrollbar-none">
-            <button
-              type="button"
-              onClick={() => setStatusTab("active")}
-              className={`px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                statusTab === "active"
-                  ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              النشطة
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusTab("pinned")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                statusTab === "pinned"
-                  ? "bg-zinc-800 text-violet-300 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Pin className="w-3 h-3" />
-              <span>المثبتة</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusTab("paused")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                statusTab === "paused"
-                  ? "bg-zinc-800 text-amber-300 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Pause className="w-3 h-3" />
-              <span>المتوقفة</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setStatusTab("archived")}
-              className={`flex items-center gap-1 px-3.5 py-1.5 rounded-xl font-bold transition-all whitespace-nowrap ${
-                statusTab === "archived"
-                  ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Archive className="w-3 h-3" />
-              <span>الأرشيف</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => {
-                setSelectedDate(e.target.value);
-                fetchDailyEntries(e.target.value);
-              }}
-              className="px-3 py-2 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-200 font-mono focus:outline-none focus:border-violet-500 cursor-pointer"
-              title="اختر تاريخ اليوميات"
-            />
-            <div className="relative w-full sm:w-56">
-              <Search className="w-4 h-4 text-zinc-400 absolute right-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="بحث في المتعقبات..."
-                className="w-full pr-10 pl-4 py-2 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
-              />
+          {/* 2. Controls: Status Tabs, Date & Search cleanly stacked for mobile */}
+          <div className="space-y-3">
+            {/* Row 1: Status Tabs (Full width grid on mobile, inline on desktop) */}
+            <div className="grid grid-cols-4 sm:flex items-center gap-1 p-1 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs w-full sm:w-fit">
+              <button
+                type="button"
+                onClick={() => setStatusTab("active")}
+                className={`py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
+                  statusTab === "active"
+                    ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                النشطة
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("pinned")}
+                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
+                  statusTab === "pinned"
+                    ? "bg-zinc-800 text-violet-300 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <Pin className="w-3 h-3" />
+                <span>المثبتة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("paused")}
+                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
+                  statusTab === "paused"
+                    ? "bg-zinc-800 text-amber-300 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <Pause className="w-3 h-3" />
+                <span>المتوقفة</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setStatusTab("archived")}
+                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
+                  statusTab === "archived"
+                    ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                    : "text-zinc-400 hover:text-zinc-200"
+                }`}
+              >
+                <Archive className="w-3 h-3" />
+                <span>الأرشيف</span>
+              </button>
             </div>
-          </div>
-        </div>
+
+            {/* Row 2: Date Picker & Search Input cleanly stacked or flexed */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <div className="relative flex items-center">
+                  <Calendar className="w-3.5 h-3.5 text-zinc-400 absolute right-3 pointer-events-none" />
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => {
+                      setSelectedDate(e.target.value);
+                      fetchDailyEntries(e.target.value);
+                    }}
+                    className="pr-8 pl-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-200 font-mono focus:outline-none focus:border-violet-500 cursor-pointer w-full sm:w-auto"
+                    title="اختر تاريخ اليوميات"
+                  />
+                </div>
+
+                {/* Mobile View Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setMainView(mainView === "cards" ? "wheel" : "cards")}
+                  className="sm:hidden flex items-center gap-1 px-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-bold text-zinc-300"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>{mainView === "cards" ? "العجلة" : "البطاقات"}</span>
+                </button>
+              </div>
+
+              <div className="relative w-full sm:w-64">
+                <Search className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="بحث في المتعقبات..."
+                  className="w-full pr-8 pl-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
+                />
+              </div>
+            </div>
 
         {/* Row 2: Life Areas Filter Pills */}
         {lifeAreas.length > 0 && (

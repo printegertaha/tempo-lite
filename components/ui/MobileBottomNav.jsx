@@ -32,13 +32,15 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[#0a0c13]/95 border-t border-zinc-800/80 backdrop-blur-xl shadow-2xl safe-area-bottom"
+      className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[#0a0c13]/95 border-t border-zinc-800/80 backdrop-blur-xl shadow-2xl pb-safe select-none"
       aria-label="شريط التنقل السفلي للهاتف"
     >
       <div className="grid grid-cols-5 h-16 max-w-md mx-auto items-center px-1">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
-          const isActive = mounted && pathname === item.href;
+          const isActive =
+            mounted &&
+            (item.href === "/" ? pathname === "/" : pathname.startsWith(item.href));
 
           return (
             <Link
@@ -47,20 +49,20 @@ export default function MobileBottomNav() {
               onClick={() => soundManager.playClick()}
               className={`flex flex-col items-center justify-center gap-1 py-1 rounded-2xl transition-all duration-150 ${
                 isActive
-                  ? "text-violet-400 font-bold scale-105"
+                  ? "text-emerald-400 font-bold scale-105"
                   : "text-zinc-400 hover:text-zinc-200 font-medium"
               }`}
             >
               <div
                 className={`p-1.5 rounded-xl transition-colors ${
                   isActive
-                    ? "bg-violet-600/15 border border-violet-500/25 shadow-sm shadow-violet-600/20"
+                    ? "bg-emerald-500/15 border border-emerald-500/30 shadow-sm shadow-emerald-500/20"
                     : "bg-transparent"
                 }`}
               >
                 <Icon
                   className={`w-5 h-5 ${
-                    isActive ? "text-violet-400" : "text-zinc-400"
+                    isActive ? "text-emerald-400" : "text-zinc-400"
                   }`}
                 />
               </div>

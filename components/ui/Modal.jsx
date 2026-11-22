@@ -1,17 +1,7 @@
 "use client";
 
-import { useEffect, useRef, ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
-
-interface ModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  title?: ReactNode;
-  description?: ReactNode;
-  children: ReactNode;
-  maxWidth?: "sm" | "md" | "lg" | "xl" | "2xl";
-  showCloseButton?: boolean;
-}
 
 const maxWidthMap = {
   sm: "max-w-sm",
@@ -21,6 +11,16 @@ const maxWidthMap = {
   "2xl": "max-w-2xl",
 };
 
+/**
+ * @param {Object} props
+ * @param {boolean} props.isOpen
+ * @param {() => void} props.onClose
+ * @param {any} [props.title]
+ * @param {any} [props.description]
+ * @param {any} props.children
+ * @param {'sm' | 'md' | 'lg' | 'xl' | '2xl'} [props.maxWidth]
+ * @param {boolean} [props.showCloseButton]
+ */
 export default function Modal({
   isOpen,
   onClose,
@@ -29,14 +29,14 @@ export default function Modal({
   children,
   maxWidth = "lg",
   showCloseButton = true,
-}: ModalProps) {
-  const modalRef = useRef<HTMLDivElement>(null);
+}) {
+  const modalRef = useRef(null);
 
   // Close on Escape key press
   useEffect(() => {
     if (!isOpen) return;
 
-    const handleKeyDown = (e: KeyboardEvent) => {
+    const handleKeyDown = (e) => {
       if (e.key === "Escape") {
         onClose();
       }
@@ -69,7 +69,7 @@ export default function Modal({
       <div
         ref={modalRef}
         onClick={(e) => e.stopPropagation()}
-        className={`w-full ${maxWidthMap[maxWidth]} rounded-3xl bg-[#0c0e17] border border-zinc-800 shadow-2xl p-6 sm:p-7 space-y-5 text-right relative max-h-[90vh] overflow-y-auto`}
+        className={`w-full ${maxWidthMap[maxWidth] || maxWidthMap.lg} rounded-3xl bg-[#0c0e17] border border-zinc-800 shadow-2xl p-6 sm:p-7 space-y-5 text-right relative max-h-[90vh] overflow-y-auto`}
       >
         {/* Header */}
         {(title || showCloseButton) && (
@@ -91,7 +91,7 @@ export default function Modal({
               <button
                 type="button"
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors shrink-0"
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60 transition-colors shrink-0 cursor-pointer"
                 aria-label="إغلاق النافذة"
               >
                 <X className="w-5 h-5" />
@@ -101,7 +101,7 @@ export default function Modal({
         )}
 
         {/* Content */}
-        <div>{children}</div>
+        <div className="space-y-4">{children}</div>
       </div>
     </div>
   );

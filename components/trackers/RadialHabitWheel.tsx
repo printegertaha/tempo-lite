@@ -59,7 +59,9 @@ interface RadialHabitWheelProps {
   existingTrackers?: any[];
 }
 
-export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitWheelProps) {
+export default function RadialHabitWheel({
+  existingTrackers = [],
+}: RadialHabitWheelProps) {
   // Current Date defaults
   const today = useMemo(() => new Date(), []);
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
@@ -99,7 +101,8 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
   }, [selectedYear, selectedMonth]);
 
   // Is current month?
-  const isCurrentMonth = today.getFullYear() === selectedYear && today.getMonth() === selectedMonth;
+  const isCurrentMonth =
+    today.getFullYear() === selectedYear && today.getMonth() === selectedMonth;
   const currentDayNumber = isCurrentMonth ? today.getDate() : null;
 
   // Load from localStorage on mount
@@ -137,11 +140,13 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
       showToast("لا توجد عادات مسجلة في أثر للاستيراد");
       return;
     }
-    const imported: WheelHabit[] = existingTrackers.slice(0, 5).map((t, idx) => ({
-      id: t.id || `h${idx + 1}`,
-      name: t.name || `عادة ${idx + 1}`,
-      color: DEFAULT_HABITS[idx]?.color || "#10b981",
-    }));
+    const imported: WheelHabit[] = existingTrackers
+      .slice(0, 5)
+      .map((t, idx) => ({
+        id: t.id || `h${idx + 1}`,
+        name: t.name || `عادة ${idx + 1}`,
+        color: DEFAULT_HABITS[idx]?.color || "#10b981",
+      }));
 
     // Pad if fewer than 5
     while (imported.length < 5) {
@@ -180,7 +185,11 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
     }));
   };
 
-  const setCellExplicit = (habitId: string, day: number, status: CellStatus) => {
+  const setCellExplicit = (
+    habitId: string,
+    day: number,
+    status: CellStatus,
+  ) => {
     const key = `${monthKey}-${habitId}-${day}`;
     setRecords((prev) => ({
       ...prev,
@@ -218,7 +227,7 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
     });
     setRecords((prev) => ({ ...prev, ...updates }));
     soundManager.playTaskDone();
-    showToast(`تم تسجيل جميع العادات كمكتملة لليوم (${currentDayNumber}) 🎉`);
+    showToast(`تم تسجيل جميع العادات كمكتملة لليوم (${currentDayNumber})`);
   };
 
   // Update Habit Name
@@ -287,16 +296,7 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
 
       {/* Header & Month Selector */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-zinc-800/80 pb-5">
-        <div className="text-right w-full sm:w-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-bold mb-1.5">
-            <Flame className="w-3.5 h-3.5 fill-emerald-400" />
-            <span>المخطط الدائري الشهري للعادات (31 يوماً)</span>
-          </div>
-          <h2 className="text-2xl font-black text-white">عجلة الالتزام والانضباط</h2>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            اكتب اسم العادة وتابع التزامك طوال الشهر: المربع يتلون <span className="text-emerald-400 font-bold">بالأخضر</span> عند الإنجاز، و<span className="text-rose-400 font-bold">بالأحمر</span> عند الإخفاق.
-          </p>
-        </div>
+ 
 
         {/* Month Navigation */}
         <div className="flex items-center gap-2 bg-zinc-900 border border-zinc-800 rounded-2xl p-1.5 shadow-lg">
@@ -333,11 +333,13 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
         <div className="flex items-center gap-4 bg-zinc-950/80 border border-zinc-850 px-4 py-2 rounded-2xl">
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded-md bg-emerald-500 shadow-sm shadow-emerald-500/50" />
-            <span className="text-zinc-300 font-medium">تمام فيها (إنجاز)</span>
+            <span className="text-zinc-300 font-medium">تم  </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded-md bg-rose-500 shadow-sm shadow-rose-500/50" />
-            <span className="text-zinc-300 font-medium">عكس المتوقع (لم أنجزها)</span>
+            <span className="text-zinc-300 font-medium">
+             متمش
+            </span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-3.5 h-3.5 rounded-md bg-zinc-600" />
@@ -379,6 +381,7 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
       {/* Main Wheel View */}
       <div className="relative bg-zinc-950/70 border border-zinc-850/80 rounded-3xl p-2 sm:p-4 overflow-x-auto shadow-2xl">
         <div className="min-w-[780px] max-w-[940px] mx-auto relative select-none">
+         f
           <svg
             viewBox="0 0 940 840"
             className="w-full h-auto overflow-visible"
@@ -392,8 +395,21 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
               </radialGradient>
 
               {/* Missed Hatch Pattern */}
-              <pattern id="missedHatch" width="6" height="6" patternTransform="rotate(45 0 0)" patternUnits="userSpaceOnUse">
-                <line x1="0" y1="0" x2="0" y2="6" stroke="#991b1b" strokeWidth="1.5" />
+              <pattern
+                id="missedHatch"
+                width="6"
+                height="6"
+                patternTransform="rotate(45 0 0)"
+                patternUnits="userSpaceOnUse"
+              >
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="6"
+                  stroke="#991b1b"
+                  strokeWidth="1.5"
+                />
               </pattern>
             </defs>
 
@@ -401,14 +417,35 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
             <circle cx={cx} cy={cy} r={radii[0]} fill="url(#wheelCenterGlow)" />
 
             {/* Inner Center Label */}
-            <g transform={`translate(${cx}, ${cy})`} className="pointer-events-none text-center">
-              <text y="-10" textAnchor="middle" fill="#71717a" fontSize="12" fontWeight="600">
+            <g
+              transform={`translate(${cx}, ${cy})`}
+              className="pointer-events-none text-center"
+            >
+              <text
+                y="-10"
+                textAnchor="middle"
+                fill="#71717a"
+                fontSize="12"
+                fontWeight="600"
+              >
                 {ARABIC_MONTHS[selectedMonth]} {selectedYear}
               </text>
-              <text y="16" textAnchor="middle" fill="#ffffff" fontSize="22" fontWeight="900">
+              <text
+                y="16"
+                textAnchor="middle"
+                fill="#ffffff"
+                fontSize="22"
+                fontWeight="900"
+              >
                 {overallRate}%
               </text>
-              <text y="34" textAnchor="middle" fill="#10b981" fontSize="11" fontWeight="700">
+              <text
+                y="34"
+                textAnchor="middle"
+                fill="#10b981"
+                fontSize="11"
+                fontWeight="700"
+              >
                 نسبة الالتزام
               </text>
             </g>
@@ -473,7 +510,13 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
                       x={lx}
                       y={ly}
                       textAnchor="middle"
-                      fill={isToday ? "#10b981" : isOutOfMonth ? "#52525b" : "#e4e4e7"}
+                      fill={
+                        isToday
+                          ? "#10b981"
+                          : isOutOfMonth
+                            ? "#52525b"
+                            : "#e4e4e7"
+                      }
                       fontSize={isToday ? "14" : "11"}
                       fontWeight={isToday ? "900" : "700"}
                       className="cursor-default select-none"
@@ -550,7 +593,8 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
                             if (!isOutOfMonth) cycleCellStatus(habit.id, day);
                           }}
                           onMouseEnter={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
+                            const rect =
+                              e.currentTarget.getBoundingClientRect();
                             setHoveredCell({
                               habitIndex,
                               day,
@@ -573,7 +617,6 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
               })}
             </g>
           </svg>
-
           {/* --------------------------------------------------------- */}
           {/* HABIT LABELS & INPUTS OVERLAY (Placed at the horizontal lines) */}
           {/* --------------------------------------------------------- */}
@@ -671,12 +714,16 @@ export default function RadialHabitWheel({ existingTrackers = [] }: RadialHabitW
 
               <div className="flex items-baseline justify-between text-xs pt-1">
                 <span className="text-zinc-400 text-[11px]">نسبة الالتزام</span>
-                <span className="font-black text-emerald-400 text-sm">{stat.rate}%</span>
+                <span className="font-black text-emerald-400 text-sm">
+                  {stat.rate}%
+                </span>
               </div>
 
               <div className="grid grid-cols-2 gap-1 text-[10px] pt-1 border-t border-zinc-850">
                 <span className="text-emerald-400">✓ {stat.done} يوم</span>
-                <span className="text-rose-400 text-left">✕ {stat.missed} يوم</span>
+                <span className="text-rose-400 text-left">
+                  ✕ {stat.missed} يوم
+                </span>
               </div>
             </div>
           );

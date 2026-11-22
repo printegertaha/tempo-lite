@@ -9,14 +9,24 @@ import { addDaysToDateString, getLocalDateString } from "@/lib/dates";
 // In-memory module-level cache for zero-flicker instant navigation
 const memoryTaskCache = new Map<string, LocalTask[]>();
 
+function deduplicateTasks(taskList: LocalTask[]): LocalTask[] {
+  const map = new Map<string, LocalTask>();
+  for (const t of taskList) {
+    if (t && t.id) {
+      map.set(t.id, t);
+    }
+  }
+  return Array.from(map.values());
+}
+
 export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
   const effectiveUserId = userId || "guest";
   const isGuest = effectiveUserId === "guest";
 
-  const [tasks, setTasks] = useState<LocalTask[]>(() => {
+  const [tasks, setTasksState] = useState<LocalTask[]>(() => {
     const cached = memoryTaskCache.get(effectiveUserId);
-    if (cached && cached.length > 0) return cached;
-    return initialTasks.map((t) => ({
+    if (cached && cached.length > 0) return deduplicateTasks(cached);
+    const parsedInitial = initialTasks.map((t) => ({
       ...t,
       completedAt: t.completedAt ? (typeof t.completedAt === "string" ? t.completedAt : new Date(t.completedAt).toISOString()) : null,
       clientUpdatedAt: Date.now(),
@@ -24,7 +34,15 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
       tags: Array.isArray(t.tags) ? t.tags : [],
       version: t.version || 1,
     }));
+    return deduplicateTasks(parsedInitial);
   });
+
+  const setTasks = useCallback((action: React.SetStateAction<LocalTask[]>) => {
+    setTasksState((prev) => {
+      const next = typeof action === "function" ? (action as (p: LocalTask[]) => LocalTask[])(prev) : action;
+      return deduplicateTasks(next);
+    });
+  }, []);
 
   const [isLoaded, setIsLoaded] = useState<boolean>(() => memoryTaskCache.has(effectiveUserId));
   const tasksRef = useRef<LocalTask[]>(tasks);
@@ -163,8 +181,8 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
         _syncStatus: isGuest ? "synced" : "pending",
       };
 
-      // 1. In-memory update
-      setTasks((prev) => [...prev, newTask]);
+      // 1. In-memory update with deduplication
+      setTasks((prev) => [...prev.filter((t) => t.id !== newId), newTask]);
 
       // 2. Persist to local IndexedDB
       await localTaskRepo.save(newTask);
@@ -320,7 +338,49 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
   );
 
   /**
-   * 6. Reorder Tasks
+   * 6. Delete All Tasks (Local + Outbox)
+   */
+  const deleteAllTasks = useCallback(
+    async () => {
+      const allIds = tasksRef.current.map((t) => t.id);
+
+      // Clear in-memory
+      setTasks([]);
+
+      // Clear IndexedDB
+      await Promise.all(allIds.map((id) => localTaskRepo.delete(id)));
+
+      // Queue delete mutations for each task
+      if (!isGuest) {
+        const nowMs = Date.now();
+        await Promise.all(
+          allIds.map((id) => {
+            const mutation: LocalMutation = {
+              mutationId: crypto.randomUUID(),
+              userId: effectiveUserId,
+              entityType: "task",
+              entityId: id,
+              action: "delete",
+              payload: {},
+              clientTimestamp: nowMs,
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            };
+            return localOutboxRepo.add(mutation);
+          })
+        );
+        syncEngine.scheduleSync(5000);
+      }
+
+      soundManager.playClick();
+      broadcastChange();
+    },
+    [effectiveUserId, isGuest, broadcastChange]
+  );
+
+  /**
+   * 7. Reorder Tasks
    */
   const reorderTasks = useCallback(
     async (orderedIds: string[]) => {
@@ -378,6 +438,7 @@ export function useLocalTasks(userId?: string, initialTasks: any[] = []) {
     updateTask,
     toggleTaskStatus,
     deleteTask,
+    deleteAllTasks,
     postponeTask,
     reorderTasks,
     refreshTasks,

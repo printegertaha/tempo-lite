@@ -22,7 +22,6 @@ import {
 import { soundManager } from "@/lib/audio";
 import { getLocalDateString, addDaysToDateString } from "@/lib/dates";
 import { useLocalTasks } from "@/hooks/useLocalTasks";
-import { LocalTask } from "@/lib/local-db";
 import HomePrayerBar from "@/components/home/HomePrayerBar";
 import QuickTaskInput from "@/components/home/QuickTaskInput";
 import TaskCardItem from "@/components/home/TaskCardItem";
@@ -38,20 +37,11 @@ import EmptyState from "@/components/ui/EmptyState";
 import { TaskCardSkeleton } from "@/components/ui/LoadingSkeleton";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 
-interface HomeViewProps {
-  user?: any;
-  initialDate?: string;
-  initialTodayTasks?: any[];
-  initialPrayers?: any[];
-  initialLifeAreas?: any[];
-}
-
-function toIsoDateString(val: unknown): string {
+function toIsoDateString(val) {
   if (!val) return "";
   if (typeof val === "string") return val;
   if (val instanceof Date) return val.toISOString();
-  if (typeof (val as any)?.toISOString === "function")
-    return (val as any).toISOString();
+  if (typeof val?.toISOString === "function") return val.toISOString();
   return String(val);
 }
 
@@ -61,7 +51,7 @@ export default function HomeView({
   initialTodayTasks = [],
   initialPrayers = [],
   initialLifeAreas = [],
-}: HomeViewProps) {
+}) {
   const todayStr = initialDate || getLocalDateString();
   const userId = user?.id || "guest";
   const isGuest = !user?.id || user?.id === "guest";
@@ -80,31 +70,31 @@ export default function HomeView({
 
   // UI state
   const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [editingTask, setEditingTask] = useState<LocalTask | null>(null);
+  const [editingTask, setEditingTask] = useState(null);
   const [isPostponeOpen, setIsPostponeOpen] = useState(false);
-  const [postponingTaskId, setPostponingTaskId] = useState<string | null>(null);
+  const [postponingTaskId, setPostponingTaskId] = useState(null);
   const [isCustomDatePickerOpen, setIsCustomDatePickerOpen] = useState(false);
   const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
-  const [copyingTask, setCopyingTask] = useState<LocalTask | null>(null);
-  const [deleteCandidateId, setDeleteCandidateId] = useState<string | null>(
-    null,
-  );
+  const [copyingTask, setCopyingTask] = useState(null);
+  const [deleteCandidateId, setDeleteCandidateId] = useState(null);
 
   // Sections collapse
   const [isOpenTasksExpanded, setIsOpenTasksExpanded] = useState(false);
   const [isUpcomingExpanded, setIsUpcomingExpanded] = useState(false);
 
   // Undo Toast state (6-second timer)
-  const [undoableTaskId, setUndoableTaskId] = useState<string | null>(null);
-  const [undoableTaskTitle, setUndoableTaskTitle] = useState<string | null>(
-    null,
-  );
+  const [undoableTaskId, setUndoableTaskId] = useState(null);
+  const [undoableTaskTitle, setUndoableTaskTitle] = useState(null);
 
   // Scheduled Reminder Alert State
-  const [scheduledAlertTask, setScheduledAlertTask] =
-    useState<LocalTask | null>(null);
-  const alertedTaskIdsRef = useRef(new Set<string>());
+  const [scheduledAlertTask, setScheduledAlertTask] = useState(null);
+  const alertedTaskIdsRef = useRef(new Set());
   const [prevTodayStr, setPrevTodayStr] = useState(todayStr);
+
+  // Drag and drop state (Touch + Pointer / Mouse)
+  const [draggedTaskId, setDraggedTaskId] = useState(null);
+  const [dragOverTaskId, setDragOverTaskId] = useState(null);
+  const touchStartRef = useRef(null);
 
   // Reset alert state when active date changes
   if (prevTodayStr !== todayStr) {
@@ -131,7 +121,7 @@ export default function HomeView({
     },
   });
 
-  // Filter Tasks into categories
+  // Filter Tasks into categories (Deduplicated by task.id)
   const {
     todayTasks,
     overdueTasks,
@@ -139,13 +129,23 @@ export default function HomeView({
     upcomingTasks,
     completedTodayTasks,
   } = useMemo(() => {
-    const today: LocalTask[] = [];
-    const overdue: LocalTask[] = [];
-    const open: LocalTask[] = [];
-    const upcoming: LocalTask[] = [];
-    const completed: LocalTask[] = [];
+    const today = [];
+    const overdue = [];
+    const open = [];
+    const upcoming = [];
+    const completed = [];
 
+    // Deduplicate tasks by ID
+    const seenIds = new Set();
+    const uniqueTasks = [];
     for (const t of tasks) {
+      if (t && t.id && !seenIds.has(t.id)) {
+        seenIds.add(t.id);
+        uniqueTasks.push(t);
+      }
+    }
+
+    for (const t of uniqueTasks) {
       if (t.isArchived) continue;
 
       if (t.status === "COMPLETED") {
@@ -176,12 +176,12 @@ export default function HomeView({
         return a.startTime.localeCompare(b.startTime);
       if (a.startTime) return -1;
       if (b.startTime) return 1;
-      return a.sortOrder - b.sortOrder;
+      return (a.sortOrder || 0) - (b.sortOrder || 0);
     });
 
     overdue.sort((a, b) => (b.dueDate || "").localeCompare(a.dueDate || ""));
     upcoming.sort((a, b) => (a.dueDate || "").localeCompare(b.dueDate || ""));
-    open.sort((a, b) => a.sortOrder - b.sortOrder);
+    open.sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
     completed.sort((a, b) => {
       const aTime = toIsoDateString(a.completedAt);
       const bTime = toIsoDateString(b.completedAt);
@@ -202,14 +202,14 @@ export default function HomeView({
     const checkSchedule = () => {
       const now = new Date();
       const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(
-        now.getMinutes(),
+        now.getMinutes()
       ).padStart(2, "0")}`;
 
       const dueNow = todayTasks.find(
         (t) =>
           t.startTime === currentHHMM &&
           t.status !== "COMPLETED" &&
-          !alertedTaskIdsRef.current.has(t.id),
+          !alertedTaskIdsRef.current.has(t.id)
       );
 
       if (dueNow) {
@@ -226,7 +226,7 @@ export default function HomeView({
 
   // Task Toggle with 6-second Undo
   const handleToggleTask = useCallback(
-    async (taskId: string) => {
+    async (taskId) => {
       const task = tasks.find((t) => t.id === taskId);
       if (!task) return;
 
@@ -243,26 +243,20 @@ export default function HomeView({
         }
       }
     },
-    [tasks, toggleTaskStatus, undoableTaskId],
+    [tasks, toggleTaskStatus, undoableTaskId]
   );
 
   const handleUndo = useCallback(
-    async (taskId: string) => {
+    async (taskId) => {
       await toggleTaskStatus(taskId);
       setUndoableTaskId(null);
       setUndoableTaskTitle(null);
     },
-    [toggleTaskStatus],
+    [toggleTaskStatus]
   );
 
   // Quick Add handler
-  const handleQuickAdd = async (data: {
-    title: string;
-    priority?: any;
-    dueDate?: string | null;
-    startTime?: string | null;
-    durationMinutes?: number | null;
-  }) => {
+  const handleQuickAdd = async (data) => {
     await addTask({
       title: data.title,
       priority: data.priority || "MEDIUM",
@@ -274,7 +268,7 @@ export default function HomeView({
   };
 
   // Editor Modal Save handler
-  const handleSaveFromEditor = async (taskData: any) => {
+  const handleSaveFromEditor = async (taskData) => {
     if (editingTask) {
       await updateTask(editingTask.id, taskData);
     } else {
@@ -288,12 +282,12 @@ export default function HomeView({
   };
 
   // Postpone handlers
-  const handlePostponeClick = (taskId: string) => {
+  const handlePostponeClick = (taskId) => {
     setPostponingTaskId(taskId);
     setIsPostponeOpen(true);
   };
 
-  const handleExecutePostpone = async (days?: number, customDate?: string) => {
+  const handleExecutePostpone = async (days, customDate) => {
     if (!postponingTaskId) return;
     await postponeTask(postponingTaskId, days, customDate);
     setIsPostponeOpen(false);
@@ -302,18 +296,18 @@ export default function HomeView({
   };
 
   // Schedule Open Task for Today
-  const handleScheduleForToday = async (taskId: string) => {
+  const handleScheduleForToday = async (taskId) => {
     await updateTask(taskId, { dueDate: todayStr });
     soundManager.playClick();
   };
 
   // Duplication Handler
-  const handleOpenCopyModal = (task: LocalTask) => {
+  const handleOpenCopyModal = (task) => {
     setCopyingTask(task);
     setIsCopyModalOpen(true);
   };
 
-  const handleExecuteCopy = async (targetDate: string) => {
+  const handleExecuteCopy = async (targetDate) => {
     if (!copyingTask) return;
     await addTask({
       ...copyingTask,
@@ -331,34 +325,86 @@ export default function HomeView({
     soundManager.playTaskStart();
   };
 
-  // Drag and drop reordering for Today's tasks
-  const handleDragStart = (e: React.DragEvent, id: string) => {
+  // Reorder Execution
+  const executeReorder = async (sourceId, targetId) => {
+    const currentIds = todayTasks.map((t) => t.id);
+    const draggedIndex = currentIds.indexOf(sourceId);
+    const targetIndex = currentIds.indexOf(targetId);
+
+    if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex) return;
+
+    const newIds = [...currentIds];
+    newIds.splice(draggedIndex, 1);
+    newIds.splice(targetIndex, 0, sourceId);
+
+    await reorderTasks(newIds);
+    soundManager.playClick();
+  };
+
+  // HTML5 Drag and drop handlers (Mouse)
+  const handleDragStart = (e, id) => {
+    setDraggedTaskId(id);
     e.dataTransfer.setData("text/plain", id);
     e.dataTransfer.effectAllowed = "move";
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+  const handleDragOver = (e, targetId) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
+    if (dragOverTaskId !== targetId) {
+      setDragOverTaskId(targetId);
+    }
   };
 
-  const handleDrop = async (e: React.DragEvent, targetId: string) => {
+  const handleDragEnd = () => {
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+  };
+
+  const handleDrop = async (e, targetId) => {
     e.preventDefault();
-    const draggedId = e.dataTransfer.getData("text/plain");
-    if (!draggedId || draggedId === targetId) return;
+    const sourceId = e.dataTransfer.getData("text/plain") || draggedTaskId;
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+    if (!sourceId || sourceId === targetId) return;
 
-    const currentIds = todayTasks.map((t) => t.id);
-    const draggedIndex = currentIds.indexOf(draggedId);
-    const targetIndex = currentIds.indexOf(targetId);
+    await executeReorder(sourceId, targetId);
+  };
 
-    if (draggedIndex === -1 || targetIndex === -1) return;
+  // Touch Drag-and-Drop handlers (Mobile Touch with touch-none on drag handle)
+  const handleHandleTouchStart = (e, taskId) => {
+    const touch = e.touches[0];
+    touchStartRef.current = {
+      taskId,
+      startY: touch.clientY,
+      currentHoverId: taskId,
+    };
+    setDraggedTaskId(taskId);
+  };
 
-    const newIds = [...currentIds];
-    newIds.splice(draggedIndex, 1);
-    newIds.splice(targetIndex, 0, draggedId);
+  const handleHandleTouchMove = (e) => {
+    if (!touchStartRef.current) return;
+    const touch = e.touches[0];
+    const targetEl = document.elementFromPoint(touch.clientX, touch.clientY);
+    const taskCard = targetEl?.closest("[data-task-id]");
+    const hoveredId = taskCard?.getAttribute("data-task-id");
 
-    await reorderTasks(newIds);
-    soundManager.playClick();
+    if (hoveredId && hoveredId !== touchStartRef.current.currentHoverId) {
+      touchStartRef.current.currentHoverId = hoveredId;
+      setDragOverTaskId(hoveredId);
+    }
+  };
+
+  const handleHandleTouchEnd = async () => {
+    if (!touchStartRef.current) return;
+    const { taskId, currentHoverId } = touchStartRef.current;
+    touchStartRef.current = null;
+    setDraggedTaskId(null);
+    setDragOverTaskId(null);
+
+    if (taskId && currentHoverId && taskId !== currentHoverId) {
+      await executeReorder(taskId, currentHoverId);
+    }
   };
 
   // Format today's date in Arabic
@@ -377,16 +423,15 @@ export default function HomeView({
 
   const totalActiveToday = todayTasks.length + overdueTasks.length;
   const totalCompletedToday = completedTodayTasks.length;
-  const progressRatio =
-    totalActiveToday + totalCompletedToday > 0
-      ? Math.round(
-          (totalCompletedToday / (totalActiveToday + totalCompletedToday)) *
-            100,
-        )
-      : 0;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-28 md:pb-16 selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-28 md:pb-16 selection:bg-emerald-500/30 selection:text-emerald-200 relative">
+      {/* 6. Sticky Top "Active Running Task" Bar across ALL screen sizes (Mobile & Desktop) */}
+      <TaskTimerWidget
+        onCompleteTask={handleToggleTask}
+        onPostponeTask={handlePostponeClick}
+      />
+
       {/* Top Banner / Notification for Scheduled Task */}
       {scheduledAlertTask && (
         <div className="sticky top-0 z-40 bg-emerald-500/15 border-b border-emerald-500/30 backdrop-blur-md px-4 py-2.5">
@@ -423,9 +468,9 @@ export default function HomeView({
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto px-4 pt-6 space-y-6">
-        {/* Header Section: Date & Progress */}
-        <header className=" border-b border-gray-600/50 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+      <main className="max-w-3xl mx-auto px-4 pt-3 md:pt-6 space-y-4 md:space-y-6">
+        {/* 2. Header Section: Date & Progress (Hidden on mobile < md, visible on desktop md:flex) */}
+        <header className="hidden md:flex md:items-center justify-between border-b border-zinc-800/80 pb-4 gap-3 pt-2">
           <div>
             <span className="text-xs font-medium text-emerald-400 tracking-wide flex items-center gap-1.5">
               <span>اليوم</span>
@@ -434,7 +479,6 @@ export default function HomeView({
               {formattedTodayDate}
             </h1>
           </div>
-
 
           <div className="flex items-center gap-3">
             {/* Progress Badge */}
@@ -459,9 +503,8 @@ export default function HomeView({
             </button>
           </div>
         </header>
-     
 
-        {/* Independent Prayer Bar */}
+        {/* 3. Five Daily Prayers Card (Immediately at the top on mobile) */}
         <section aria-label="شريط الصلوات">
           <HomePrayerBar
             userId={userId}
@@ -537,7 +580,7 @@ export default function HomeView({
           </section>
         )}
 
-        {/* Today's Tasks Section */}
+        {/* Today's Tasks Section with Touch & Mouse Drag Reordering */}
         <section aria-label="مهام اليوم" className="space-y-3">
           <div className="flex items-center justify-between text-xs px-1">
             <span className="font-bold text-zinc-300 flex items-center gap-1.5">
@@ -576,8 +619,8 @@ export default function HomeView({
                       type="button"
                       onClick={() => {
                         const input = document.querySelector(
-                          'input[type="text"]',
-                        ) as HTMLInputElement;
+                          'input[type="text"]'
+                        );
                         input?.focus();
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-zinc-850 hover:bg-zinc-800 border border-zinc-750 text-xs text-zinc-200 transition-colors cursor-pointer"
@@ -593,11 +636,19 @@ export default function HomeView({
               {todayTasks.map((task) => (
                 <div
                   key={task.id}
+                  data-task-id={task.id}
                   draggable
                   onDragStart={(e) => handleDragStart(e, task.id)}
-                  onDragOver={handleDragOver}
+                  onDragOver={(e) => handleDragOver(e, task.id)}
+                  onDragEnd={handleDragEnd}
                   onDrop={(e) => handleDrop(e, task.id)}
-                  className="transition-transform"
+                  className={`transition-all duration-150 ${
+                    draggedTaskId === task.id ? "opacity-40 scale-[0.98]" : ""
+                  } ${
+                    dragOverTaskId === task.id && draggedTaskId !== task.id
+                      ? "ring-2 ring-emerald-500/50 rounded-2xl"
+                      : ""
+                  }`}
                 >
                   <TaskCardItem
                     task={task}
@@ -611,6 +662,11 @@ export default function HomeView({
                     onCopy={handleOpenCopyModal}
                     onDelete={(id) => setDeleteCandidateId(id)}
                     isDraggable={true}
+                    dragHandleProps={{
+                      onTouchStart: (e) => handleHandleTouchStart(e, task.id),
+                      onTouchMove: handleHandleTouchMove,
+                      onTouchEnd: handleHandleTouchEnd,
+                    }}
                   />
                 </div>
               ))}
@@ -664,7 +720,7 @@ export default function HomeView({
                       onClick={() => handleScheduleForToday(task.id)}
                       className="mt-1 text-[11px] text-violet-400 hover:text-violet-300 flex items-center gap-1 mr-8 cursor-pointer"
                     >
-                      <Plus className="w-3 h-3" />
+                      <Plus className="w-3.5 h-3.5" />
                       <span>جدولة لليوم</span>
                     </button>
                   </div>
@@ -736,12 +792,6 @@ export default function HomeView({
           />
         </section>
       </main>
-
-      {/* Floating Active Task Timer Widget */}
-      <TaskTimerWidget
-        onCompleteTask={handleToggleTask}
-        onPostponeTask={handlePostponeClick}
-      />
 
       {/* Full Task Editor Modal */}
       {isEditorOpen && (
@@ -824,7 +874,7 @@ export default function HomeView({
             setPostponingTaskId(null);
           }}
           value={todayStr}
-          onChange={(selectedDate: string) => {
+          onChange={(selectedDate) => {
             setIsCustomDatePickerOpen(false);
             if (postponingTaskId) {
               handleExecutePostpone(undefined, selectedDate);
