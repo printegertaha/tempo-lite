@@ -1,8 +1,16 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { getCalendarMonthSummary } from "@/actions/history";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { useAthar } from "@/components/context/AtharContext";
+import { getLocalDateString, getDefaultTimezone } from "@/lib/dates";
+import {
+  localTaskRepo,
+  localNoteRepo,
+  localPrayerRepo,
+  localEntryRepo,
+} from "@/lib/local-db";
 import {
   Calendar as CalendarIcon,
   ChevronRight,
@@ -17,135 +25,144 @@ import {
 } from "lucide-react";
 
 const WEEK_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+const calendarMemoryCache = new Map();
 
 export default function CalendarClient({
-  user,
+  user: propUser,
   initialYear,
   initialMonth,
   initialDate,
   initialMonthData,
 }) {
-  const [currentYear, setCurrentYear] = useState(initialYear);
-  const [currentMonth, setCurrentMonth] = useState(initialMonth); // 1-12
-  const [monthData, setMonthData] = useState(initialMonthData);
-  const [selectedDate, setSelectedDate] = useState(initialDate);
+  const { userPreferences } = useAthar();
+  const { user: localUser, userId: sessionUserId } = useLocalSession();
+  const user = propUser || localUser;
+  const effectiveUserId = propUser?.id || sessionUserId || "guest";
+  const tz = userPreferences?.timezone || getDefaultTimezone();
+  const todayStr = getLocalDateString(new Date(), tz);
+  const [defaultY, defaultM] = todayStr.split("-").map(Number);
+
+  const [currentYear, setCurrentYear] = useState(initialYear || defaultY);
+  const [currentMonth, setCurrentMonth] = useState(initialMonth || defaultM);
+  const [monthData, setMonthData] = useState(
+    () =>
+      initialMonthData ||
+      calendarMemoryCache.get(`${effectiveUserId}:${initialYear || defaultY}-${initialMonth || defaultM}`) ||
+      null
+  );
+  const [selectedDate, setSelectedDate] = useState(initialDate || todayStr);
   const [isLoading, setIsLoading] = useState(false);
 
-  const isInitialMount = useRef(true);
+  const loadMonthData = useCallback(
+    async (y, m) => {
+      const monthPrefix = `${y}-${String(m).padStart(2, "0")}`;
+      const cacheKey = `${effectiveUserId}:${monthPrefix}`;
+      const cached = calendarMemoryCache.get(cacheKey);
+      if (cached) setMonthData(cached);
 
-  const loadMonthData = useCallback(async (y, m) => {
-    setIsLoading(true);
-    if (!user || user.isGuest || user.id === "guest") {
       try {
-        const { getLocalDB } = await import("@/lib/local-db");
-        const db = await getLocalDB();
-        const [guestTasks, guestNotes, guestPrayers] = await Promise.all([
-          db.getAllFromIndex("tasks", "by-user", "guest").catch(() => []),
-          db.getAll("daily_notes").catch(() => []),
-          db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
+        const [tasks, notes, prayers, entries] = await Promise.all([
+          localTaskRepo.getAllForUser(effectiveUserId, false).catch(() => []),
+          localNoteRepo.getAllForUser(effectiveUserId).catch(() => []),
+          localPrayerRepo.getAllForUser(effectiveUserId).catch(() => []),
+          localEntryRepo.getAllForUser(effectiveUserId).catch(() => []),
         ]);
 
+        const daysInM = new Date(y, m, 0).getDate();
         const daysMap = {};
-        for (const t of guestTasks) {
-          if (t.dueDate) {
-            const [ty, tm] = t.dueDate.split("-").map(Number);
-            if (ty === y && tm === m) {
-              if (!daysMap[t.dueDate]) {
-                daysMap[t.dueDate] = {
-                  date: t.dueDate,
-                  taskCount: 0,
-                  completedTasks: 0,
-                  entriesCount: 0,
-                  completedPrayers: 0,
-                  hasData: false,
-                };
-              }
-              daysMap[t.dueDate].taskCount++;
-              if (t.status === "COMPLETED") daysMap[t.dueDate].completedTasks++;
-            }
+
+        const ensureDay = (dateKey) => {
+          if (!daysMap[dateKey]) {
+            daysMap[dateKey] = {
+              date: dateKey,
+              isToday: dateKey === todayStr,
+              status: dateKey > todayStr ? "future" : "no_data",
+              taskCount: 0,
+              completedTasksCount: 0,
+              entriesCount: 0,
+              totalDurationSeconds: 0,
+              completedPrayers: 0,
+              hasNote: false,
+              hasData: false,
+            };
+          }
+          return daysMap[dateKey];
+        };
+
+        for (let d = 1; d <= daysInM; d++) {
+          const dk = `${monthPrefix}-${String(d).padStart(2, "0")}`;
+          ensureDay(dk);
+        }
+
+        for (const t of tasks) {
+          if (t.dueDate && t.dueDate.startsWith(monthPrefix)) {
+            const dObj = ensureDay(t.dueDate);
+            dObj.taskCount++;
+            if (t.status === "COMPLETED") dObj.completedTasksCount++;
           }
         }
 
-        for (const n of guestNotes) {
-          if (n.localDate && (n.userId === "guest" || !n.userId)) {
-            const [ny, nm] = n.localDate.split("-").map(Number);
-            if (ny === y && nm === m) {
-              if (!daysMap[n.localDate]) {
-                daysMap[n.localDate] = {
-                  date: n.localDate,
-                  taskCount: 0,
-                  completedTasks: 0,
-                  entriesCount: 0,
-                  completedPrayers: 0,
-                  hasData: false,
-                };
-              }
-              daysMap[n.localDate].entriesCount = (daysMap[n.localDate].entriesCount || 0) + 1;
-            }
+        for (const e of entries) {
+          if (e.localDate && e.localDate.startsWith(monthPrefix)) {
+            const dObj = ensureDay(e.localDate);
+            dObj.entriesCount++;
+            dObj.totalDurationSeconds += Number(e.valueDuration || 0);
           }
         }
 
-        for (const p of guestPrayers) {
-          if (p.date && p.isCompleted) {
-            const [py, pm] = p.date.split("-").map(Number);
-            if (py === y && pm === m) {
-              if (!daysMap[p.date]) {
-                daysMap[p.date] = {
-                  date: p.date,
-                  taskCount: 0,
-                  completedTasks: 0,
-                  entriesCount: 0,
-                  completedPrayers: 0,
-                  hasData: false,
-                };
-              }
-              daysMap[p.date].completedPrayers = (daysMap[p.date].completedPrayers || 0) + 1;
-            }
+        for (const n of notes) {
+          if (n.localDate && n.localDate.startsWith(monthPrefix) && n.content) {
+            const dObj = ensureDay(n.localDate);
+            dObj.hasNote = true;
           }
         }
 
-        // Set hasData flag for every day with activity
-        Object.keys(daysMap).forEach((dateKey) => {
-          const d = daysMap[dateKey];
-          d.hasData = d.completedTasks > 0 || d.taskCount > 0 || d.entriesCount > 0 || (d.completedPrayers || 0) > 0;
+        for (const p of prayers) {
+          if (p.date && p.date.startsWith(monthPrefix) && p.isCompleted) {
+            const dObj = ensureDay(p.date);
+            dObj.completedPrayers++;
+          }
+        }
+
+        Object.keys(daysMap).forEach((dk) => {
+          const d = daysMap[dk];
+          d.hasData =
+            d.completedTasksCount > 0 ||
+            d.taskCount > 0 ||
+            d.entriesCount > 0 ||
+            d.completedPrayers > 0 ||
+            d.hasNote;
+          if (d.status !== "future") {
+            d.status = d.hasData ? "active" : "no_data";
+          }
         });
 
-        setMonthData({
-          year: y,
-          month: m,
-          days: daysMap,
-        });
+        const nextMonthData = { year: y, month: m, days: daysMap };
+        calendarMemoryCache.set(cacheKey, nextMonthData);
+        setMonthData(nextMonthData);
       } catch (err) {
-        console.error("Error loading guest calendar data:", err);
+        console.error("Error loading local calendar data:", err);
       } finally {
         setIsLoading(false);
       }
-      return;
-    }
-
-    try {
-      const res = await getCalendarMonthSummary(y, m);
-      if (res.success && res.data) {
-        setMonthData(res.data);
-      }
-    } catch (err) {
-      console.error("Error loading calendar data:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user]);
+    },
+    [effectiveUserId, todayStr]
+  );
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      if (!user) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        loadMonthData(currentYear, currentMonth);
-      }
-      return;
-    }
-    loadMonthData(currentYear, currentMonth);
-  }, [currentYear, currentMonth, user, loadMonthData]);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void loadMonthData(currentYear, currentMonth);
+    });
+    const refresh = () => void loadMonthData(currentYear, currentMonth);
+    window.addEventListener("athar_data_synced", refresh);
+    window.addEventListener("athar_tasks_updated", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", refresh);
+      window.removeEventListener("athar_tasks_updated", refresh);
+    };
+  }, [currentYear, currentMonth, loadMonthData]);
 
   const handlePrevMonth = () => {
     if (currentMonth === 1) {

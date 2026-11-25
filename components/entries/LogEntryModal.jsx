@@ -15,7 +15,6 @@ import {
   Hash,
   Scale,
 } from "lucide-react";
-import { getTrackerDailyAggregate } from "@/actions/entries";
 import { getLocalDateString, computeTimeRange } from "@/lib/dates";
 import {
   logGenericEntryLocalFirst,
@@ -54,34 +53,17 @@ export default function LogEntryModal({
   // Daily entries state
   const [dayEntries, setDayEntries] = useState([]);
 
-  // Load existing entries for the chosen date (guest: IDB, auth: server with IDB fallback)
+  // Load existing entries immediately from IndexedDB (Local-First)
   useEffect(() => {
     let active = true;
     if (isOpen && tracker?.id && localDate) {
       const effectiveUserId = userId || "guest";
-      if (effectiveUserId === "guest") {
-        localEntryRepo
-          .getByTrackerAndDate("guest", tracker.id, localDate)
-          .then((entries) => {
-            if (active) setDayEntries(entries || []);
-          })
-          .catch(() => {});
-      } else {
-        getTrackerDailyAggregate(tracker.id, localDate)
-          .then((res) => {
-            if (active && res.success && res.data) {
-              setDayEntries(res.data.entries || []);
-            }
-          })
-          .catch(() => {
-            localEntryRepo
-              .getByTrackerAndDate(effectiveUserId, tracker.id, localDate)
-              .then((entries) => {
-                if (active) setDayEntries(entries || []);
-              })
-              .catch(() => {});
-          });
-      }
+      localEntryRepo
+        .getByTrackerAndDate(effectiveUserId, tracker.id, localDate)
+        .then((entries) => {
+          if (active) setDayEntries(entries || []);
+        })
+        .catch(() => {});
     }
     return () => {
       active = false;

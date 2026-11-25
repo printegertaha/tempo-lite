@@ -16,12 +16,14 @@ export const SyncBatchMutationSchema = z.object({
     "meal_entry",
     "expense_entry",
     "prayer_record",
+    "user_settings",
   ]),
   entityId: z.string().min(1),
   action: z.enum(["create", "update", "delete"]),
   payload: z.record(z.string(), z.any()),
   clientTimestamp: z.number().int().positive(),
   version: z.number().int().default(1),
+  baseUpdatedAt: z.union([z.string(), z.number()]).optional(),
 });
 
 export const SyncBatchRequestSchema = z.object({
@@ -35,6 +37,8 @@ export interface SyncBatchResultItem {
   entityId: string;
   status: "applied" | "duplicate" | "conflict" | "error";
   serverVersion?: number;
+  serverUpdatedAt?: string;
+  serverRecord?: any;
   error?: string;
   permanent?: boolean;
 }
@@ -57,6 +61,22 @@ function parseOptionalDate(val: unknown): Date | null {
   if (!val) return null;
   const d = new Date(val as any);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function hasTimestampConflict(
+  serverUpdatedAt: Date | null | undefined,
+  mut: { action: string; baseUpdatedAt?: string | number; payload?: Record<string, any> }
+): boolean {
+  if (
+    mut.action !== "update" ||
+    mut.payload?._forceOverwrite ||
+    !serverUpdatedAt ||
+    !mut.baseUpdatedAt
+  ) {
+    return false;
+  }
+  const baseMs = new Date(mut.baseUpdatedAt).getTime();
+  return Number.isFinite(baseMs) && baseMs > 0 && serverUpdatedAt.getTime() > baseMs + 1000;
 }
 
 class PermanentSyncError extends Error {
@@ -141,6 +161,7 @@ export async function processSyncBatch(
         }
 
         let serverVersion: number | undefined;
+        let serverUpdatedAt: string | undefined;
 
         if (mut.entityType === "task") {
           if (mut.action === "create") {
@@ -226,13 +247,34 @@ export async function processSyncBatch(
                   },
                 });
             serverVersion = task.version;
+            serverUpdatedAt = task.updatedAt.toISOString();
           } else if (mut.action === "update") {
             const existing = await tx.task.findFirst({
               where: { id: mut.entityId, userId },
-              select: { id: true, version: true },
             });
             if (!existing) {
               throw new PermanentSyncError("NOT_FOUND_OR_UNAUTHORIZED");
+            }
+
+            if (
+              !mut.payload?._forceOverwrite &&
+              typeof mut.version === "number" &&
+              existing.version > mut.version
+            ) {
+              return {
+                mutationId: mut.mutationId,
+                entityId: mut.entityId,
+                status: "conflict" as const,
+                serverVersion: existing.version,
+                serverUpdatedAt: existing.updatedAt.toISOString(),
+                serverRecord: {
+                  ...existing,
+                  completedAt: existing.completedAt?.toISOString() ?? null,
+                  archivedAt: existing.archivedAt?.toISOString() ?? null,
+                  createdAt: existing.createdAt.toISOString(),
+                  updatedAt: existing.updatedAt.toISOString(),
+                },
+              };
             }
 
             const updateData: any = { version: { increment: 1 } };
@@ -290,6 +332,7 @@ export async function processSyncBatch(
               data: updateData,
             });
             serverVersion = updated.version;
+            serverUpdatedAt = updated.updatedAt.toISOString();
           } else if (mut.action === "delete") {
             await tx.task.deleteMany({
               where: { id: mut.entityId, userId },
@@ -300,7 +343,34 @@ export async function processSyncBatch(
             throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "localDate required");
           }
           if (mut.action === "create" || mut.action === "update") {
-            await tx.dailyNote.upsert({
+            const existingNote = await tx.dailyNote.findUnique({
+              where: {
+                userId_localDate: {
+                  userId,
+                  localDate: mut.payload.localDate,
+                },
+              },
+            });
+            const baseMs = mut.baseUpdatedAt ? new Date(mut.baseUpdatedAt).getTime() : 0;
+            if (
+              existingNote &&
+              !mut.payload?._forceOverwrite &&
+              baseMs > 0 &&
+              existingNote.updatedAt.getTime() > baseMs + 1000
+            ) {
+              return {
+                mutationId: mut.mutationId,
+                entityId: mut.entityId,
+                status: "conflict" as const,
+                serverUpdatedAt: existingNote.updatedAt.toISOString(),
+                serverRecord: {
+                  ...existingNote,
+                  createdAt: existingNote.createdAt.toISOString(),
+                  updatedAt: existingNote.updatedAt.toISOString(),
+                },
+              };
+            }
+            const upsertedNote = await tx.dailyNote.upsert({
               where: {
                 userId_localDate: {
                   userId,
@@ -322,6 +392,7 @@ export async function processSyncBatch(
                 ...(mut.payload.tags !== undefined ? { tags: mut.payload.tags } : {}),
               },
             });
+            serverUpdatedAt = upsertedNote.updatedAt.toISOString();
           } else if (mut.action === "delete") {
             await tx.dailyNote.deleteMany({
               where: { userId, localDate: mut.payload.localDate },
@@ -399,13 +470,25 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.gymWorkout.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
             if (existingOwner) {
-              await tx.gymWorkout.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedWorkout = await tx.gymWorkout.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
@@ -416,6 +499,7 @@ export async function processSyncBatch(
                   ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
                 },
               });
+              serverUpdatedAt = updatedWorkout.updatedAt.toISOString();
             } else {
               await tx.gymWorkout.create({
                 data: {
@@ -439,13 +523,25 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.mealEntry.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
             if (existingOwner) {
-              await tx.mealEntry.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedMeal = await tx.mealEntry.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
@@ -458,6 +554,7 @@ export async function processSyncBatch(
                   ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
                 },
               });
+              serverUpdatedAt = updatedMeal.updatedAt.toISOString();
             } else {
               await tx.mealEntry.create({
                 data: {
@@ -483,30 +580,53 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.expenseEntry.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
             if (existingOwner) {
-              await tx.expenseEntry.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedExpense = await tx.expenseEntry.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
                   ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
                   ...(mut.payload.amount !== undefined ? { amount: Number(mut.payload.amount) || 0 } : {}),
+                  ...(mut.payload.currency !== undefined
+                    ? { currency: String(mut.payload.currency).toUpperCase().trim() }
+                    : {}),
+                  ...(mut.payload.type !== undefined
+                    ? { type: mut.payload.type === "income" ? "income" : "expense" }
+                    : {}),
                   ...(mut.payload.category !== undefined ? { category: mut.payload.category } : {}),
                   ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
                 },
               });
+              serverUpdatedAt = updatedExpense.updatedAt.toISOString();
             } else {
               await tx.expenseEntry.create({
                 data: {
                   id: mut.entityId,
                   userId,
                   date: mut.payload.date || new Date().toISOString().split("T")[0],
-                  title: mut.payload.title || "مصروف",
+                  title: mut.payload.title || "معاملة مالية",
                   amount: Number(mut.payload.amount) || 0,
+                  currency: mut.payload.currency
+                    ? String(mut.payload.currency).toUpperCase().trim()
+                    : "EGP",
+                  type: mut.payload.type === "income" ? "income" : "expense",
                   category: mut.payload.category || "عام",
                   notes: mut.payload.notes || null,
                 },
@@ -521,13 +641,33 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.tracker.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true, version: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
 
             if (existingOwner) {
+              if (
+                mut.action === "update" &&
+                !mut.payload?._forceOverwrite &&
+                typeof mut.version === "number" &&
+                existingOwner.version > mut.version
+              ) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverVersion: existingOwner.version,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    archivedAt: existingOwner.archivedAt?.toISOString() ?? null,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+
               const tracker = await tx.tracker.update({
                 where: { id: mut.entityId },
                 data: {
@@ -549,6 +689,7 @@ export async function processSyncBatch(
                 },
               });
               serverVersion = tracker.version;
+              serverUpdatedAt = tracker.updatedAt.toISOString();
             } else {
               // Ensure slug uniqueness per user
               const baseSlug = mut.payload.slug || slugify(mut.payload.name || `tracker-${mut.entityId}`);
@@ -608,13 +749,26 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.lifeArea.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
             if (existingOwner) {
-              await tx.lifeArea.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    archivedAt: existingOwner.archivedAt?.toISOString() ?? null,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedArea = await tx.lifeArea.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.name !== undefined ? { name: mut.payload.name } : {}),
@@ -627,6 +781,7 @@ export async function processSyncBatch(
                   ...(mut.payload.isArchived !== undefined ? { isArchived: mut.payload.isArchived } : {}),
                 },
               });
+              serverUpdatedAt = updatedArea.updatedAt.toISOString();
             } else {
               const baseSlug = mut.payload.slug || slugify(mut.payload.name || `area-${mut.entityId}`);
               let finalSlug = baseSlug;
@@ -665,13 +820,26 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingOwner = await tx.abstinenceTracker.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
             if (existingOwner) {
-              await tx.abstinenceTracker.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    archivedAt: existingOwner.archivedAt?.toISOString() ?? null,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedAbs = await tx.abstinenceTracker.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.name !== undefined ? { name: mut.payload.name } : {}),
@@ -682,6 +850,7 @@ export async function processSyncBatch(
                   ...(mut.payload.isArchived !== undefined ? { isArchived: mut.payload.isArchived } : {}),
                 },
               });
+              serverUpdatedAt = updatedAbs.updatedAt.toISOString();
             } else {
               await tx.abstinenceTracker.create({
                 data: {
@@ -732,14 +901,28 @@ export async function processSyncBatch(
 
             const existingOwner = await tx.abstinenceSession.findUnique({
               where: { id: mut.entityId },
-              select: { id: true, userId: true },
             });
             if (existingOwner && existingOwner.userId !== userId) {
               throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
             }
 
             if (existingOwner) {
-              await tx.abstinenceSession.update({
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    startedAt: existingOwner.startedAt.toISOString(),
+                    endedAt: existingOwner.endedAt?.toISOString() ?? null,
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedSess = await tx.abstinenceSession.update({
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.startedAt !== undefined
@@ -758,6 +941,7 @@ export async function processSyncBatch(
                   ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
                 },
               });
+              serverUpdatedAt = updatedSess.updatedAt.toISOString();
             } else {
               // If opening a new active session (endedAt == null), close any lingering active session first
               if (!mut.payload.endedAt) {
@@ -836,6 +1020,79 @@ export async function processSyncBatch(
               where: { id: mut.entityId, userId },
             });
           }
+        } else if (mut.entityType === "user_settings") {
+          if (mut.action === "create" || mut.action === "update") {
+            const existingSettings = await tx.userSettings.findUnique({
+              where: { userId },
+              select: { dashboardConfig: true, updatedAt: true },
+            });
+            const prevCfg =
+              existingSettings?.dashboardConfig && typeof existingSettings.dashboardConfig === "object"
+                ? (existingSettings.dashboardConfig as Record<string, any>)
+                : {};
+            const incomingCfg =
+              mut.payload.dashboardConfig && typeof mut.payload.dashboardConfig === "object"
+                ? mut.payload.dashboardConfig
+                : {};
+            const mergedCfg: Record<string, any> = { ...prevCfg, ...incomingCfg };
+            if (prevCfg.avatarData && !incomingCfg.avatarData) {
+              mergedCfg.avatarData = prevCfg.avatarData;
+            }
+            delete mergedCfg.profileImage;
+            delete mergedCfg.image;
+
+            const savedSettings = await tx.userSettings.upsert({
+              where: { userId },
+              create: {
+                userId,
+                timezone: mut.payload.timezone || "Africa/Cairo",
+                countryCode: mut.payload.countryCode ?? null,
+                governorate: mut.payload.governorate ?? null,
+                city: mut.payload.city ?? null,
+                currency: mut.payload.currency ? String(mut.payload.currency).toUpperCase() : null,
+                currencyAuto: mut.payload.currencyAuto ?? true,
+                prayerTrackingEnabled: mut.payload.prayerTrackingEnabled ?? true,
+                language: mut.payload.language || "ar",
+                weekStartDay: mut.payload.weekStartDay ?? 6,
+                themeAccent: mut.payload.themeAccent || "violet",
+                dashboardConfig: mergedCfg,
+              },
+              update: {
+                ...(mut.payload.timezone !== undefined ? { timezone: mut.payload.timezone } : {}),
+                ...(mut.payload.countryCode !== undefined ? { countryCode: mut.payload.countryCode } : {}),
+                ...(mut.payload.governorate !== undefined ? { governorate: mut.payload.governorate } : {}),
+                ...(mut.payload.city !== undefined ? { city: mut.payload.city } : {}),
+                ...(mut.payload.currency !== undefined
+                  ? { currency: mut.payload.currency ? String(mut.payload.currency).toUpperCase() : null }
+                  : {}),
+                ...(mut.payload.currencyAuto !== undefined ? { currencyAuto: Boolean(mut.payload.currencyAuto) } : {}),
+                ...(mut.payload.prayerTrackingEnabled !== undefined
+                  ? { prayerTrackingEnabled: Boolean(mut.payload.prayerTrackingEnabled) }
+                  : {}),
+                ...(mut.payload.weekStartDay !== undefined ? { weekStartDay: Number(mut.payload.weekStartDay) } : {}),
+                ...(mut.payload.themeAccent !== undefined ? { themeAccent: mut.payload.themeAccent } : {}),
+                dashboardConfig: mergedCfg,
+              },
+            });
+
+            if (
+              (mut.payload.profileName && typeof mut.payload.profileName === "string") ||
+              mut.payload.profileImage !== undefined
+            ) {
+              await tx.user.update({
+                where: { id: userId },
+                data: {
+                  ...(mut.payload.profileName && typeof mut.payload.profileName === "string"
+                    ? { name: mut.payload.profileName.trim() || "مستخدم أثـر" }
+                    : {}),
+                  ...(mut.payload.profileImage !== undefined
+                    ? { image: mut.payload.profileImage }
+                    : {}),
+                },
+              });
+            }
+            serverUpdatedAt = savedSettings.updatedAt.toISOString();
+          }
         } else {
           throw new PermanentSyncError(
             "UNSUPPORTED_ENTITY_TYPE",
@@ -859,6 +1116,7 @@ export async function processSyncBatch(
           entityId: mut.entityId,
           status: "applied" as const,
           ...(serverVersion !== undefined ? { serverVersion } : {}),
+          ...(serverUpdatedAt !== undefined ? { serverUpdatedAt } : {}),
         };
       });
 

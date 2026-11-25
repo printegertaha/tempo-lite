@@ -88,6 +88,8 @@ export function coalesceMutationsWithDropped(mutations: LocalMutation[]): Coales
     coalesced.push({
       ...lastOp,
       action: "update",
+      version: firstOp.version,
+      baseUpdatedAt: firstOp.baseUpdatedAt ?? lastOp.baseUpdatedAt,
       payload: mergedPayload,
       coalescedIds: allIds,
     });

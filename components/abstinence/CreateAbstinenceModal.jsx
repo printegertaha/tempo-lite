@@ -120,46 +120,13 @@ export default function CreateAbstinenceModal({
     };
 
     try {
-      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        const createdLocal = await saveLocalTracker();
-        setName("");
-        setDescription("");
-        onCreated?.(createdLocal);
-        onClose();
-        return;
-      }
-
-      const res = await createAbstinenceTracker({
-        name: name.trim(),
-        description: description.trim() || null,
-        startDate,
-        startTime,
-        targetDays: targetDays ? parseInt(targetDays, 10) : null,
-        timezone,
-      });
-
-      if (res.success) {
-        setName("");
-        setDescription("");
-        onCreated?.(res.data);
-        onClose();
-      } else {
-        const createdLocal = await saveLocalTracker();
-        setName("");
-        setDescription("");
-        onCreated?.(createdLocal);
-        onClose();
-      }
+      const createdLocal = await saveLocalTracker();
+      setName("");
+      setDescription("");
+      onCreated?.(createdLocal);
+      onClose();
     } catch (err) {
-      try {
-        const createdLocal = await saveLocalTracker();
-        setName("");
-        setDescription("");
-        onCreated?.(createdLocal);
-        onClose();
-      } catch {
-        setErrorMsg(err?.message || "حدث خطأ غير متوقع");
-      }
+      setErrorMsg(err?.message || "حدث خطأ غير متوقع");
     } finally {
       setIsSubmitting(false);
     }

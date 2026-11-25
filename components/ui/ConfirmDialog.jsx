@@ -3,6 +3,21 @@
 import Modal from "./Modal";
 import { AlertTriangle } from "lucide-react";
 
+/**
+ * @param {{
+ *   isOpen: boolean;
+ *   onClose: () => void;
+ *   onConfirm: () => void | Promise<void>;
+ *   title: string;
+ *   description?: string;
+ *   confirmLabel?: string;
+ *   cancelLabel?: string;
+ *   isDestructive?: boolean;
+ *   isLoading?: boolean;
+ *   icon?: any;
+ *   zIndexClass?: string;
+ * }} props
+ */
 export default function ConfirmDialog({
   isOpen,
   onClose,
@@ -13,10 +28,11 @@ export default function ConfirmDialog({
   cancelLabel = "إلغاء",
   isDestructive = false,
   isLoading = false,
-  icon,
+  icon = null,
+  zIndexClass = "z-50",
 }) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" showCloseButton={false}>
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" showCloseButton={false} zIndexClass={zIndexClass}>
       <div className="space-y-4 text-center">
         <div
           className={`w-12 h-12 rounded-2xl mx-auto flex items-center justify-center ${

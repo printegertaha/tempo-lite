@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import { slugify } from "@/lib/validations/life-area";
 import {
   CreateTrackerSchema,
@@ -776,6 +777,7 @@ export async function deleteTracker(
     await prisma.tracker.delete({
       where: { id },
     });
+    await recordDeletionTombstone(userId, "tracker", id);
 
     revalidatePath("/habits");
     revalidatePath("/");

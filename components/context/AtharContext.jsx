@@ -14,11 +14,15 @@ import {
   calculatePace,
 } from "../data/storage";
 import {
-  EXPENSES_DATA,
   NUTRITION_DATA,
   INITIAL_JOURNAL_DATABASE,
-  GYM_WORKOUTS_DATA,
 } from "../data/mockData";
+import {
+  buildDefaultLocalizationPreferences,
+  formatCurrency,
+  getCountryByCodeOrName,
+  getCountryFromTimezone,
+} from "@/lib/localization";
 import SessionFinishConfirmModal from "../timer/SessionFinishConfirmModal";
 import PrayerDetailModal from "../prayer/PrayerDetailModal";
 import PrayerScheduleModal from "../prayer/PrayerScheduleModal";
@@ -26,27 +30,176 @@ import SocialMediaModal from "../social/SocialMediaModal";
 import SmokingEventModal from "../smoking/SmokingEventModal";
 import RunningSessionModal from "../running/RunningSessionModal";
 import GymSessionModal from "../gym/GymSessionModal";
-import {
-  saveGymWorkout,
-  deleteGymWorkout,
-  getGymWorkouts,
-} from "@/actions/gym";
-import {
-  saveMealEntry,
-  deleteMealEntry,
-  getMealEntries,
-} from "@/actions/nutrition";
-import {
-  saveExpenseEntry,
-  deleteExpenseEntry,
-  getExpenseEntries,
-} from "@/actions/expenses";
-import { useSession } from "@/lib/auth-client";
-import { localDomainRepo, localOutboxRepo } from "@/lib/local-db";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { localDomainRepo, localOutboxRepo, localSyncMetaRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
 import { activeTimerEngine } from "@/lib/timer/active-timer";
 
 const AtharContext = createContext(null);
+
+const LEGACY_SEED_EXPENSE_IDS = new Set([101, 102, 103, 104, 105, 106]);
+
+export const EMPTY_EXPENSES_DATA = {
+  monthlyBudget: 0,
+  monthlySpent: 0,
+  monthlyIncome: 0,
+  dailyAverageSpent: 0,
+  todaySpent: 0,
+  categories: [
+    { name: "طعام ومطاعم", budget: 0, spent: 0, percent: 0, color: "#f59e0b" },
+    { name: "صحة ومكملات وجيم", budget: 0, spent: 0, percent: 0, color: "#10b981" },
+    { name: "مواصلات ووقود", budget: 0, spent: 0, percent: 0, color: "#3b82f6" },
+    { name: "تطوير واشتراكات تقنية", budget: 0, spent: 0, percent: 0, color: "#8b5cf6" },
+    { name: "فواتير ومستلزمات", budget: 0, spent: 0, percent: 0, color: "#ec4899" },
+  ],
+  transactions: [],
+};
+
+export const EMPTY_GYM_DATA = {
+  currentSplit: "",
+  stats: {
+    benchMaxKg: 0,
+    squatMaxKg: 0,
+    deadliftMaxKg: 0,
+    totalWorkoutsThisMonth: 0,
+  },
+  bodyWeights: [],
+  todayWorkoutPlan: {
+    title: "",
+    estimatedDuration: "",
+    exercises: [],
+  },
+  muscleRecovery: [],
+};
+
+function sanitizeLegacyExpenses(raw) {
+  if (!raw || typeof raw !== "object") return EMPTY_EXPENSES_DATA;
+  const txs = Array.isArray(raw.transactions) ? raw.transactions : [];
+  const realTxs = txs.filter((tx) => {
+    const numId = Number(tx?.id);
+    return !(Number.isInteger(numId) && LEGACY_SEED_EXPENSE_IDS.has(numId));
+  });
+
+  if (realTxs.length === 0 && Number(raw.monthlyBudget) === 5500 && Number(raw.monthlySpent) === 3420) {
+    return EMPTY_EXPENSES_DATA;
+  }
+
+  return {
+    ...EMPTY_EXPENSES_DATA,
+    ...raw,
+    monthlyBudget: Number(raw.monthlyBudget) === 5500 && realTxs.length === 0 ? 0 : Number(raw.monthlyBudget || 0),
+    transactions: realTxs,
+  };
+}
+
+function sanitizeLegacyGym(raw) {
+  if (!raw || typeof raw !== "object") return EMPTY_GYM_DATA;
+  const looksLikeLegacySeed =
+    raw.stats?.benchMaxKg === 105 &&
+    raw.stats?.squatMaxKg === 140 &&
+    raw.stats?.deadliftMaxKg === 165 &&
+    raw.stats?.totalWorkoutsThisMonth === 16;
+
+  if (looksLikeLegacySeed) {
+    return {
+      ...EMPTY_GYM_DATA,
+      bodyWeights: Array.isArray(raw.bodyWeights) ? raw.bodyWeights : [],
+    };
+  }
+
+  return {
+    ...EMPTY_GYM_DATA,
+    ...raw,
+    stats: { ...EMPTY_GYM_DATA.stats, ...(raw.stats || {}) },
+    bodyWeights: Array.isArray(raw.bodyWeights) ? raw.bodyWeights : [],
+  };
+}
+
+function normalizeUserPreferences(rawSettings) {
+  const browserTz =
+    typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone
+      : "Africa/Cairo";
+  const defaults = buildDefaultLocalizationPreferences(browserTz);
+
+  if (!rawSettings || typeof rawSettings !== "object") {
+    return {
+      ...defaults,
+      prayerTrackingEnabled: false,
+      prayerPreferenceConfigured: false,
+    };
+  }
+
+  const cfg = rawSettings.dashboardConfig && typeof rawSettings.dashboardConfig === "object"
+    ? rawSettings.dashboardConfig
+    : rawSettings;
+
+  const countryDef =
+    getCountryByCodeOrName(rawSettings.countryCode || cfg.countryCode || cfg.country) ||
+    getCountryFromTimezone(rawSettings.timezone || cfg.timezone) ||
+    getCountryByCodeOrName(defaults.countryCode);
+
+  const timezone = rawSettings.timezone || cfg.timezone || countryDef?.defaultTimezone || defaults.timezone;
+  const currencyAuto =
+    rawSettings.currencyAuto !== undefined
+      ? Boolean(rawSettings.currencyAuto)
+      : cfg.currencyAuto !== undefined
+        ? Boolean(cfg.currencyAuto)
+        : true;
+  const resolvedCurrency =
+    (!currencyAuto && (rawSettings.currency || cfg.currency)) ||
+    rawSettings.currency ||
+    cfg.currency ||
+    countryDef?.defaultCurrency ||
+    defaults.currency;
+
+  const resolvedProfileName =
+    rawSettings.userProfile?.name ??
+    rawSettings.profileName ??
+    cfg.profileName ??
+    rawSettings.name ??
+    undefined;
+  const resolvedProfileImage =
+    rawSettings.userProfile?.image !== undefined
+      ? rawSettings.userProfile.image
+      : rawSettings.profileImage !== undefined
+        ? rawSettings.profileImage
+        : cfg.profileImage !== undefined
+          ? cfg.profileImage
+          : rawSettings.image;
+
+  return {
+    ...defaults,
+    ...cfg,
+    profileName: resolvedProfileName,
+    profileImage: resolvedProfileImage,
+    monthlySalary: Number(cfg.monthlySalary ?? rawSettings.monthlySalary ?? 0) || 0,
+    countryCode: countryDef?.code || defaults.countryCode,
+    country: countryDef?.nameAr || cfg.country || defaults.country,
+    governorate:
+      rawSettings.governorate ||
+      cfg.governorate ||
+      cfg.city ||
+      countryDef?.defaultRegion ||
+      defaults.governorate,
+    city: rawSettings.city !== undefined ? rawSettings.city || "" : cfg.city || "",
+    timezone,
+    timezoneAuto: cfg.timezoneAuto !== undefined ? Boolean(cfg.timezoneAuto) : true,
+    currency: String(resolvedCurrency).toUpperCase(),
+    currencyAuto,
+    prayerCalc: cfg.prayerCalc || countryDef?.defaultPrayerCalc || defaults.prayerCalc,
+    prayerTrackingEnabled:
+      rawSettings.prayerTrackingEnabled !== undefined
+        ? Boolean(rawSettings.prayerTrackingEnabled)
+        : cfg.prayerTrackingEnabled !== undefined
+          ? Boolean(cfg.prayerTrackingEnabled)
+          : true,
+    prayerPreferenceConfigured:
+      cfg.prayerPreferenceConfigured !== undefined
+        ? Boolean(cfg.prayerPreferenceConfigured)
+        : true,
+  };
+}
 
 export function AtharProvider({ children }) {
   // Prevent hydration mismatch
@@ -72,9 +225,7 @@ export function AtharProvider({ children }) {
 
   // Toast feedback
   const [toast, setToast] = useState(null);
-  const { data: sessionData } = useSession();
-  const activeUserId = sessionData?.user?.id || "guest";
-  const isGuestUser = !sessionData?.user?.id;
+  const { userId: activeUserId, isGuest: isGuestUser } = useLocalSession();
 
   const showToast = (message, type = "success") => {
     setToast({ id: Date.now(), message, type });
@@ -83,196 +234,283 @@ export function AtharProvider({ children }) {
     }, 3500);
   };
 
-  // Secondary domain states (Expenses, Nutrition, Journal, Gym presets)
-  const [gymData, setGymData] = useState(GYM_WORKOUTS_DATA);
+  // Secondary domain states (Expenses, Nutrition, Journal, Gym presets) — genuinely clean initial states
+  const [gymData, setGymData] = useState(EMPTY_GYM_DATA);
   const [nutritionData, setNutritionData] = useState(NUTRITION_DATA);
-  const [expensesData, setExpensesData] = useState(EXPENSES_DATA);
+  const [expensesData, setExpensesData] = useState(EMPTY_EXPENSES_DATA);
   const [journalData, setJournalData] = useState(INITIAL_JOURNAL_DATABASE);
+  const [userPreferences, setUserPreferences] = useState(() =>
+    normalizeUserPreferences(null)
+  );
+  const loadedUserRef = useRef(null);
 
-  // Mount effect
+  const loadDomainsForUser = async (uid) => {
+    const today = getLocalDateString();
+    const currentMonthPrefix = today.slice(0, 7);
+
+    // 1. User-scoped settings (IDB -> scoped localStorage -> guest legacy fallback)
+    let resolvedSettings = await localSyncMetaRepo.getUserSettings(uid).catch(() => null);
+    if (!resolvedSettings && typeof window !== "undefined") {
+      try {
+        const scopedRaw =
+          localStorage.getItem(`athar_user_settings:${uid}`) ||
+          (uid === "guest" ? localStorage.getItem("athar_user_settings") : null);
+        if (scopedRaw) resolvedSettings = JSON.parse(scopedRaw);
+      } catch {}
+    }
+    const activePrefs = normalizeUserPreferences(resolvedSettings);
+    setUserPreferences(activePrefs);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`athar_user_settings:${uid}`, JSON.stringify(activePrefs));
+        localStorage.setItem("athar_user_settings", JSON.stringify(activePrefs));
+      } catch {}
+    }
+
+    // 2. Expenses (IndexedDB immediate source of truth per account)
+    const expRows = await localDomainRepo.getExpenseEntries(uid).catch(() => []);
+    const activeCurrency = activePrefs.currency || "EGP";
+    let mergedExpenses = expRows;
+    if (mergedExpenses.length === 0 && uid === "guest" && typeof window !== "undefined") {
+      try {
+        const legacyExpRaw = localStorage.getItem("athar_expenses");
+        if (legacyExpRaw) {
+          const parsed = sanitizeLegacyExpenses(JSON.parse(legacyExpRaw));
+          if (Array.isArray(parsed.transactions) && parsed.transactions.length > 0) {
+            mergedExpenses = parsed.transactions;
+          }
+        }
+      } catch {}
+    }
+
+    const monthlyRows = mergedExpenses.filter(
+      (r) =>
+        (r.date || "").startsWith(currentMonthPrefix) &&
+        (r.type || "expense") === "expense" &&
+        (r.currency || activeCurrency) === activeCurrency
+    );
+    const todaySpent = mergedExpenses
+      .filter(
+        (r) =>
+          r.date === today &&
+          (r.type || "expense") === "expense" &&
+          (r.currency || activeCurrency) === activeCurrency
+      )
+      .reduce((s, r) => s + Number(r.amount || 0), 0);
+    const monthlySpent = monthlyRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const dayOfMonth = Math.max(1, Number(today.split("-")[2] || 1));
+
+    setExpensesData({
+      ...EMPTY_EXPENSES_DATA,
+      transactions: mergedExpenses.map((r) => ({
+        id: r.id,
+        title: r.title,
+        amount: Number(r.amount),
+        currency: r.currency || activeCurrency,
+        type: r.type === "income" ? "income" : "expense",
+        category: r.category,
+        date: r.date,
+        notes: r.notes || null,
+        time:
+          r.time ||
+          (r.createdAt
+            ? new Date(r.createdAt).toLocaleTimeString("ar-u-nu-latn", {
+                hour: "2-digit",
+                minute: "2-digit",
+              })
+            : ""),
+      })),
+      todaySpent,
+      monthlySpent,
+      dailyAverageSpent: monthlySpent > 0 ? Math.round(monthlySpent / dayOfMonth) : 0,
+    });
+
+    // 3. Meals (IndexedDB immediate source of truth per account)
+    const mealRows = await localDomainRepo.getMealEntries(uid).catch(() => []);
+    if (mealRows.length > 0) {
+      const todayMeals = mealRows.filter((m) => m.date === today);
+      setNutritionData((prev) => ({
+        ...prev,
+        meals: mealRows.map((m) => ({
+          id: m.id,
+          name: m.title || m.name,
+          title: m.title || m.name,
+          mealType: m.mealType,
+          date: m.date,
+          calories: m.calories,
+          protein: m.protein,
+          carbs: m.carbs,
+          fat: m.fat,
+          notes: m.notes,
+        })),
+        todayLogged: {
+          ...prev.todayLogged,
+          calories: todayMeals.reduce((s, m) => s + Number(m.calories || 0), 0),
+          protein: todayMeals.reduce((s, m) => s + Number(m.protein || 0), 0),
+          carbs: todayMeals.reduce((s, m) => s + Number(m.carbs || 0), 0),
+          fat: todayMeals.reduce((s, m) => s + Number(m.fat || 0), 0),
+        },
+      }));
+    } else if (uid === "guest" && typeof window !== "undefined") {
+      try {
+        const legacyNut = localStorage.getItem("athar_nutrition");
+        setNutritionData(legacyNut ? JSON.parse(legacyNut) : NUTRITION_DATA);
+      } catch {
+        setNutritionData(NUTRITION_DATA);
+      }
+    } else {
+      setNutritionData(NUTRITION_DATA);
+    }
+
+    // 4. Body Weights + Gym Workouts (IndexedDB per account)
+    const [weights, gymRows] = await Promise.all([
+      localSyncMetaRepo.getBodyWeights(uid).catch(() => []),
+      localDomainRepo.getGymWorkouts(uid).catch(() => []),
+    ]);
+    setGymData({
+      ...EMPTY_GYM_DATA,
+      bodyWeights: Array.isArray(weights) ? weights : [],
+    });
+
+    // Build scoped appState cleanly per user
+    const scopedRawState =
+      typeof window !== "undefined"
+        ? localStorage.getItem(`${STORAGE_KEY}:${uid}`) ||
+          (uid === "guest" ? localStorage.getItem(STORAGE_KEY) : null)
+        : null;
+    let baseAppState = getInitialAppState(today);
+    if (scopedRawState) {
+      try {
+        const parsed = JSON.parse(scopedRawState);
+        baseAppState = { ...baseAppState, ...parsed };
+      } catch {}
+    }
+
+    if (gymRows.length > 0) {
+      const nextRecords = { ...(baseAppState.recordsByDate || {}) };
+      for (const w of gymRows) {
+        const dKey = w.date || today;
+        const existingDay = nextRecords[dKey] || { gymSessions: [] };
+        const exists = (existingDay.gymSessions || []).some((s) => s.id === w.id);
+        if (!exists) {
+          nextRecords[dKey] = {
+            ...existingDay,
+            gymSessions: [
+              {
+                id: w.id,
+                workoutType: w.title,
+                gymName: "النادي الرياضي",
+                durationMinutes: w.durationMinutes || 60,
+                exercises: Array.isArray(w.exercises) ? w.exercises : [],
+                notes: w.notes || "",
+              },
+              ...(existingDay.gymSessions || []),
+            ],
+          };
+        }
+      }
+      baseAppState = { ...baseAppState, recordsByDate: nextRecords };
+    }
+    setAppState(baseAppState);
+    loadedUserRef.current = uid;
+  };
+
+  // Mount effect & global listeners
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
     setSelectedDate(getLocalDateString());
-    const loaded = loadSavedState();
-    setAppState(loaded);
 
     if (typeof window !== "undefined") {
-      try {
-        const savedExpenses = localStorage.getItem("athar_expenses");
-        if (savedExpenses) setExpensesData(JSON.parse(savedExpenses));
-        const savedNutrition = localStorage.getItem("athar_nutrition");
-        if (savedNutrition) setNutritionData(JSON.parse(savedNutrition));
-        const savedJournal = localStorage.getItem("athar_journal");
-        if (savedJournal) setJournalData(JSON.parse(savedJournal));
-        const savedGym = localStorage.getItem("athar_gym");
-        if (savedGym) setGymData(JSON.parse(savedGym));
-      } catch {}
+      const handlePrefsBroadcast = (ev) => {
+        if (ev?.detail) {
+          setUserPreferences((prev) => normalizeUserPreferences({ ...prev, ...ev.detail }));
+        }
+      };
+      const handleQuotaWarning = (ev) => {
+        showToast(
+          ev?.detail?.message || "مساحة التخزين المحلية في المتصفح ممتلئة تقريباً.",
+          "error"
+        );
+      };
+      window.addEventListener("athar_preferences_updated", handlePrefsBroadcast);
+      window.addEventListener("athar_storage_quota_warning", handleQuotaWarning);
+      return () => {
+        window.removeEventListener("athar_preferences_updated", handlePrefsBroadcast);
+        window.removeEventListener("athar_storage_quota_warning", handleQuotaWarning);
+      };
     }
   }, []);
 
-  // Hydrate Expenses, Meals & Gym from PostgreSQL for authenticated users
+  // Load isolated local IndexedDB data whenever active account changes + react to background pulls
   useEffect(() => {
-    if (!isMounted || isGuestUser) return;
+    if (!isMounted) return;
     let cancelled = false;
 
-    async function hydrateAuthenticatedDomains() {
-      try {
-        const [expRes, mealRes, gymRes] = await Promise.all([
-          getExpenseEntries(),
-          getMealEntries(),
-          getGymWorkouts(),
-        ]);
-        if (cancelled) return;
-
-        const today = getLocalDateString();
-        const currentMonthPrefix = today.slice(0, 7);
-
-        if (expRes?.success && Array.isArray(expRes.data) && expRes.data.length > 0) {
-          const rows = expRes.data;
-          const todaySpent = rows
-            .filter((r) => r.date === today)
-            .reduce((s, r) => s + Number(r.amount || 0), 0);
-          const monthlyRows = rows.filter((r) => (r.date || "").startsWith(currentMonthPrefix));
-          const monthlySpent = monthlyRows.reduce((s, r) => s + Number(r.amount || 0), 0);
-          const dayOfMonth = Math.max(1, Number(today.split("-")[2] || 1));
-
-          setExpensesData((prev) => {
-            const updatedCats = prev.categories.map((c) => {
-              const catSpent = monthlyRows
-                .filter((r) => c.name.includes(r.category) || (r.category || "").includes(c.name))
-                .reduce((s, r) => s + Number(r.amount || 0), 0);
-              return {
-                ...c,
-                spent: catSpent,
-                percent: Math.min(100, Math.round((catSpent / (c.budget || 1)) * 100)),
-              };
-            });
-            return {
-              ...prev,
-              transactions: rows.map((r) => ({
-                id: r.id,
-                title: r.title,
-                amount: Number(r.amount),
-                category: r.category,
-                date: r.date,
-                time: r.createdAt
-                  ? new Date(r.createdAt).toLocaleTimeString("ar-SA", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : "",
-              })),
-              todaySpent,
-              monthlySpent,
-              dailyAverageSpent: Math.round(monthlySpent / dayOfMonth),
-              categories: updatedCats,
-            };
-          });
-        }
-
-        if (mealRes?.success && Array.isArray(mealRes.data) && mealRes.data.length > 0) {
-          const rows = mealRes.data;
-          const todayMeals = rows.filter((m) => m.date === today);
-          setNutritionData((prev) => ({
-            ...prev,
-            meals: rows.map((m) => ({
-              id: m.id,
-              name: m.title,
-              title: m.title,
-              mealType: m.mealType,
-              date: m.date,
-              calories: m.calories,
-              protein: m.protein,
-              carbs: m.carbs,
-              fat: m.fat,
-              notes: m.notes,
-            })),
-            todayLogged: {
-              ...prev.todayLogged,
-              calories: todayMeals.reduce((s, m) => s + Number(m.calories || 0), 0),
-              protein: todayMeals.reduce((s, m) => s + Number(m.protein || 0), 0),
-              carbs: todayMeals.reduce((s, m) => s + Number(m.carbs || 0), 0),
-              fat: todayMeals.reduce((s, m) => s + Number(m.fat || 0), 0),
-            },
-          }));
-        }
-
-        if (gymRes?.success && Array.isArray(gymRes.data) && gymRes.data.length > 0) {
-          setAppState((prev) => {
-            const nextRecords = { ...(prev.recordsByDate || {}) };
-            for (const w of gymRes.data) {
-              const dKey = w.date || today;
-              const existingDay = nextRecords[dKey] || { gymSessions: [] };
-              const exists = (existingDay.gymSessions || []).some((s) => s.id === w.id);
-              if (!exists) {
-                nextRecords[dKey] = {
-                  ...existingDay,
-                  gymSessions: [
-                    {
-                      id: w.id,
-                      workoutType: w.title,
-                      gymName: "النادي الرياضي",
-                      durationMinutes: w.durationMinutes || 60,
-                      notes: w.notes || "",
-                    },
-                    ...(existingDay.gymSessions || []),
-                  ],
-                };
-              }
-            }
-            return { ...prev, recordsByDate: nextRecords };
-          });
-        }
-      } catch (err) {
-        console.warn("Hydration of domain entries failed, using local cache:", err);
+    queueMicrotask(() => {
+      if (!cancelled) {
+        void loadDomainsForUser(activeUserId).catch(() => {});
       }
-    }
+    });
 
-    hydrateAuthenticatedDomains();
+    const handleSyncPullApplied = (ev) => {
+      if (cancelled) return;
+      const detail = ev?.detail;
+      if (!detail?.userId || detail.userId === activeUserId) {
+        void loadDomainsForUser(activeUserId).catch(() => {});
+      }
+    };
+
+    window.addEventListener("athar_data_synced", handleSyncPullApplied);
     return () => {
       cancelled = true;
+      window.removeEventListener("athar_data_synced", handleSyncPullApplied);
     };
-  }, [isMounted, isGuestUser, activeUserId]);
+  }, [isMounted, activeUserId]);
 
   useEffect(() => {
-    if (isMounted && typeof window !== "undefined") {
+    if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
       try {
-        localStorage.setItem("athar_expenses", JSON.stringify(expensesData));
+        localStorage.setItem(`athar_expenses:${activeUserId}`, JSON.stringify(expensesData));
       } catch {}
     }
-  }, [expensesData, isMounted]);
+  }, [expensesData, isMounted, activeUserId]);
 
   useEffect(() => {
-    if (isMounted && typeof window !== "undefined") {
+    if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
       try {
-        localStorage.setItem("athar_nutrition", JSON.stringify(nutritionData));
+        localStorage.setItem(`athar_nutrition:${activeUserId}`, JSON.stringify(nutritionData));
       } catch {}
     }
-  }, [nutritionData, isMounted]);
+  }, [nutritionData, isMounted, activeUserId]);
 
   useEffect(() => {
-    if (isMounted && typeof window !== "undefined") {
+    if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
       try {
-        localStorage.setItem("athar_journal", JSON.stringify(journalData));
+        localStorage.setItem(`athar_journal:${activeUserId}`, JSON.stringify(journalData));
       } catch {}
     }
-  }, [journalData, isMounted]);
+  }, [journalData, isMounted, activeUserId]);
 
   useEffect(() => {
-    if (isMounted && typeof window !== "undefined") {
+    if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
       try {
-        localStorage.setItem("athar_gym", JSON.stringify(gymData));
+        localStorage.setItem(`athar_gym:${activeUserId}`, JSON.stringify(gymData));
       } catch {}
     }
-  }, [gymData, isMounted]);
+  }, [gymData, isMounted, activeUserId]);
 
-  // Persist to localStorage on change
+  // Persist user-scoped appState on change
   useEffect(() => {
-    if (isMounted) {
-      persistState(appState);
+    if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
+      try {
+        localStorage.setItem(`${STORAGE_KEY}:${activeUserId}`, JSON.stringify(appState));
+        if (activeUserId === "guest") {
+          persistState(appState);
+        }
+      } catch {}
     }
-  }, [appState, isMounted]);
+  }, [appState, isMounted, activeUserId]);
 
   // Wall-clock ticker for active timer
   const isTimerRunning = Boolean(appState.activeTimer?.isRunning);
@@ -624,17 +862,14 @@ export function AtharProvider({ children }) {
       date: dateStr,
       title: session.workoutType || session.gymName || "تمرين رياضي",
       durationMinutes: Number(session.durationMinutes) || 60,
+      exercises: Array.isArray(session.exercises) ? session.exercises : [],
       notes: session.notes || null,
     };
-    localDomainRepo.saveGymWorkout(workoutPayload).catch(() => {});
-
-    if (!isGuestUser) {
-      saveGymWorkout(workoutPayload)
-        .then((res) => {
-          if (!res?.success) throw new Error(res?.error);
-        })
-        .catch(() => {
-          localOutboxRepo
+    localDomainRepo
+      .saveGymWorkout(workoutPayload)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
             .add({
               mutationId: crypto.randomUUID(),
               userId: activeUserId,
@@ -647,10 +882,10 @@ export function AtharProvider({ children }) {
               status: "pending",
               retryCount: 0,
             })
-            .then(() => syncEngine.scheduleSync(5000))
-            .catch(() => {});
-        });
-    }
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
     showToast("تم توثيق تمرين الجيم والقوة 💪", "success");
   };
 
@@ -666,15 +901,11 @@ export function AtharProvider({ children }) {
         },
       },
     }));
-    localDomainRepo.deleteGymWorkout(String(id)).catch(() => {});
-
-    if (!isGuestUser) {
-      deleteGymWorkout(String(id))
-        .then((res) => {
-          if (!res?.success) throw new Error(res?.error);
-        })
-        .catch(() => {
-          localOutboxRepo
+    localDomainRepo
+      .deleteGymWorkout(String(id))
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
             .add({
               mutationId: crypto.randomUUID(),
               userId: activeUserId,
@@ -687,10 +918,10 @@ export function AtharProvider({ children }) {
               status: "pending",
               retryCount: 0,
             })
-            .then(() => syncEngine.scheduleSync(5000))
-            .catch(() => {});
-        });
-    }
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
     showToast("تم حذف جلسة التمرين", "info");
   };
 
@@ -873,42 +1104,118 @@ export function AtharProvider({ children }) {
     showToast(`تمت إضافة عادة "${habit.name}" بنجاح! 🎉`, "success");
   };
 
-  // 10. Secondary domain helpers (Expenses, Nutrition, Gym, Journal)
+  // 10. Secondary domain helpers (Preferences, Expenses, Nutrition, Gym, Journal)
+  const updatePreferences = async (patch) => {
+    const nextPrefs = normalizeUserPreferences({
+      ...userPreferences,
+      ...patch,
+      preferencesUpdatedAt: new Date().toISOString(),
+    });
+    setUserPreferences(nextPrefs);
+    await localSyncMetaRepo.saveUserSettings(activeUserId, nextPrefs).catch(() => {});
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`athar_user_settings:${activeUserId}`, JSON.stringify(nextPrefs));
+        localStorage.setItem("athar_user_settings", JSON.stringify(nextPrefs));
+        window.dispatchEvent(new CustomEvent("athar_preferences_updated", { detail: nextPrefs }));
+      } catch {}
+    }
+    if (!isGuestUser) {
+      await localOutboxRepo
+        .add({
+          mutationId: crypto.randomUUID(),
+          userId: activeUserId,
+          entityType: "user_settings",
+          entityId: activeUserId,
+          action: "update",
+          payload: {
+            timezone: nextPrefs.timezone,
+            countryCode: nextPrefs.countryCode,
+            governorate: nextPrefs.governorate,
+            city: nextPrefs.city,
+            currency: nextPrefs.currency,
+            currencyAuto: nextPrefs.currencyAuto,
+            prayerTrackingEnabled: nextPrefs.prayerTrackingEnabled,
+            dashboardConfig: nextPrefs,
+            profileName: nextPrefs.profileName,
+          },
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        })
+        .catch(() => {});
+      syncEngine.scheduleSync(500);
+    }
+    return nextPrefs;
+  };
+
+  const addBodyWeight = (weightKg, dateStr = selectedDate) => {
+    const numeric = Number(weightKg);
+    if (!Number.isFinite(numeric) || numeric <= 0) return;
+    const entry = {
+      id: generateId("bw"),
+      weightKg: numeric,
+      date: dateStr || getLocalDateString(),
+      createdAt: new Date().toISOString(),
+    };
+    setGymData((prev) => {
+      const nextWeights = [entry, ...(Array.isArray(prev.bodyWeights) ? prev.bodyWeights : [])];
+      void localSyncMetaRepo.saveBodyWeights(activeUserId, nextWeights).catch(() => {});
+      return {
+        ...prev,
+        bodyWeights: nextWeights,
+      };
+    });
+    showToast(`تم تسجيل قياس الوزن (${numeric} كجم) بنجاح`, "success");
+  };
+
+  const deleteBodyWeight = (id) => {
+    setGymData((prev) => {
+      const nextWeights = (prev.bodyWeights || []).filter((w) => w.id !== id);
+      void localSyncMetaRepo.saveBodyWeights(activeUserId, nextWeights).catch(() => {});
+      return {
+        ...prev,
+        bodyWeights: nextWeights,
+      };
+    });
+    showToast("تم حذف قياس الوزن", "info");
+  };
+
   const addExpense = (expense) => {
     const expenseId = crypto.randomUUID();
-    const txDate = selectedDate || getLocalDateString();
+    const txDate = expense.date || selectedDate || getLocalDateString();
+    const txCurrency = String(
+      expense.currency || userPreferences.currency || "EGP"
+    ).toUpperCase();
+    const txType = expense.type === "income" ? "income" : "expense";
     const newTx = {
       id: expenseId,
       title: expense.title,
       amount: Number(expense.amount),
+      currency: txCurrency,
+      type: txType,
       category: expense.category,
       date: txDate,
-      time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+      time: new Date().toLocaleTimeString("ar-u-nu-latn", { hour: "2-digit", minute: "2-digit" }),
     };
 
     setExpensesData((prev) => {
       const updatedTxs = [newTx, ...prev.transactions];
-      const newTodaySpent = prev.todaySpent + newTx.amount;
-      const newMonthlySpent = prev.monthlySpent + newTx.amount;
-
-      const updatedCats = prev.categories.map((c) => {
-        if (c.name.includes(expense.category) || expense.category.includes(c.name)) {
-          const newSpent = c.spent + newTx.amount;
-          return {
-            ...c,
-            spent: newSpent,
-            percent: Math.min(100, Math.round((newSpent / (c.budget || 1)) * 100)),
-          };
-        }
-        return c;
-      });
+      const countsTowardPrimarySpend =
+        txType === "expense" && txCurrency === (userPreferences.currency || "EGP");
+      const newTodaySpent = countsTowardPrimarySpend
+        ? prev.todaySpent + newTx.amount
+        : prev.todaySpent;
+      const newMonthlySpent = countsTowardPrimarySpend
+        ? prev.monthlySpent + newTx.amount
+        : prev.monthlySpent;
 
       return {
         ...prev,
         transactions: updatedTxs,
         todaySpent: newTodaySpent,
         monthlySpent: newMonthlySpent,
-        categories: updatedCats,
       };
     });
 
@@ -918,18 +1225,16 @@ export function AtharProvider({ children }) {
       date: txDate,
       title: expense.title,
       amount: Number(expense.amount),
+      currency: txCurrency,
+      type: txType,
       category: expense.category,
       notes: expense.notes || null,
     };
-    localDomainRepo.saveExpenseEntry(expensePayload).catch(() => {});
-
-    if (!isGuestUser) {
-      saveExpenseEntry(expensePayload)
-        .then((res) => {
-          if (!res?.success) throw new Error(res?.error);
-        })
-        .catch(() => {
-          localOutboxRepo
+    localDomainRepo
+      .saveExpenseEntry(expensePayload)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
             .add({
               mutationId: crypto.randomUUID(),
               userId: activeUserId,
@@ -942,11 +1247,17 @@ export function AtharProvider({ children }) {
               status: "pending",
               retryCount: 0,
             })
-            .then(() => syncEngine.scheduleSync(5000))
-            .catch(() => {});
-        });
-    }
-    showToast(`تم تسجيل مصروف بقيمة ${expense.amount} ر.س 💳`, "success");
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+    const formattedAmount = formatCurrency(expense.amount, txCurrency);
+    showToast(
+      txType === "income"
+        ? `تم تسجيل دخل بقيمة ${formattedAmount}`
+        : `تم تسجيل مصروف بقيمة ${formattedAmount} 💳`,
+      "success"
+    );
   };
 
   const deleteExpense = (id) => {
@@ -982,15 +1293,11 @@ export function AtharProvider({ children }) {
       };
     });
 
-    localDomainRepo.deleteExpenseEntry(targetId).catch(() => {});
-
-    if (!isGuestUser) {
-      deleteExpenseEntry(targetId)
-        .then((res) => {
-          if (!res?.success) throw new Error(res?.error);
-        })
-        .catch(() => {
-          localOutboxRepo
+    localDomainRepo
+      .deleteExpenseEntry(targetId)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
             .add({
               mutationId: crypto.randomUUID(),
               userId: activeUserId,
@@ -1003,10 +1310,10 @@ export function AtharProvider({ children }) {
               status: "pending",
               retryCount: 0,
             })
-            .then(() => syncEngine.scheduleSync(5000))
-            .catch(() => {});
-        });
-    }
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
     showToast("تم حذف المصروف", "info");
   };
 
@@ -1058,15 +1365,11 @@ export function AtharProvider({ children }) {
       fat: Number(meal.fat) || 0,
       notes: meal.notes || null,
     };
-    localDomainRepo.saveMealEntry(mealPayload).catch(() => {});
-
-    if (!isGuestUser) {
-      saveMealEntry(mealPayload)
-        .then((res) => {
-          if (!res?.success) throw new Error(res?.error);
-        })
-        .catch(() => {
-          localOutboxRepo
+    localDomainRepo
+      .saveMealEntry(mealPayload)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
             .add({
               mutationId: crypto.randomUUID(),
               userId: activeUserId,
@@ -1079,10 +1382,10 @@ export function AtharProvider({ children }) {
               status: "pending",
               retryCount: 0,
             })
-            .then(() => syncEngine.scheduleSync(5000))
-            .catch(() => {});
-        });
-    }
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
     showToast("تم تسجيل الوجبة بنجاح 🥗", "success");
   };
 
@@ -1240,10 +1543,18 @@ export function AtharProvider({ children }) {
         habits: appState.habits,
         createCustomHabit,
 
+        // User Preferences & Localization
+        userPreferences,
+        updatePreferences,
+
         // Expenses Domain
         expensesData,
         addExpense,
         deleteExpense,
+
+        // Gym Body Weight
+        addBodyWeight,
+        deleteBodyWeight,
 
         // Nutrition Domain
         nutritionData,

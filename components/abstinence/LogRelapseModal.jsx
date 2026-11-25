@@ -18,12 +18,10 @@ import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
 
 const COMMON_TRIGGERS = [
-  "توتر وضغوط العمل",
+  "توتر وضغط نفسي",
   "فراغ وملل",
-  "سهو واستخدام الهاتف في السرير",
-  "إغراء ومحتوى عارض",
   "غضب أو إحباط",
-  "تعب وإرهاق وقلة نوم",
+  "تعب وإرهاق ",
 ];
 
 export default function LogRelapseModal({
@@ -46,7 +44,6 @@ export default function LogRelapseModal({
   const [newStartDate, setNewStartDate] = useState(todayStr);
   const [newStartTime, setNewStartTime] = useState(defaultTimeStr);
   const [trigger, setTrigger] = useState("");
-  const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
 
@@ -88,7 +85,7 @@ export default function LogRelapseModal({
           durationSeconds,
           trigger: trigger.trim() || null,
           relapseReason: trigger.trim() || null,
-          notes: notes.trim() || null,
+          notes: null,
         };
         await localAbstinenceRepo.saveSession(closedSession);
 
@@ -137,42 +134,11 @@ export default function LogRelapseModal({
     };
 
     try {
-      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        await saveLocalRelapse();
-        onRelapseLogged?.();
-        onClose();
-        return;
-      }
-
-      const res = await logRelapse({
-        trackerId: tracker.id,
-        relapseDate,
-        relapseTime,
-        startNewSessionFromRelapse: startNewFromRelapse,
-        newStartDate: startNewFromRelapse ? undefined : newStartDate,
-        newStartTime: startNewFromRelapse ? undefined : newStartTime,
-        trigger: trigger.trim() || null,
-        relapseReason: trigger.trim() || null,
-        notes: notes.trim() || null,
-        timezone,
-      });
-
-      if (res.success) {
-        onRelapseLogged?.();
-        onClose();
-      } else {
-        await saveLocalRelapse();
-        onRelapseLogged?.();
-        onClose();
-      }
+      await saveLocalRelapse();
+      onRelapseLogged?.();
+      onClose();
     } catch (err) {
-      try {
-        await saveLocalRelapse();
-        onRelapseLogged?.();
-        onClose();
-      } catch {
-        setErrorMsg(err?.message || "حدث خطأ أثناء حفظ الانتكاسة");
-      }
+      setErrorMsg(err?.message || "حدث خطأ أثناء حفظ الانتكاسة");
     } finally {
       setIsSubmitting(false);
     }
@@ -210,14 +176,6 @@ export default function LogRelapseModal({
           </button>
         </div>
 
-        {/* Supportive Reminder Card */}
-        <div className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800 text-xs text-zinc-300 flex items-start gap-3 leading-relaxed">
-          <HeartHandshake className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <div>
-            <span className="font-bold text-zinc-100 block mb-0.5">الانتكاسة جزء من مسار التعافي، وليست نهاية الطريق.</span>
-            سجل الجلسة السابقة محفوظ بالكامل وستبدأ جلسة جديدة الآن. رصد المحفز والتعلم منه هو أقصر طريق للثبات.
-          </div>
-        </div>
 
         {errorMsg && (
           <div className="p-3.5 rounded-2xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs">
@@ -230,7 +188,7 @@ export default function LogRelapseModal({
           <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800/80 space-y-3">
             <span className="text-xs font-bold text-zinc-300 block flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-rose-400" />
-              <span>تاريخ ووقت حدوث الانتكاسة الفعلي</span>
+              <span>وقعت إمتى ؟</span>
             </span>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -324,7 +282,7 @@ export default function LogRelapseModal({
           {/* Trigger / Reason */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-zinc-300 block">
-              المحفز أو السبب الرئيسي للانتكاسة (اختياري)
+             إيه اللي وقعك؟ (اختياري)
             </label>
             <input
               type="text"
@@ -345,20 +303,6 @@ export default function LogRelapseModal({
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* Notes / Reflections */}
-          <div className="space-y-1.5">
-            <label className="text-xs font-bold text-zinc-300 block">
-              ملاحظات أو وقفة تأمل (اختياري)
-            </label>
-            <textarea
-              rows={2}
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="ما الذي ستفعله بشكل مختلف في المرة القادمة عند مواجهة نفس المحفز؟"
-              className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-rose-500 resize-none"
-            />
           </div>
 
           {/* Actions */}

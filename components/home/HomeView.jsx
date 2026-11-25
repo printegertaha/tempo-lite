@@ -27,10 +27,14 @@ import {
   getDefaultTimezone,
 } from "@/lib/dates";
 import { useLocalTasks } from "@/hooks/useLocalTasks";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { localLifeAreaRepo } from "@/lib/local-db";
+import { useAthar } from "@/components/context/AtharContext";
 import HomePrayerBar from "@/components/home/HomePrayerBar";
 import QuickTaskInput from "@/components/home/QuickTaskInput";
 import TaskCardItem from "@/components/home/TaskCardItem";
 import { activeTimerEngine } from "@/lib/timer/active-timer";
+import { useActiveTimer } from "@/hooks/useActiveTimer";
 import CompletedTasksSection from "@/components/home/CompletedTasksSection";
 import TaskEditorModal from "@/components/home/TaskEditorModal";
 import Modal from "@/components/ui/Modal";
@@ -49,19 +53,63 @@ function toIsoDateString(val) {
 }
 
 export default function HomeView({
-  user,
+  user: propUser,
   initialDate,
   timezone,
-  initialTodayTasks = [],
+  initialTodayTasks,
   initialPrayers = [],
   initialLifeAreas = [],
 }) {
-  const userId = user?.id || "guest";
-  const isGuest = !user?.id || user?.id === "guest";
-  const effectiveTimezone = timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+  const { userPreferences, updatePreferences } = useAthar();
+  const { user: localSessionUser, userId: sessionUserId, isGuest: sessionIsGuest } =
+    useLocalSession();
+  const user = propUser || localSessionUser;
+  const {
+    session: activeTaskSession,
+    elapsedSeconds: activeTaskElapsedSeconds,
+    resume: resumeActiveTaskTimer,
+  } = useActiveTimer();
+  const getPausedSecondsForTask = (taskId) =>
+    activeTaskSession &&
+    activeTaskSession.status === "paused" &&
+    activeTaskSession.taskId === taskId
+      ? activeTaskElapsedSeconds
+      : null;
+  const userId = propUser?.id || sessionUserId || "guest";
+  const isGuest = propUser ? (!propUser?.id || propUser?.id === "guest") : sessionIsGuest;
+  const effectiveTimezone =
+    userPreferences?.timezone ||
+    (timezone && !isGuest ? timezone : getDefaultTimezone());
+  const [lifeAreas, setLifeAreas] = useState(initialLifeAreas);
   const [todayStr, setTodayStr] = useState(
     () => initialDate || getLocalDateString(new Date(), effectiveTimezone)
   );
+
+  useEffect(() => {
+    let active = true;
+    const loadAreas = () => {
+      localLifeAreaRepo
+        .getAllForUser(userId, false)
+        .then((rows) => {
+          if (active && Array.isArray(rows) && rows.length > 0) {
+            setLifeAreas(rows);
+          } else if (active && !initialLifeAreas.length) {
+            setLifeAreas([]);
+          }
+        })
+        .catch(() => {});
+    };
+    loadAreas();
+    const onSynced = (ev) => {
+      const types = ev?.detail?.changedTypes || [];
+      if (types.includes("life_area")) loadAreas();
+    };
+    window.addEventListener("athar_data_synced", onSynced);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", onSynced);
+    };
+  }, [userId, initialLifeAreas.length]);
 
   // Automatically detect midnight transitions while the app stays open
   useEffect(() => {
@@ -277,6 +325,16 @@ export default function HomeView({
     },
     [toggleTaskStatus]
   );
+
+  // Auto-hide "تم إكمال" toast notification after 1.8 seconds
+  useEffect(() => {
+    if (!undoableTaskId) return;
+    const timer = setTimeout(() => {
+      setUndoableTaskId(null);
+      setUndoableTaskTitle(null);
+    }, 1800);
+    return () => clearTimeout(timer);
+  }, [undoableTaskId]);
 
   // Quick Add handler
   const handleQuickAdd = async (data) => {
@@ -521,14 +579,54 @@ export default function HomeView({
           </div>
         </header>
 
-        {/* 3. Five Daily Prayers Card (Immediately at the top on mobile) */}
-        <section aria-label="شريط الصلوات">
-          <HomePrayerBar
-            userId={userId}
-            dateStr={todayStr}
-            initialPrayers={initialPrayers}
-          />
-        </section>
+        {/* 3. Optional Five Daily Prayers Card (Hidden completely when disabled; offers optional setup if unconfigured) */}
+        {userPreferences?.prayerTrackingEnabled ? (
+          <section aria-label="شريط الصلوات">
+            <HomePrayerBar
+              userId={userId}
+              dateStr={todayStr}
+              initialPrayers={initialPrayers}
+            />
+          </section>
+        ) : !userPreferences?.prayerPreferenceConfigured ? (
+          <section
+            aria-label="تخصيص تتبع الصلوات"
+            className="p-4 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+          >
+            <div className="space-y-0.5 text-right">
+              <p className="text-xs font-bold text-zinc-200">هل ترغب في تفعيل تتبع الصلوات؟</p>
+              <p className="text-[11px] text-zinc-400">
+                يمكنك تشغيل أو إخفاء متابعة الصلوات حسب تفضيلاتك في أي وقت من الإعدادات.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() =>
+                  updatePreferences({
+                    prayerTrackingEnabled: true,
+                    prayerPreferenceConfigured: true,
+                  })
+                }
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition-colors cursor-pointer"
+              >
+                تشغيل تتبع الصلوات
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  updatePreferences({
+                    prayerTrackingEnabled: false,
+                    prayerPreferenceConfigured: true,
+                  })
+                }
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors cursor-pointer"
+              >
+                إخفاء
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         {/* Quick Task Input Bar */}
         <section aria-label="إضافة سريعة للمهمة">
@@ -583,6 +681,8 @@ export default function HomeView({
                   task={task}
                   onToggleStatus={handleToggleTask}
                   onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
+                  pausedTimerSeconds={getPausedSecondsForTask(task.id)}
+                  onResumeTimer={() => resumeActiveTaskTimer()}
                   onEdit={(t) => {
                     setEditingTask(t);
                     setIsEditorOpen(true);
@@ -671,6 +771,8 @@ export default function HomeView({
                     task={task}
                     onToggleStatus={handleToggleTask}
                     onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
+                    pausedTimerSeconds={getPausedSecondsForTask(task.id)}
+                    onResumeTimer={() => resumeActiveTaskTimer()}
                     onEdit={(t) => {
                       setEditingTask(t);
                       setIsEditorOpen(true);
@@ -723,6 +825,8 @@ export default function HomeView({
                       task={task}
                       onToggleStatus={handleToggleTask}
                       onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
+                      pausedTimerSeconds={getPausedSecondsForTask(task.id)}
+                      onResumeTimer={() => resumeActiveTaskTimer()}
                       onEdit={(t) => {
                         setEditingTask(t);
                         setIsEditorOpen(true);
@@ -779,6 +883,8 @@ export default function HomeView({
                     task={task}
                     onToggleStatus={handleToggleTask}
                     onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
+                    pausedTimerSeconds={getPausedSecondsForTask(task.id)}
+                    onResumeTimer={() => resumeActiveTaskTimer()}
                     onEdit={(t) => {
                       setEditingTask(t);
                       setIsEditorOpen(true);
@@ -820,7 +926,7 @@ export default function HomeView({
           }}
           task={editingTask}
           onSave={handleSaveFromEditor}
-          lifeAreas={initialLifeAreas}
+          lifeAreas={lifeAreas}
           todayStr={todayStr}
         />
       )}

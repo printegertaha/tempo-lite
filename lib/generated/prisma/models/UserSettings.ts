@@ -40,6 +40,12 @@ export type UserSettingsMinAggregateOutputType = {
   id: string | null
   userId: string | null
   timezone: string | null
+  countryCode: string | null
+  governorate: string | null
+  city: string | null
+  currency: string | null
+  currencyAuto: boolean | null
+  prayerTrackingEnabled: boolean | null
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
@@ -53,6 +59,12 @@ export type UserSettingsMaxAggregateOutputType = {
   id: string | null
   userId: string | null
   timezone: string | null
+  countryCode: string | null
+  governorate: string | null
+  city: string | null
+  currency: string | null
+  currencyAuto: boolean | null
+  prayerTrackingEnabled: boolean | null
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
@@ -66,6 +78,12 @@ export type UserSettingsCountAggregateOutputType = {
   id: number
   userId: number
   timezone: number
+  countryCode: number
+  governorate: number
+  city: number
+  currency: number
+  currencyAuto: number
+  prayerTrackingEnabled: number
   language: number
   weekStartDay: number
   themeAccent: number
@@ -93,6 +111,12 @@ export type UserSettingsMinAggregateInputType = {
   id?: true
   userId?: true
   timezone?: true
+  countryCode?: true
+  governorate?: true
+  city?: true
+  currency?: true
+  currencyAuto?: true
+  prayerTrackingEnabled?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -106,6 +130,12 @@ export type UserSettingsMaxAggregateInputType = {
   id?: true
   userId?: true
   timezone?: true
+  countryCode?: true
+  governorate?: true
+  city?: true
+  currency?: true
+  currencyAuto?: true
+  prayerTrackingEnabled?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -119,6 +149,12 @@ export type UserSettingsCountAggregateInputType = {
   id?: true
   userId?: true
   timezone?: true
+  countryCode?: true
+  governorate?: true
+  city?: true
+  currency?: true
+  currencyAuto?: true
+  prayerTrackingEnabled?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -221,6 +257,12 @@ export type UserSettingsGroupByOutputType = {
   id: string
   userId: string
   timezone: string
+  countryCode: string | null
+  governorate: string | null
+  city: string | null
+  currency: string | null
+  currencyAuto: boolean
+  prayerTrackingEnabled: boolean
   language: string
   weekStartDay: number
   themeAccent: string
@@ -259,6 +301,12 @@ export type UserSettingsWhereInput = {
   id?: Prisma.StringFilter<"UserSettings"> | string
   userId?: Prisma.StringFilter<"UserSettings"> | string
   timezone?: Prisma.StringFilter<"UserSettings"> | string
+  countryCode?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  governorate?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  city?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  currency?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  currencyAuto?: Prisma.BoolFilter<"UserSettings"> | boolean
+  prayerTrackingEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
   language?: Prisma.StringFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
@@ -275,6 +323,12 @@ export type UserSettingsOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   timezone?: Prisma.SortOrder
+  countryCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  governorate?: Prisma.SortOrderInput | Prisma.SortOrder
+  city?: Prisma.SortOrderInput | Prisma.SortOrder
+  currency?: Prisma.SortOrderInput | Prisma.SortOrder
+  currencyAuto?: Prisma.SortOrder
+  prayerTrackingEnabled?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -294,6 +348,12 @@ export type UserSettingsWhereUniqueInput = Prisma.AtLeast<{
   OR?: Prisma.UserSettingsWhereInput[]
   NOT?: Prisma.UserSettingsWhereInput | Prisma.UserSettingsWhereInput[]
   timezone?: Prisma.StringFilter<"UserSettings"> | string
+  countryCode?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  governorate?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  city?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  currency?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  currencyAuto?: Prisma.BoolFilter<"UserSettings"> | boolean
+  prayerTrackingEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
   language?: Prisma.StringFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
@@ -310,6 +370,12 @@ export type UserSettingsOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   timezone?: Prisma.SortOrder
+  countryCode?: Prisma.SortOrderInput | Prisma.SortOrder
+  governorate?: Prisma.SortOrderInput | Prisma.SortOrder
+  city?: Prisma.SortOrderInput | Prisma.SortOrder
+  currency?: Prisma.SortOrderInput | Prisma.SortOrder
+  currencyAuto?: Prisma.SortOrder
+  prayerTrackingEnabled?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -333,6 +399,12 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   userId?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   timezone?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
+  countryCode?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  governorate?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  city?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  currency?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  currencyAuto?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
+  prayerTrackingEnabled?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
   language?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntWithAggregatesFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
@@ -347,6 +419,12 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
 export type UserSettingsCreateInput = {
   id?: string
   timezone?: string
+  countryCode?: string | null
+  governorate?: string | null
+  city?: string | null
+  currency?: string | null
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -363,6 +441,12 @@ export type UserSettingsUncheckedCreateInput = {
   id?: string
   userId: string
   timezone?: string
+  countryCode?: string | null
+  governorate?: string | null
+  city?: string | null
+  currency?: string | null
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -377,6 +461,12 @@ export type UserSettingsUncheckedCreateInput = {
 export type UserSettingsUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -393,6 +483,12 @@ export type UserSettingsUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -408,6 +504,12 @@ export type UserSettingsCreateManyInput = {
   id?: string
   userId: string
   timezone?: string
+  countryCode?: string | null
+  governorate?: string | null
+  city?: string | null
+  currency?: string | null
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -422,6 +524,12 @@ export type UserSettingsCreateManyInput = {
 export type UserSettingsUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -437,6 +545,12 @@ export type UserSettingsUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -457,6 +571,12 @@ export type UserSettingsCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   timezone?: Prisma.SortOrder
+  countryCode?: Prisma.SortOrder
+  governorate?: Prisma.SortOrder
+  city?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  currencyAuto?: Prisma.SortOrder
+  prayerTrackingEnabled?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -477,6 +597,12 @@ export type UserSettingsMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   timezone?: Prisma.SortOrder
+  countryCode?: Prisma.SortOrder
+  governorate?: Prisma.SortOrder
+  city?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  currencyAuto?: Prisma.SortOrder
+  prayerTrackingEnabled?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -490,6 +616,12 @@ export type UserSettingsMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   timezone?: Prisma.SortOrder
+  countryCode?: Prisma.SortOrder
+  governorate?: Prisma.SortOrder
+  city?: Prisma.SortOrder
+  currency?: Prisma.SortOrder
+  currencyAuto?: Prisma.SortOrder
+  prayerTrackingEnabled?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -555,6 +687,12 @@ export type FloatFieldUpdateOperationsInput = {
 export type UserSettingsCreateWithoutUserInput = {
   id?: string
   timezone?: string
+  countryCode?: string | null
+  governorate?: string | null
+  city?: string | null
+  currency?: string | null
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -569,6 +707,12 @@ export type UserSettingsCreateWithoutUserInput = {
 export type UserSettingsUncheckedCreateWithoutUserInput = {
   id?: string
   timezone?: string
+  countryCode?: string | null
+  governorate?: string | null
+  city?: string | null
+  currency?: string | null
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -599,6 +743,12 @@ export type UserSettingsUpdateToOneWithWhereWithoutUserInput = {
 export type UserSettingsUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -613,6 +763,12 @@ export type UserSettingsUpdateWithoutUserInput = {
 export type UserSettingsUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   timezone?: Prisma.StringFieldUpdateOperationsInput | string
+  countryCode?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  governorate?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  city?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -630,6 +786,12 @@ export type UserSettingsSelect<ExtArgs extends runtime.Types.Extensions.Internal
   id?: boolean
   userId?: boolean
   timezone?: boolean
+  countryCode?: boolean
+  governorate?: boolean
+  city?: boolean
+  currency?: boolean
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -646,6 +808,12 @@ export type UserSettingsSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   userId?: boolean
   timezone?: boolean
+  countryCode?: boolean
+  governorate?: boolean
+  city?: boolean
+  currency?: boolean
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -662,6 +830,12 @@ export type UserSettingsSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   id?: boolean
   userId?: boolean
   timezone?: boolean
+  countryCode?: boolean
+  governorate?: boolean
+  city?: boolean
+  currency?: boolean
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -678,6 +852,12 @@ export type UserSettingsSelectScalar = {
   id?: boolean
   userId?: boolean
   timezone?: boolean
+  countryCode?: boolean
+  governorate?: boolean
+  city?: boolean
+  currency?: boolean
+  currencyAuto?: boolean
+  prayerTrackingEnabled?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -689,7 +869,7 @@ export type UserSettingsSelectScalar = {
   updatedAt?: boolean
 }
 
-export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "audioEnabled" | "audioVolume" | "plannerConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
+export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "countryCode" | "governorate" | "city" | "currency" | "currencyAuto" | "prayerTrackingEnabled" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "audioEnabled" | "audioVolume" | "plannerConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
 export type UserSettingsInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -709,6 +889,12 @@ export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.Intern
     id: string
     userId: string
     timezone: string
+    countryCode: string | null
+    governorate: string | null
+    city: string | null
+    currency: string | null
+    currencyAuto: boolean
+    prayerTrackingEnabled: boolean
     language: string
     weekStartDay: number
     themeAccent: string
@@ -1145,6 +1331,12 @@ export interface UserSettingsFieldRefs {
   readonly id: Prisma.FieldRef<"UserSettings", 'String'>
   readonly userId: Prisma.FieldRef<"UserSettings", 'String'>
   readonly timezone: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly countryCode: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly governorate: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly city: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly currency: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly currencyAuto: Prisma.FieldRef<"UserSettings", 'Boolean'>
+  readonly prayerTrackingEnabled: Prisma.FieldRef<"UserSettings", 'Boolean'>
   readonly language: Prisma.FieldRef<"UserSettings", 'String'>
   readonly weekStartDay: Prisma.FieldRef<"UserSettings", 'Int'>
   readonly themeAccent: Prisma.FieldRef<"UserSettings", 'String'>

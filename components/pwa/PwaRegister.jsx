@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Sparkles, RefreshCw, X, Download } from "lucide-react";
 
 export default function PwaRegister() {
@@ -8,6 +8,7 @@ export default function PwaRegister() {
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const userRequestedUpdateRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !("serviceWorker" in navigator)) {
@@ -60,14 +61,16 @@ export default function PwaRegister() {
         console.warn("ServiceWorker registration failed:", err);
       });
 
-    // Handle controller change (worker activated)
+    // Handle controller change ONLY when user explicitly clicked "تحديث الآن"
+    // Never reload automatically on initial SW activation or background claim.
     let refreshing = false;
-    navigator.serviceWorker.addEventListener("controllerchange", () => {
-      if (!refreshing) {
+    const handleControllerChange = () => {
+      if (userRequestedUpdateRef.current && !refreshing) {
         refreshing = true;
         window.location.reload();
       }
-    });
+    };
+    navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
 
     // Listen for installable PWA prompt
     const handleBeforeInstall = (e) => {
@@ -82,12 +85,14 @@ export default function PwaRegister() {
     window.addEventListener("beforeinstallprompt", handleBeforeInstall);
 
     return () => {
+      navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
       window.removeEventListener("beforeinstallprompt", handleBeforeInstall);
     };
   }, []);
 
   const handleUpdate = () => {
     if (waitingWorker) {
+      userRequestedUpdateRef.current = true;
       waitingWorker.postMessage({ type: "SKIP_WAITING" });
     }
     setShowUpdatePrompt(false);

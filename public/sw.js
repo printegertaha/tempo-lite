@@ -1,5 +1,5 @@
 // Athar (أثـر) — Offline-First Service Worker
-const CACHE_VERSION = 'athar-v1.0.2';
+const CACHE_VERSION = 'athar-v1.1.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -9,6 +9,8 @@ const PRECACHE_URLS = [
   '/manifest.json',
   '/offline.html',
   '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
 ];
 
 // Essential app routes to proactively pre-cache for offline navigation
@@ -16,6 +18,7 @@ const CORE_ROUTES = [
   '/',
   '/tasks',
   '/habits',
+  '/habits/wheel',
   '/journal',
   '/abstinence',
   '/analytics',
@@ -23,6 +26,7 @@ const CORE_ROUTES = [
   '/gym',
   '/nutrition',
   '/expenses',
+  '/quran',
   '/settings',
 ];
 
@@ -45,7 +49,10 @@ self.addEventListener('install', (event) => {
       }
     })
   );
-  self.skipWaiting();
+  // Activate immediately ONLY on fresh install; updates wait for user confirmation via SKIP_WAITING
+  if (!self.registration.active) {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener('activate', (event) => {
@@ -66,21 +73,47 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   const url = new URL(request.url);
 
-  // 1. Ignore non-GET requests (mutations, outbox sync, POST/PUT/DELETE)
-  if (request.method !== 'GET') {
+  // Only handle same-origin GET requests
+  if (request.method !== 'GET' || url.origin !== self.location.origin) {
     return;
   }
 
-  // 2. Never cache authentication endpoints, API routes, Next.js RSC Flight requests, or login/register
+  // 1. Never cache authentication endpoints, API routes, login, or register
   if (
     url.pathname.startsWith('/api/') ||
     url.pathname === '/login' ||
-    url.pathname === '/register' ||
+    url.pathname === '/register'
+  ) {
+    return;
+  }
+
+  // 2. Next.js RSC Flight navigation & prefetch payloads for static app-shell routes:
+  // Cache under a distinct synthetic URL prefix `/__rsc` so Flight data never collides with HTML documents.
+  const isRscRequest =
     url.searchParams.has('_rsc') ||
     request.headers.get('RSC') === '1' ||
     request.headers.has('Next-Router-Prefetch') ||
-    request.headers.has('Next-Router-Segment-Prefetch')
-  ) {
+    request.headers.has('Next-Router-Segment-Prefetch');
+
+  if (isRscRequest) {
+    const rscCacheKey = new Request(`${url.origin}/__rsc${url.pathname}`);
+    event.respondWith(
+      fetch(request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => {
+              cache.put(rscCacheKey, responseClone);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(async () => {
+          const cachedRsc = await caches.match(rscCacheKey);
+          if (cachedRsc) return cachedRsc;
+          return new Response('', { status: 503, statusText: 'Offline' });
+        })
+    );
     return;
   }
 
@@ -92,14 +125,15 @@ self.addEventListener('fetch', (event) => {
           if (networkResponse && networkResponse.status === 200) {
             const responseClone = networkResponse.clone();
             caches.open(RUNTIME_CACHE).then((cache) => {
-              cache.put(request, responseClone);
+              cache.put(url.pathname, responseClone);
             });
           }
           return networkResponse;
         })
         .catch(async () => {
-          // Attempt exact URL from runtime or static cache
-          const cachedResponse = await caches.match(request);
+          // Attempt exact pathname from runtime or static cache
+          const cachedResponse =
+            (await caches.match(url.pathname)) || (await caches.match(request));
           if (cachedResponse) {
             return cachedResponse;
           }
@@ -118,14 +152,14 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 4. Next.js Immutable Static Assets — only truly immutable ones (hashed filenames in /_next/static)
-  // NOTE: Do NOT cache /_next/static/chunks or generic .js by extension — Turbopack dev chunks are
-  // not content-hashed and stale caches cause "module factory not available" errors.
+  // 4. Production Next.js hashed static bundles & static media assets (Cache-First)
+  // PwaRegister only registers sw.js when NODE_ENV === 'production', where /_next/static/ files are content-hashed & immutable.
   if (
-    url.pathname.startsWith('/_next/static/media/') ||
+    url.pathname.startsWith('/_next/static/') ||
     url.pathname.endsWith('.svg') ||
     url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.woff2')
+    url.pathname.endsWith('.woff2') ||
+    url.pathname.endsWith('.woff')
   ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
@@ -133,26 +167,24 @@ self.addEventListener('fetch', (event) => {
           return cachedResponse;
         }
 
-        return fetch(request).then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseClone = networkResponse.clone();
-            caches.open(STATIC_CACHE).then((cache) => {
-              cache.put(request, responseClone);
-            });
-          }
-          return networkResponse;
-        });
+        return fetch(request)
+          .then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+              const responseClone = networkResponse.clone();
+              caches.open(STATIC_CACHE).then((cache) => {
+                cache.put(request, responseClone);
+              });
+            }
+            return networkResponse;
+          })
+          .catch(() => new Response('Offline', { status: 503 }));
       })
     );
     return;
   }
 
-  // /_next/static/chunks and .js files — always network-first to avoid stale module errors
-  if (
-    url.pathname.startsWith('/_next/') ||
-    url.pathname.endsWith('.js') ||
-    url.pathname.endsWith('.css')
-  ) {
+  // Other /_next/ requests (e.g. _next/image) — Network-First with cache fallback
+  if (url.pathname.startsWith('/_next/')) {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
@@ -192,7 +224,20 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// Update listener: reload client when instructed
+// Background Sync fallback trigger (notifies open clients to flush IDB Outbox)
+self.addEventListener('sync', (event) => {
+  if (event.tag === 'athar-outbox-sync') {
+    event.waitUntil(
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          client.postMessage({ type: 'SW_BACKGROUND_SYNC' });
+        }
+      })
+    );
+  }
+});
+
+// Update listener: promote waiting SW when user confirms update
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();

@@ -1,12 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import {
-  getDailyOverview,
-  saveDailyNote,
-  deleteDailyNote,
-} from "@/actions/history";
-import { toggleTaskStatus } from "@/actions/tasks";
+import { useState, useEffect, useCallback } from "react";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { useAthar } from "@/components/context/AtharContext";
 import {
   addDaysToDateString,
   getLocalDateString,
@@ -59,24 +55,44 @@ const MOODS = [
   { id: "stressed", label: "مضغوط", icon: Frown, color: "text-red-400 bg-red-500/10 border-red-500/30" },
 ];
 
-export default function JournalClient({ user, initialDate, timezone, initialData }) {
-  const effectiveUserId = user?.id || "guest";
-  const isGuest = !user || user.isGuest || effectiveUserId === "guest";
-  const effectiveTimezone =
-    timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+const journalMemoryCache = new Map();
 
-  const [selectedDate, setSelectedDate] = useState(initialDate);
-  const [data, setData] = useState(initialData);
+export default function JournalClient({
+  user: propUser,
+  initialDate,
+  timezone,
+  initialData,
+}) {
+  const { userPreferences } = useAthar();
+  const { user: localUser, userId: sessionUserId, isGuest: sessionIsGuest } =
+    useLocalSession();
+  const user = propUser || localUser;
+  const effectiveUserId = propUser?.id || sessionUserId || "guest";
+  const isGuest = propUser ? (!propUser?.id || propUser?.id === "guest") : sessionIsGuest;
+  const effectiveTimezone =
+    userPreferences?.timezone ||
+    (timezone && !isGuest ? timezone : getDefaultTimezone());
+
+  const [selectedDate, setSelectedDate] = useState(
+    () => initialDate || getLocalDateString(new Date(), effectiveTimezone)
+  );
+  const [data, setData] = useState(
+    () => initialData || journalMemoryCache.get(`${effectiveUserId}:${selectedDate}`) || null
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   // Daily note form state
-  const [noteTitle, setNoteTitle] = useState(initialData?.dailyNote?.title || "");
-  const [noteContent, setNoteContent] = useState(initialData?.dailyNote?.content || "");
-  const [noteMood, setNoteMood] = useState(initialData?.dailyNote?.mood || "good");
+  const [noteTitle, setNoteTitle] = useState(
+    () => data?.dailyNote?.title || ""
+  );
+  const [noteContent, setNoteContent] = useState(
+    () => data?.dailyNote?.content || ""
+  );
+  const [noteMood, setNoteMood] = useState(
+    () => data?.dailyNote?.mood || "good"
+  );
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [toastMessage, setToastMessage] = useState("");
-
-  const isInitialMount = useRef(true);
 
   const showToast = (msg) => {
     setToastMessage(msg);
@@ -175,87 +191,54 @@ export default function JournalClient({ user, initialDate, timezone, initialData
     [effectiveUserId, effectiveTimezone]
   );
 
-  // Load day overview on date change
+  // Load day overview immediately from IndexedDB (Local-First for ALL accounts)
   const loadDayData = useCallback(
     async (targetDate) => {
       const dateToLoad = targetDate || selectedDate;
       if (!dateToLoad) return;
 
-      setIsLoading(true);
-
-      // Guest Mode or Offline: load directly from IndexedDB
-      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        try {
-          const overview = await buildLocalDayOverview(dateToLoad);
-          setData(overview);
-          if (overview.dailyNote) {
-            setNoteTitle(overview.dailyNote.title || "");
-            setNoteContent(overview.dailyNote.content || "");
-            setNoteMood(overview.dailyNote.mood || "good");
-          } else {
-            setNoteTitle("");
-            setNoteContent("");
-            setNoteMood("good");
-          }
-        } catch (err) {
-          console.error("Error loading local day data from IndexedDB:", err);
-        } finally {
-          setIsLoading(false);
-        }
-        return;
+      const cacheKey = `${effectiveUserId}:${dateToLoad}`;
+      const cached = journalMemoryCache.get(cacheKey);
+      if (cached) {
+        setData(cached);
       }
 
       try {
-        const res = await getDailyOverview(dateToLoad);
-        if (res.success && res.data) {
-          setData(res.data);
-          if (res.data.dailyNote) {
-            await localNoteRepo
-              .save({
-                ...res.data.dailyNote,
-                id: res.data.dailyNote.id || `${effectiveUserId}_note_${dateToLoad}`,
-                userId: effectiveUserId,
-              })
-              .catch(() => {});
-            setNoteTitle(res.data.dailyNote.title || "");
-            setNoteContent(res.data.dailyNote.content || "");
-            setNoteMood(res.data.dailyNote.mood || "good");
-          } else {
-            setNoteTitle("");
-            setNoteContent("");
-            setNoteMood("good");
-          }
+        const overview = await buildLocalDayOverview(dateToLoad);
+        journalMemoryCache.set(cacheKey, overview);
+        setData(overview);
+        if (overview.dailyNote) {
+          setNoteTitle(overview.dailyNote.title || "");
+          setNoteContent(overview.dailyNote.content || "");
+          setNoteMood(overview.dailyNote.mood || "good");
         } else {
-          const overview = await buildLocalDayOverview(dateToLoad);
-          setData(overview);
-          if (overview.dailyNote) {
-            setNoteTitle(overview.dailyNote.title || "");
-            setNoteContent(overview.dailyNote.content || "");
-            setNoteMood(overview.dailyNote.mood || "good");
-          } else {
-            setNoteTitle("");
-            setNoteContent("");
-            setNoteMood("good");
-          }
+          setNoteTitle("");
+          setNoteContent("");
+          setNoteMood("good");
         }
       } catch (err) {
-        console.error("Error loading daily overview:", err);
-        const overview = await buildLocalDayOverview(dateToLoad).catch(() => null);
-        if (overview) setData(overview);
+        console.error("Error loading local day data from IndexedDB:", err);
       } finally {
         setIsLoading(false);
       }
     },
-    [isGuest, effectiveUserId, selectedDate, buildLocalDayOverview]
+    [effectiveUserId, selectedDate, buildLocalDayOverview]
   );
 
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      if (!isGuest) return;
-    }
-    loadDayData(selectedDate);
-  }, [selectedDate, loadDayData, isGuest]);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void loadDayData(selectedDate);
+    });
+    const refresh = () => void loadDayData(selectedDate);
+    window.addEventListener("athar_data_synced", refresh);
+    window.addEventListener("athar_tasks_updated", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", refresh);
+      window.removeEventListener("athar_tasks_updated", refresh);
+    };
+  }, [selectedDate, loadDayData]);
 
   // Date Navigation Handlers
   const handlePrevDay = () => {
@@ -275,7 +258,7 @@ export default function JournalClient({ user, initialDate, timezone, initialData
     setSelectedDate(today);
   };
 
-  // Note Actions (Local-first + Outbox offline fallback)
+  // Note Actions (Strict Local-First + Outbox)
   const handleSaveNote = async (e) => {
     e.preventDefault();
     if (!noteContent.trim()) {
@@ -284,7 +267,7 @@ export default function JournalClient({ user, initialDate, timezone, initialData
     }
 
     setIsSavingNote(true);
-    const noteId = `${effectiveUserId}_note_${selectedDate}`;
+    const noteId = data?.dailyNote?.id || `${effectiveUserId}_note_${selectedDate}`;
     const noteObj = {
       id: noteId,
       userId: effectiveUserId,
@@ -292,35 +275,22 @@ export default function JournalClient({ user, initialDate, timezone, initialData
       title: noteTitle.trim() || undefined,
       content: noteContent.trim(),
       mood: noteMood,
-      updatedAt: Date.now(),
+      updatedAt: new Date().toISOString(),
     };
 
     try {
       await localNoteRepo.save(noteObj);
+      setData((prev) => ({ ...(prev || {}), dailyNote: noteObj }));
+      journalMemoryCache.set(`${effectiveUserId}:${selectedDate}`, {
+        ...(data || {}),
+        dailyNote: noteObj,
+      });
 
       if (isGuest) {
         showToast("تم حفظ اليومية محلياً بنجاح ✍️");
-        setData((prev) => ({ ...(prev || {}), dailyNote: noteObj }));
         return;
       }
 
-      if (typeof navigator !== "undefined" && navigator.onLine) {
-        try {
-          const res = await saveDailyNote({
-            localDate: selectedDate,
-            title: noteTitle.trim() || undefined,
-            content: noteContent.trim(),
-            mood: noteMood,
-          });
-          if (res.success) {
-            showToast("تم حفظ اليومية والملاحظات بنجاح");
-            loadDayData(selectedDate);
-            return;
-          }
-        } catch {}
-      }
-
-      // Offline / network fallback: queue to outbox so nothing is lost
       await localOutboxRepo.add({
         mutationId: crypto.randomUUID(),
         userId: effectiveUserId,
@@ -334,12 +304,12 @@ export default function JournalClient({ user, initialDate, timezone, initialData
           mood: noteMood,
         },
         clientTimestamp: Date.now(),
+        baseUpdatedAt: data?.dailyNote?.updatedAt,
         version: 1,
         status: "pending",
         retryCount: 0,
       });
-      syncEngine.scheduleSync(5000);
-      setData((prev) => ({ ...(prev || {}), dailyNote: noteObj }));
+      syncEngine.scheduleSync(600);
       showToast("تم حفظ اليومية محلياً وستتم مزامنتها تلقائياً ✍️");
     } catch {
       showToast("حدث خطأ أثناء حفظ اليومية");
@@ -351,30 +321,19 @@ export default function JournalClient({ user, initialDate, timezone, initialData
   const handleDeleteNote = async () => {
     if (!confirm("هل أنت متأكد من حذف هذه اليومية؟")) return;
     setIsSavingNote(true);
-    const noteId = `${effectiveUserId}_note_${selectedDate}`;
+    const noteId = data?.dailyNote?.id || `${effectiveUserId}_note_${selectedDate}`;
     try {
       await localNoteRepo.delete(noteId).catch(() => {});
+      await localNoteRepo.delete(`${effectiveUserId}_note_${selectedDate}`).catch(() => {});
       await localNoteRepo.delete(`guest_note_${selectedDate}`).catch(() => {});
 
+      setNoteTitle("");
+      setNoteContent("");
+      setData((prev) => ({ ...(prev || {}), dailyNote: null }));
+
       if (isGuest) {
-        setNoteTitle("");
-        setNoteContent("");
-        setData((prev) => ({ ...(prev || {}), dailyNote: null }));
         showToast("تم حذف اليومية محلياً");
         return;
-      }
-
-      if (typeof navigator !== "undefined" && navigator.onLine) {
-        try {
-          const res = await deleteDailyNote(selectedDate);
-          if (res.success) {
-            setNoteTitle("");
-            setNoteContent("");
-            showToast("تم حذف اليومية");
-            loadDayData(selectedDate);
-            return;
-          }
-        } catch {}
       }
 
       await localOutboxRepo.add({
@@ -389,10 +348,7 @@ export default function JournalClient({ user, initialDate, timezone, initialData
         status: "pending",
         retryCount: 0,
       });
-      syncEngine.scheduleSync(5000);
-      setNoteTitle("");
-      setNoteContent("");
-      setData((prev) => ({ ...(prev || {}), dailyNote: null }));
+      syncEngine.scheduleSync(600);
       showToast("تم حذف اليومية محلياً وستتم مزامنة الحذف");
     } finally {
       setIsSavingNote(false);

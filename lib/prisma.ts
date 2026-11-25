@@ -2,9 +2,12 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 
+const PRISMA_CLIENT_EPOCH = "20261125_localization_currency_prayer_pref";
+
 // Global declaration for singleton caching in Next.js development mode
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
+  prismaEpoch: string | undefined;
   pgPool: Pool | undefined;
 };
 
@@ -41,10 +44,16 @@ function createPrismaClient(): PrismaClient {
   });
 
   globalForPrisma.prisma = client;
+  globalForPrisma.prismaEpoch = PRISMA_CLIENT_EPOCH;
   return client;
 }
 
-export const prisma = globalForPrisma.prisma ?? createPrismaClient();
+const cachedPrismaValid =
+  globalForPrisma.prisma && globalForPrisma.prismaEpoch === PRISMA_CLIENT_EPOCH;
+
+export const prisma = cachedPrismaValid
+  ? (globalForPrisma.prisma as PrismaClient)
+  : createPrismaClient();
 
 // Ensure bulletproof interoperability across both CommonJS and ES Modules
 (prisma as any).default = prisma;
@@ -52,6 +61,7 @@ export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = prisma;
+  globalForPrisma.prismaEpoch = PRISMA_CLIENT_EPOCH;
 }
 
 export default prisma;

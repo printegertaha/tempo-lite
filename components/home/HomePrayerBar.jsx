@@ -12,12 +12,25 @@ import {
   X,
   Check,
 } from "lucide-react";
-import { togglePrayer } from "@/actions/prayers";
 import { PRAYER_NAMES_ARABIC } from "@/lib/validations/prayer";
 import { localPrayerRepo, localOutboxRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
 
 const ORDERED_PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+
+function buildDefaultDayPrayers(dateStr) {
+  return ORDERED_PRAYERS.map((key) => ({
+    id: `${dateStr}_${key}`,
+    prayerKey: key,
+    nameArabic: PRAYER_NAMES_ARABIC[key],
+    date: dateStr,
+    isCompleted: false,
+    completedAt: null,
+    location: null,
+    withSunnah: false,
+    notes: null,
+  }));
+}
 
 const PRAYER_NUMBERS = {
   fajr: 1,
@@ -38,76 +51,59 @@ export default function HomePrayerBar({
     if (initialPrayers && initialPrayers.length === 5) {
       return initialPrayers;
     }
-    return ORDERED_PRAYERS.map((key) => ({
-      id: `${dateStr}_${key}`,
-      prayerKey: key,
-      nameArabic: PRAYER_NAMES_ARABIC[key],
-      date: dateStr,
-      isCompleted: false,
-      completedAt: null,
-      location: null,
-      withSunnah: false,
-      notes: null,
-    }));
+    return buildDefaultDayPrayers(dateStr);
   });
 
   const [detailModalPrayer, setDetailModalPrayer] = useState(null);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
-  // Load local records from IndexedDB on mount / date change (for guest AND offline auth reconciliation)
+  // Load local records from IndexedDB on mount / date change / sync pull
   useEffect(() => {
+    let active = true;
     const effectiveUserId = isGuest ? "guest" : userId;
-    localPrayerRepo.getByDate(effectiveUserId, dateStr).then(async (records) => {
-      if (!records || records.length === 0) return;
 
-      if (!isGuest) {
-        // Only override server initialPrayers if there are unsynced prayer mutations pending in outbox
-        const pending = await localOutboxRepo.getPending(effectiveUserId).catch(() => []);
-        const pendingPrayerIds = new Set(
-          pending.filter((m) => m.entityType === "prayer_record").map((m) => m.entityId)
-        );
-        if (pendingPrayerIds.size === 0) return;
-        const recMap = new Map(records.map((r) => [r.prayerKey, r]));
-        setPrayers((prev) =>
-          prev.map((p) => {
-            const r = recMap.get(p.prayerKey);
-            if (r && pendingPrayerIds.has(r.id)) {
+    const loadPrayersFromIdb = () => {
+      localPrayerRepo
+        .getByDate(effectiveUserId, dateStr)
+        .then((records) => {
+          if (!active) return;
+          if (!records || records.length === 0) {
+            if (!initialPrayers || initialPrayers.length !== 5) {
+              setPrayers(buildDefaultDayPrayers(dateStr));
+            }
+            return;
+          }
+          const recMap = new Map(records.map((r) => [r.prayerKey, r]));
+          setPrayers(
+            buildDefaultDayPrayers(dateStr).map((p) => {
+              const r = recMap.get(p.prayerKey);
+              if (!r) return p;
               return {
                 ...p,
                 id: r.id,
-                isCompleted: r.isCompleted,
+                isCompleted: Boolean(r.isCompleted),
                 completedAt: r.completedAt || null,
                 location: r.location || null,
                 withSunnah: Boolean(r.withSunnah),
                 notes: r.notes || null,
               };
-            }
-            return p;
-          })
-        );
-        return;
-      }
-
-      const recMap = new Map(records.map((r) => [r.prayerKey, r]));
-      setPrayers((prev) =>
-        prev.map((p) => {
-          const r = recMap.get(p.prayerKey);
-          if (r) {
-            return {
-              ...p,
-              id: r.id,
-              isCompleted: r.isCompleted,
-              completedAt: r.completedAt || null,
-              location: r.location || null,
-              withSunnah: Boolean(r.withSunnah),
-              notes: r.notes || null,
-            };
-          }
-          return p;
+            })
+          );
         })
-      );
-    }).catch(() => {});
-  }, [isGuest, userId, dateStr]);
+        .catch(() => {});
+    };
+
+    loadPrayersFromIdb();
+    const onSynced = (ev) => {
+      const types = ev?.detail?.changedTypes || [];
+      if (types.includes("prayer_record")) loadPrayersFromIdb();
+    };
+    window.addEventListener("athar_data_synced", onSynced);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", onSynced);
+    };
+  }, [isGuest, userId, dateStr, initialPrayers]);
 
   const completedCount = prayers.filter((p) => p.isCompleted).length;
 
@@ -115,7 +111,7 @@ export default function HomePrayerBar({
     async (record) => {
       const effectiveUserId = isGuest ? "guest" : userId;
       const localRec = {
-        id: record.id || `${dateStr}_${record.prayerKey}`,
+        id: record.id || `${effectiveUserId}_${dateStr}_${record.prayerKey}`,
         userId: effectiveUserId,
         date: dateStr,
         prayerKey: record.prayerKey,
@@ -130,23 +126,6 @@ export default function HomePrayerBar({
 
       if (isGuest) return;
 
-      if (typeof navigator !== "undefined" && navigator.onLine) {
-        try {
-          const res = await togglePrayer({
-            date: dateStr,
-            prayerKey: localRec.prayerKey,
-            isCompleted: localRec.isCompleted,
-            location: localRec.location,
-            withSunnah: localRec.withSunnah,
-            notes: localRec.notes || undefined,
-          });
-          if (res?.success) return;
-        } catch (err) {
-          console.warn("Online prayer save failed, queuing offline:", err);
-        }
-      }
-
-      // Offline or failed server action: queue to outbox so it syncs reliably when online
       await localOutboxRepo.add({
         mutationId: crypto.randomUUID(),
         userId: effectiveUserId,
@@ -167,7 +146,7 @@ export default function HomePrayerBar({
         status: "pending",
         retryCount: 0,
       });
-      syncEngine.scheduleSync(5000);
+      syncEngine.scheduleSync(500);
     },
     [isGuest, userId, dateStr]
   );

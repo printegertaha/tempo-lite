@@ -22,24 +22,36 @@ import {
 import TaskCard from "./TaskCard";
 import TaskModal from "./TaskModal";
 import { activeTimerEngine } from "@/lib/timer/active-timer";
+import { useActiveTimer } from "@/hooks/useActiveTimer";
 import SyncStatusBadge from "@/components/sync/SyncStatusBadge";
 import { useLocalTasks } from "@/hooks/useLocalTasks";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { useAthar } from "@/components/context/AtharContext";
+import { localLifeAreaRepo, localTrackerRepo } from "@/lib/local-db";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { soundManager } from "@/lib/audio";
 import { getLocalDateString, getDefaultTimezone } from "@/lib/dates";
 
 export default function TasksView({
-  userId,
+  userId: propUserId,
   initialLocalDate,
   timezone,
-  initialTasks = [],
-  initialStats = null,
+  initialTasks,
   initialLifeAreas = [],
   initialTrackers = [],
 }) {
-  const isGuest = !userId || userId === "guest";
+  const { userPreferences } = useAthar();
+  const { userId: sessionUserId, isGuest: sessionIsGuest } = useLocalSession();
+  const userId = propUserId || sessionUserId || "guest";
+  const isGuest = propUserId ? (!propUserId || propUserId === "guest") : sessionIsGuest;
   const effectiveTimezone =
-    timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+    userPreferences?.timezone ||
+    (timezone && !isGuest ? timezone : getDefaultTimezone());
+  const {
+    session: timerSession,
+    elapsedSeconds: timerElapsedSeconds,
+    resume: resumeActiveTimer,
+  } = useActiveTimer();
 
   const {
     tasks,
@@ -56,8 +68,32 @@ export default function TasksView({
     timezone: effectiveTimezone,
   });
 
-  const [lifeAreas] = useState(initialLifeAreas);
-  const [trackers] = useState(initialTrackers);
+  const [lifeAreas, setLifeAreas] = useState(initialLifeAreas);
+  const [trackers, setTrackers] = useState(initialTrackers);
+
+  useEffect(() => {
+    let active = true;
+    const loadRefs = () => {
+      Promise.all([
+        localLifeAreaRepo.getAllForUser(userId, false).catch(() => []),
+        localTrackerRepo.getAllForUser(userId, false).catch(() => []),
+      ]).then(([areas, trks]) => {
+        if (!active) return;
+        if (areas.length > 0 || !initialLifeAreas.length) setLifeAreas(areas);
+        if (trks.length > 0 || !initialTrackers.length) setTrackers(trks);
+      });
+    };
+    loadRefs();
+    const onSynced = (ev) => {
+      const types = ev?.detail?.changedTypes || [];
+      if (types.includes("life_area") || types.includes("tracker")) loadRefs();
+    };
+    window.addEventListener("athar_data_synced", onSynced);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", onSynced);
+    };
+  }, [userId, initialLifeAreas.length, initialTrackers.length]);
 
   // Filters & Tabs
   const [activeTab, setActiveTab] = useState("today"); // "today" | "overdue" | "upcoming" | "completed" | "all" | "archived"
@@ -374,8 +410,12 @@ export default function TasksView({
 
       {/* 10. Unified Compact Interactive Filter Bar (Replaces redundant stat cards & horizontal tabs) */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Unified Filter Tabs Grid/Bar */}
-        <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-zinc-950/80 border border-zinc-800/80">
+        {/* Unified Filter Tabs Bar (Horizontal scroll on mobile, 6-col grid on sm+) */}
+        <div
+          role="tablist"
+          aria-label="تصفية المهام"
+          className="flex sm:grid sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 overflow-x-auto sm:overflow-visible no-scrollbar snap-x snap-proximity"
+        >
           {FILTER_TABS.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -384,11 +424,18 @@ export default function TasksView({
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => {
+                role="tab"
+                aria-selected={isActive}
+                onClick={(e) => {
                   setActiveTab(tab.id);
                   soundManager.playClick();
+                  e.currentTarget.scrollIntoView({
+                    block: "nearest",
+                    inline: "nearest",
+                    behavior: "smooth",
+                  });
                 }}
-                className={`flex items-center justify-center gap-1.5 px-2.5 py-2 rounded-xl border transition-all text-xs font-semibold cursor-pointer ${
+                className={`shrink-0 sm:shrink snap-start flex items-center justify-center gap-1.5 px-3 sm:px-2.5 py-2 rounded-xl border transition-all text-xs font-semibold cursor-pointer whitespace-nowrap ${
                   isActive
                     ? tab.activeColor
                     : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
@@ -504,6 +551,14 @@ export default function TasksView({
               onStartTimer={(t) =>
                 activeTimerEngine.requestStart(t, "stopwatch", userId || "guest")
               }
+              pausedTimerSeconds={
+                timerSession &&
+                timerSession.status === "paused" &&
+                timerSession.taskId === task.id
+                  ? timerElapsedSeconds
+                  : null
+              }
+              onResumeTimer={() => resumeActiveTimer()}
               onToggleSubtask={handleToggleSubtask}
             />
           ))}

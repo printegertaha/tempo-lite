@@ -18,6 +18,7 @@ import {
   FastForward,
   Maximize2,
   Play,
+  Pause,
   CheckSquare,
   Square,
   Coffee,
@@ -63,6 +64,8 @@ export default function TaskCard({
   onArchive,
   onOpenZen,
   onStartTimer,
+  onResumeTimer,
+  pausedTimerSeconds = null,
   onToggleSubtask,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -190,6 +193,19 @@ export default function TaskCard({
                   <span>دورية</span>
                 </span>
               )}
+
+              {/* Paused Timer Status Badge */}
+              {pausedTimerSeconds !== null && !isCompleted && (
+                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/35 text-amber-300 font-bold">
+                  <Pause className="w-2.5 h-2.5" />
+                  <span>متوقفة مؤقتاً</span>
+                  <span dir="ltr" className="font-mono text-amber-200">
+                    {`${String(Math.floor(pausedTimerSeconds / 60)).padStart(2, "0")}:${String(
+                      pausedTimerSeconds % 60
+                    ).padStart(2, "0")}`}
+                  </span>
+                </span>
+              )}
             </div>
 
             {/* Description (uniform 1-line unless title card is expanded) */}
@@ -285,16 +301,29 @@ export default function TaskCard({
 
         {/* Action Controls (Fixed clean toolbar baseline across all cards) */}
         <div className="flex items-center gap-1 shrink-0">
-            {/* Start Stopwatch Timer Button */}
-            {onStartTimer && !isCompleted && (
+            {/* Resume Paused Timer OR Start Stopwatch Timer Button */}
+            {pausedTimerSeconds !== null && onResumeTimer && !isCompleted ? (
               <button
                 type="button"
-                onClick={() => onStartTimer(task)}
-                className="p-2 rounded-xl text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
-                title="تشغيل مؤقت المهمة"
+                onClick={() => onResumeTimer(task)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
+                title="استئناف المؤقت المتوقف"
               >
-                <Play className="w-4 h-4" />
+                <Play className="w-3.5 h-3.5 fill-amber-300" />
+                <span>استئناف</span>
               </button>
+            ) : (
+              onStartTimer &&
+              !isCompleted && (
+                <button
+                  type="button"
+                  onClick={() => onStartTimer(task)}
+                  className="p-2 rounded-xl text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                  title="تشغيل مؤقت المهمة"
+                >
+                  <Play className="w-4 h-4" />
+                </button>
+              )
             )}
 
             {/* Zen Mode Button (Focus) */}

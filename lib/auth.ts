@@ -97,18 +97,22 @@ export const auth = betterAuth({
       create: {
         after: async (user) => {
           recordTraceStage("USER_CREATED", true, `userId=${user.id}`);
-          // Automatic onboarding for new user: Initialize default user settings
-          // Does NOT create any default trackers or categories (Empty Canvas Principle)
+          // Automatic onboarding for new user: Initialize neutral user settings
+          // Does NOT create any default trackers/categories or force prayer tracking/region assumptions
           try {
             await prisma.userSettings.upsert({
               where: { userId: user.id },
               create: {
                 userId: user.id,
-                timezone: "Asia/Riyadh",
+                timezone: "UTC",
                 language: "ar",
                 weekStartDay: 6,
                 themeAccent: "violet",
-                dashboardConfig: {},
+                currencyAuto: true,
+                prayerTrackingEnabled: false,
+                dashboardConfig: {
+                  prayerPreferenceConfigured: false,
+                },
               },
               update: {},
             });

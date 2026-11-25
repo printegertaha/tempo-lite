@@ -71,12 +71,26 @@ export default function GlobalTaskTimerBar() {
   const [isMinimized, setIsMinimized] = useState(() => loadBubblePrefs().isMinimized);
   const [isCollapsingToBubble, setIsCollapsingToBubble] = useState(false);
   const collapseTimerRef = useRef(null);
+  const clearNoticeRef = useRef(clearNotice);
+  const dismissCompletedRef = useRef(dismissCompleted);
+  useEffect(() => {
+    clearNoticeRef.current = clearNotice;
+    dismissCompletedRef.current = dismissCompleted;
+  });
 
   useEffect(() => {
     if (!lastNotice) return;
-    const t = setTimeout(() => clearNotice(), 4500);
+    const t = setTimeout(() => clearNoticeRef.current(), 1800);
     return () => clearTimeout(t);
-  }, [lastNotice, clearNotice]);
+  }, [lastNotice]);
+
+  // Auto-hide completed task notification bar/bubble after 2 seconds
+  const completedSessionId = completedSession?.sessionId || null;
+  useEffect(() => {
+    if (!completedSessionId) return;
+    const t = setTimeout(() => dismissCompletedRef.current(), 2000);
+    return () => clearTimeout(t);
+  }, [completedSessionId]);
 
   useEffect(() => {
     return () => {
@@ -120,7 +134,12 @@ export default function GlobalTaskTimerBar() {
     saveBubblePrefs({ ...currentPrefs, isMinimized: false });
   };
 
-  const showActiveBar = Boolean(session && !isZenOpen);
+  // Paused active tasks MUST NOT keep the expanded bar or floating bubble rendered;
+  // completed sessions (!session && completedSession) remain visible until manually dismissed.
+  const isSessionRunning = Boolean(
+    session && session.status === "running" && session.isRunning
+  );
+  const showActiveBar = Boolean(isSessionRunning && !isZenOpen);
   const showCompletedBar = Boolean(!session && completedSession);
   const hasBarOrBubble = showActiveBar || showCompletedBar;
 
@@ -282,17 +301,6 @@ export default function GlobalTaskTimerBar() {
                       </>
                     )}
                   </div>
-
-                  {/* Switch seamlessly into Zen Pomodoro Mode on SAME session */}
-                  <button
-                    type="button"
-                    onClick={() => setMode("zen_pomodoro")}
-                    className="p-2 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 border border-violet-500/30 text-violet-300 hover:text-white transition-all cursor-pointer"
-                    title="وضع التركيز العميق (Zen Mode)"
-                    aria-label="وضع التركيز العميق"
-                  >
-                    <Sparkles className="w-4 h-4" />
-                  </button>
 
                   {/* Fullscreen Stopwatch Mode */}
                   <button

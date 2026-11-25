@@ -98,16 +98,45 @@ body {
   }
 }
 
+/* Smooth slide-in from right edge for mobile navigation drawer */
+.athar-drawer-right {
+  opacity: 1;
+  transform: translateX(0);
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@starting-style {
+  .athar-drawer-right {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+.athar-drawer-backdrop {
+  opacity: 1;
+  transition: opacity 0.2s ease-out;
+}
+
+@starting-style {
+  .athar-drawer-backdrop {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .athar-timer-bar-enter,
-  .athar-bubble-surface {
+  .athar-bubble-surface,
+  .athar-drawer-right {
     transform: none;
     transition: opacity 0.1s ease-out;
   }
 
   @starting-style {
     .athar-timer-bar-enter,
-    .athar-bubble-surface {
+    .athar-bubble-surface,
+    .athar-drawer-right {
       transform: none;
     }
   }

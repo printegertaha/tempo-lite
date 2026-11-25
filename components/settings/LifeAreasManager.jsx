@@ -37,16 +37,10 @@ import {
   AlertCircle,
   Loader2,
 } from "lucide-react";
-import {
-  createLifeArea,
-  updateLifeArea,
-  reorderLifeAreas,
-  toggleLifeAreaDashboardVisibility,
-  archiveLifeArea,
-  restoreLifeArea,
-  deleteLifeArea,
-} from "@/actions/life-areas";
-import { LIFE_AREA_COLORS, LIFE_AREA_ICONS } from "@/lib/validations/life-area";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { localLifeAreaRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
+import { LIFE_AREA_COLORS, LIFE_AREA_ICONS, slugify } from "@/lib/validations/life-area";
 
 // Map of available Lucide icons for visual rendering
 export const ICON_MAP = {
@@ -92,8 +86,42 @@ export const PRIORITY_LABELS = {
   4: { label: "قصوى", color: "text-rose-400 bg-rose-500/10 border-rose-500/20" },
 };
 
-export default function LifeAreasManager({ initialAreas = [], onToast }) {
-  const [areas, setAreas] = useState(initialAreas);
+async function enqueueLifeAreaMutation(userId, entityId, action, payload, baseUpdatedAt, prefix = "la") {
+  const now = Date.now();
+  await localOutboxRepo.add({
+    mutationId: `${prefix}_${now}_${crypto.randomUUID().slice(0, 8)}`,
+    userId,
+    entityType: "life_area",
+    entityId,
+    action,
+    payload,
+    clientTimestamp: now,
+    version: 1,
+    ...(baseUpdatedAt ? { baseUpdatedAt } : {}),
+    status: "pending",
+    retryCount: 0,
+  });
+  syncEngine.scheduleSync(500);
+}
+
+export default function LifeAreasManager({
+  initialAreas = [],
+  areas: controlledAreas,
+  onAreasChange,
+  onToast,
+}) {
+  const { userId: activeUserId, isGuest } = useLocalSession();
+  const [localAreas, setLocalAreas] = useState(initialAreas);
+  const areas = controlledAreas !== undefined ? controlledAreas : localAreas;
+  const setAreas = (updater) => {
+    if (onAreasChange) {
+      onAreasChange((prev) =>
+        typeof updater === "function" ? updater(prev) : updater
+      );
+      return;
+    }
+    setLocalAreas(updater);
+  };
   const [tab, setTab] = useState("active"); // "active" | "archived"
   const [modalOpen, setModalOpen] = useState(false);
   const [editingArea, setEditingArea] = useState(null);
@@ -147,44 +175,64 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
     }
 
     setIsSubmitting(true);
+    const nowIso = new Date().toISOString();
     try {
       if (editingArea) {
-        const res = await updateLifeArea({
-          id: editingArea.id,
-          name: formData.name,
-          description: formData.description,
+        const updatedArea = {
+          ...editingArea,
+          userId: activeUserId,
+          name: formData.name.trim(),
+          description: formData.description?.trim() || null,
           icon: formData.icon,
           color: formData.color,
-          priority: Number(formData.priority),
-          hiddenOnDashboard: formData.hiddenOnDashboard,
-        });
-
-        if (res.success) {
-          setAreas((prev) =>
-            prev.map((a) => (a.id === editingArea.id ? { ...a, ...res.data } : a))
+          priority: Number(formData.priority) || 1,
+          hiddenOnDashboard: Boolean(formData.hiddenOnDashboard),
+          updatedAt: nowIso,
+          _syncStatus: isGuest ? "synced" : "pending",
+        };
+        await localLifeAreaRepo.save(updatedArea);
+        if (!isGuest) {
+          await enqueueLifeAreaMutation(
+            activeUserId,
+            editingArea.id,
+            "update",
+            updatedArea,
+            editingArea.updatedAt,
+            "la_upd"
           );
-          onToast?.("تم تحديث مجال الحياة بنجاح ✨", "success");
-          setModalOpen(false);
-        } else {
-          onToast?.(res.error || "تعذر تحديث المجال", "error");
         }
+        setAreas((prev) =>
+          prev.map((a) => (a.id === editingArea.id ? { ...a, ...updatedArea } : a))
+        );
+        onToast?.("تم تحديث مجال الحياة بنجاح ✨", "success");
+        setModalOpen(false);
       } else {
-        const res = await createLifeArea({
-          name: formData.name,
-          description: formData.description,
+        const areaId = crypto.randomUUID();
+        const baseSlug = slugify(formData.name.trim()) || `area-${areaId.slice(0, 6)}`;
+        const newArea = {
+          id: areaId,
+          userId: activeUserId,
+          name: formData.name.trim(),
+          slug: `${baseSlug}-${areaId.slice(0, 4)}`,
+          description: formData.description?.trim() || null,
           icon: formData.icon,
           color: formData.color,
-          priority: Number(formData.priority),
-          hiddenOnDashboard: formData.hiddenOnDashboard,
-        });
-
-        if (res.success) {
-          setAreas((prev) => [...prev, res.data]);
-          onToast?.("تم إنشاء مجال الحياة الجديد بنجاح 🎉", "success");
-          setModalOpen(false);
-        } else {
-          onToast?.(res.error || "تعذر إنشاء المجال", "error");
+          priority: Number(formData.priority) || 1,
+          sortOrder: areas.length,
+          hiddenOnDashboard: Boolean(formData.hiddenOnDashboard),
+          isArchived: false,
+          archivedAt: null,
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          _syncStatus: isGuest ? "synced" : "pending",
+        };
+        await localLifeAreaRepo.save(newArea);
+        if (!isGuest) {
+          await enqueueLifeAreaMutation(activeUserId, areaId, "create", newArea, null, "la_crt");
         }
+        setAreas((prev) => [...prev, newArea]);
+        onToast?.("تم إنشاء مجال الحياة الجديد بنجاح 🎉", "success");
+        setModalOpen(false);
       }
     } catch {
       onToast?.("حدث خطأ غير متوقع", "error");
@@ -193,51 +241,60 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
     }
   };
 
-  const handleToggleVisibility = async (area) => {
+  const persistAreaPatch = async (area, patch, toastMessage, toastType = "info") => {
+    const nowIso = new Date().toISOString();
+    const updated = {
+      ...area,
+      ...patch,
+      userId: activeUserId,
+      updatedAt: nowIso,
+      _syncStatus: isGuest ? "synced" : "pending",
+    };
+    setAreas((prev) => prev.map((a) => (a.id === area.id ? updated : a)));
     try {
-      const res = await toggleLifeAreaDashboardVisibility(area.id);
-      if (res.success) {
-        setAreas((prev) =>
-          prev.map((a) => (a.id === area.id ? { ...a, hiddenOnDashboard: !a.hiddenOnDashboard } : a))
-        );
-        onToast?.(
-          !area.hiddenOnDashboard
-            ? "تم إخفاء المجال من لوحة التحكم"
-            : "تم إظهار المجال في لوحة التحكم",
-          "info"
+      await localLifeAreaRepo.save(updated);
+      if (!isGuest) {
+        await enqueueLifeAreaMutation(
+          activeUserId,
+          area.id,
+          "update",
+          updated,
+          area.updatedAt,
+          "la_upd"
         );
       }
+      if (toastMessage) onToast?.(toastMessage, toastType);
     } catch {
-      onToast?.("تعذر تغيير حالة العرض", "error");
+      onToast?.("تعذر حفظ التعديل محلياً", "error");
     }
+  };
+
+  const handleToggleVisibility = async (area) => {
+    const nextHidden = !area.hiddenOnDashboard;
+    await persistAreaPatch(
+      area,
+      { hiddenOnDashboard: nextHidden },
+      nextHidden ? "تم إخفاء المجال من لوحة التحكم" : "تم إظهار المجال في لوحة التحكم",
+      "info"
+    );
   };
 
   const handleArchive = async (area) => {
-    try {
-      const res = await archiveLifeArea(area.id);
-      if (res.success) {
-        setAreas((prev) =>
-          prev.map((a) => (a.id === area.id ? { ...a, isArchived: true, archivedAt: new Date() } : a))
-        );
-        onToast?.("تم نقل المجال إلى الأرشيف (سجلات العادات محفوظة)", "info");
-      }
-    } catch {
-      onToast?.("تعذر أرشفة المجال", "error");
-    }
+    await persistAreaPatch(
+      area,
+      { isArchived: true, archivedAt: new Date().toISOString() },
+      "تم نقل المجال إلى الأرشيف (سجلات العادات محفوظة)",
+      "info"
+    );
   };
 
   const handleRestore = async (area) => {
-    try {
-      const res = await restoreLifeArea(area.id);
-      if (res.success) {
-        setAreas((prev) =>
-          prev.map((a) => (a.id === area.id ? { ...a, isArchived: false, archivedAt: null } : a))
-        );
-        onToast?.("تمت استعادة المجال بنجاح ✨", "success");
-      }
-    } catch {
-      onToast?.("تعذر استعادة المجال", "error");
-    }
+    await persistAreaPatch(
+      area,
+      { isArchived: false, archivedAt: null },
+      "تمت استعادة المجال بنجاح ✨",
+      "success"
+    );
   };
 
   const handleDelete = async (area) => {
@@ -245,12 +302,13 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
       return;
     }
 
+    setAreas((prev) => prev.filter((a) => a.id !== area.id));
     try {
-      const res = await deleteLifeArea(area.id);
-      if (res.success) {
-        setAreas((prev) => prev.filter((a) => a.id !== area.id));
-        onToast?.("تم حذف المجال بنجاح", "info");
+      await localLifeAreaRepo.delete(area.id);
+      if (!isGuest) {
+        await enqueueLifeAreaMutation(activeUserId, area.id, "delete", {}, null, "la_del");
       }
+      onToast?.("تم حذف المجال بنجاح", "info");
     } catch {
       onToast?.("تعذر حذف المجال", "error");
     }
@@ -269,16 +327,33 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
       sortOrder: idx,
     }));
 
+    const nowIso = new Date().toISOString();
+    const updatedItems = [];
     // Optimistic update
     setAreas((prev) =>
       prev.map((a) => {
         const found = reorderPayload.find((p) => p.id === a.id);
-        return found ? { ...a, sortOrder: found.sortOrder } : a;
+        if (!found) return a;
+        const nextItem = { ...a, sortOrder: found.sortOrder, updatedAt: nowIso };
+        updatedItems.push(nextItem);
+        return nextItem;
       })
     );
 
     try {
-      await reorderLifeAreas({ items: reorderPayload });
+      await localLifeAreaRepo.saveBatch(updatedItems);
+      if (!isGuest) {
+        for (const item of updatedItems) {
+          await enqueueLifeAreaMutation(
+            activeUserId,
+            item.id,
+            "update",
+            { sortOrder: item.sortOrder },
+            item.updatedAt,
+            "la_ord"
+          );
+        }
+      }
       onToast?.("تم حفظ ترتيب المجالات", "success");
     } catch {
       onToast?.("تعذر حفظ الترتيب", "error");
@@ -288,7 +363,11 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
   return (
     <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl space-y-6">
       {/* 1. Header & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+      <div
+        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${
+          displayedAreas.length > 0 ? "pb-4 border-b border-zinc-800" : ""
+        }`}
+      >
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-violet-500/10 border border-violet-500/20 text-violet-400">
             <Layers className="w-5 h-5" />
@@ -344,34 +423,8 @@ export default function LifeAreasManager({ initialAreas = [], onToast }) {
         </div>
       </div>
 
-      {/* 2. Areas List or Clean Empty State */}
-      {displayedAreas.length === 0 ? (
-        <div className="py-12 px-6 rounded-2xl bg-zinc-900/40 border border-dashed border-zinc-800 text-center space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-zinc-800/60 border border-zinc-700/60 text-zinc-400 flex items-center justify-center mx-auto">
-            <Layers className="w-6 h-6" />
-          </div>
-          <div className="space-y-1">
-            <h4 className="text-sm font-bold text-zinc-200">
-              {tab === "active" ? "لم تقم بإنشاء أي مجال حياة بعد" : "الأرشيف فارغ حالياً"}
-            </h4>
-            <p className="text-xs text-zinc-400 max-w-md mx-auto">
-              {tab === "active"
-                ? "ابدأ بتأسيس مجالك الأول لتنظيم مساراتك بحرية تامة دون أي تصنيفات مفروضة مسبقاً."
-                : "المجالات المؤرشفة ستظهر هنا مع الحفاظ الدائم على سجلات العادات والأنشطة التاريخية."}
-            </p>
-          </div>
-          {tab === "active" && (
-            <button
-              type="button"
-              onClick={openCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2 mt-2 rounded-xl bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-xs font-bold transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>أنشئ أول مجال حياة الآن ✨</span>
-            </button>
-          )}
-        </div>
-      ) : (
+      {/* 2. Areas List (rendered only when items exist) */}
+      {displayedAreas.length > 0 && (
         <div className="space-y-2.5">
           {displayedAreas.map((area, index) => {
             const IconComponent = ICON_MAP[area.icon] || Sparkles;

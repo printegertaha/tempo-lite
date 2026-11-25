@@ -90,17 +90,14 @@ export const DEFAULT_PRAYER_SCHEDULE = {
   isha: { name: "العشاء", scheduledTime: "18:28" },
 };
 
-// Initial state data structure (SSR-deterministic)
-export function getInitialAppState(baseDate = "2026-01-01") {
-  const today = baseDate;
-  const yesterday = "2025-12-31";
-
+// Initial state data structure (SSR-deterministic & clean for new users)
+export function getInitialAppState() {
   return {
     version: STORAGE_VERSION,
     prayerSchedule: DEFAULT_PRAYER_SCHEDULE,
     activeTimer: null, // Only ONE active timer at a time across all habits
-    
-    // Custom & default habit definitions
+
+    // Custom & default habit definitions — all streaks start at 0 until user logs real activity
     habits: [
       {
         id: "hab_programming",
@@ -108,13 +105,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "البرمجة والعمل العميق",
         category: "intellect",
         categoryLabel: "تطوير ومهارات",
-        trackingType: "duration", // Duration
-        targetDailyMinutes: 210, // 3.5 hours
+        trackingType: "duration",
+        targetDailyMinutes: 210,
         unit: "دقيقة",
         tagline: "بناء المنتجات وحل المشكلات دون مشتتات",
-        streak: 28,
+        streak: 0,
         color: "cyan",
-        iconName: "Code2"
+        iconName: "Code2",
       },
       {
         id: "hab_gym",
@@ -122,13 +119,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "تمرين الجيم والقوة",
         category: "health",
         categoryLabel: "صحة ولياقة",
-        trackingType: "duration", // Duration with sets/routine
+        trackingType: "duration",
         targetDailyMinutes: 75,
         unit: "تمرين",
         tagline: "بناء القوة الوظيفية والكتلة العضلية",
-        streak: 12,
+        streak: 0,
         color: "orange",
-        iconName: "Dumbbell"
+        iconName: "Dumbbell",
       },
       {
         id: "hab_running",
@@ -136,13 +133,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "الجري وتحمل القلب",
         category: "health",
         categoryLabel: "صحة ولياقة",
-        trackingType: "distance_duration", // Distance + Duration
+        trackingType: "distance_duration",
         targetDailyKm: 5.0,
         unit: "كم",
         tagline: "تحسين اللياقة القلبية والتنفسية",
-        streak: 8,
+        streak: 0,
         color: "lime",
-        iconName: "Footprints"
+        iconName: "Footprints",
       },
       {
         id: "hab_prayer",
@@ -150,13 +147,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "الصلوات الخمس والسنن",
         category: "spiritual",
         categoryLabel: "روحانية وإيمانية",
-        trackingType: "prayer_daily", // Dedicated 5 prayers
+        trackingType: "prayer_daily",
         targetDailyCount: 5,
         unit: "فروض",
         tagline: "عماد الدين وبوصلة اليوم وبركة الوقت",
-        streak: 42,
+        streak: 0,
         color: "emerald",
-        iconName: "Flame"
+        iconName: "Flame",
       },
       {
         id: "hab_social",
@@ -164,13 +161,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "ترشيد السوشيال ميديا",
         category: "discipline",
         categoryLabel: "انضباط وسلوك",
-        trackingType: "event_logging", // Event logging with duration per session
+        trackingType: "event_logging",
         dailyLimitMinutes: 60,
         unit: "دقيقة حد أقصى",
         tagline: "حماية الانتباه والتركيز من التشتت",
-        streak: 9,
+        streak: 0,
         color: "pink",
-        iconName: "Smartphone"
+        iconName: "Smartphone",
       },
       {
         id: "hab_smoking",
@@ -178,13 +175,13 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         name: "تتبع والتعافي من التدخين",
         category: "discipline",
         categoryLabel: "انضباط وسلوك",
-        trackingType: "counter", // Counter & Event logging with triggers & notes
+        trackingType: "counter",
         targetDailyCount: 0,
         unit: "سجائر",
         tagline: "رئة نقية وحرية واستقلال عن الإدمان",
-        streak: 90,
+        streak: 0,
         color: "rose",
-        iconName: "CigaretteOff"
+        iconName: "CigaretteOff",
       },
       {
         id: "hab_water",
@@ -193,12 +190,12 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         category: "health",
         categoryLabel: "صحة ولياقة",
         trackingType: "counter",
-        targetDailyCount: 14, // 14 cups (3.5L)
+        targetDailyCount: 14,
         unit: "كوب (250 مل)",
         tagline: "حيوية الخلايا ونقاء البشرة والدماغ",
-        streak: 15,
+        streak: 0,
         color: "teal",
-        iconName: "Droplets"
+        iconName: "Droplets",
       },
       {
         id: "hab_reading",
@@ -210,160 +207,91 @@ export function getInitialAppState(baseDate = "2026-01-01") {
         targetDailyMinutes: 45,
         unit: "دقيقة",
         tagline: "تغذية العقل وتوسيع المدارك",
-        streak: 19,
+        streak: 0,
         color: "violet",
-        iconName: "BookMarked"
-      }
+        iconName: "BookMarked",
+      },
     ],
 
-    // Records grouped by date (YYYY-MM-DD)
-    recordsByDate: {
-      [today]: {
-        // 1. Prayer Records for today
-        prayers: {
-          fajr: { done: true, scheduledTime: "04:52", actualTime: "04:52", onTime: true, location: "mosque", durationMinutes: 15, notes: "حضور تكبيرة الإحرام وجلسة الذكر" },
-          dhuhr: { done: true, scheduledTime: "11:48", actualTime: "11:55", onTime: true, location: "mosque", durationMinutes: 12, notes: "سنة الظهر القبلية والبعدية" },
-          asr: { done: true, scheduledTime: "14:52", actualTime: "14:52", onTime: true, location: "work", durationMinutes: 10, notes: "في مصلى العمل" },
-          maghrib: { done: true, scheduledTime: "17:10", actualTime: "17:15", onTime: true, location: "mosque", durationMinutes: 14, notes: "قراءة أذكار المساء" },
-          isha: { done: true, scheduledTime: "18:28", actualTime: "18:40", onTime: true, location: "home", durationMinutes: 12, notes: "الشفع والوتر" },
-        },
-        // 2. Completed Duration Sessions (Programming, Study, Gym, Reading)
-        sessions: [
-          {
-            id: "sess_initial_1",
-            type: "programming",
-            projectName: "منصة أثر v2 (Next.js)",
-            task: "تطوير معمارية المؤقت الحقيقي وإدارة البيانات المحلية",
-            durationSeconds: 2 * 3600 + 35 * 60, // 2h 35m
-            startedAt: 1762329600000,
-            endedAt: 1762338900000,
-            notes: "جلسة عمل عميق بدون أي مشتتات أو وسائل تواصل",
-            createdAt: "2026-11-05T10:35:00.000Z"
-          },
-          {
-            id: "sess_initial_2",
-            type: "programming",
-            projectName: "منصة أثر v2 (Next.js)",
-            task: "تحسين واجهة تفاصيل العادات والمؤقت التفاعلي",
-            durationSeconds: 1 * 3600 + 40 * 60, // 1h 40m
-            startedAt: 1762347600000,
-            endedAt: 1762353600000,
-            notes: "حل جميع حالات الهيدريشن وتزامن التوقيتات",
-            createdAt: "2026-11-05T14:40:00.000Z"
-          }
-        ],
-        // 3. Gym Sessions
-        gymSessions: [
-          {
-            id: "gym_initial_1",
-            gymName: "نادي وقت اللياقة (Fitness Time)",
-            workoutType: "Push Day (صدر وأكتاف وترايسبس)",
-            startTime: "16:00",
-            endTime: "17:15",
-            durationMinutes: 75,
-            notes: "كسر رقم شخصي في البنش برس 85 كجم × 9 عدات",
-            exercises: [
-              { name: "Barbell Bench Press", sets: "4 جولات × 8-9 عدات (85 كجم)" },
-              { name: "Incline DB Press", sets: "3 جولات × 10 عدات (28 كجم)" },
-              { name: "Overhead Military Press", sets: "3 جولات × 8 عدات (50 كجم)" }
-            ]
-          }
-        ],
-        // 4. Running & Walking Sessions
-        runningSessions: [
-          {
-            id: "run_initial_1",
-            distanceKm: 5.20,
-            durationSeconds: 27 * 60 + 40, // 27m 40s
-            pace: "5'19\" /كم",
-            startTime: "05:45",
-            endTime: "06:13",
-            location: "حديقة الحي والمضمار الخارجي",
-            notes: "جري صباحي منعش مع شروق الشمس",
-            calories: 385
-          }
-        ],
-        // 5. Social Media Sessions
-        socialMediaSessions: [
-          {
-            id: "social_initial_1",
-            platform: "X (تويتر)",
-            startTime: "12:15",
-            endTime: "12:35",
-            durationMinutes: 20,
-            reason: "متابعة أخبار تقنية وذكاء اصطناعي",
-            notes: "ضمن الحدود المسموح بها"
-          },
-          {
-            id: "social_initial_2",
-            platform: "يوتيوب",
-            startTime: "20:00",
-            endTime: "20:22",
-            durationMinutes: 22,
-            reason: "بودكاست معرفي وتطوير الذات",
-            notes: "محتوى إيجابي مفيد"
-          }
-        ],
-        // 6. Smoking Events
-        smokingEvents: [], // Clean today! 0 cigarettes
-        // 7. Water (glasses of 250ml)
-        waterCount: 12, // 3.0 Liters
-        // 8. Custom Habit Logs
-        customLogs: []
-      },
-
-      // Yesterday mock for realistic historical views
-      [yesterday]: {
-        prayers: {
-          fajr: { done: true, scheduledTime: "04:52", actualTime: "04:52", onTime: true, location: "mosque", durationMinutes: 15 },
-          dhuhr: { done: true, scheduledTime: "11:48", actualTime: "11:50", onTime: true, location: "mosque", durationMinutes: 12 },
-          asr: { done: true, scheduledTime: "14:52", actualTime: "14:52", onTime: true, location: "mosque", durationMinutes: 10 },
-          maghrib: { done: true, scheduledTime: "17:10", actualTime: "17:10", onTime: true, location: "mosque", durationMinutes: 15 },
-          isha: { done: true, scheduledTime: "18:28", actualTime: "18:30", onTime: true, location: "mosque", durationMinutes: 15 },
-        },
-        sessions: [
-          {
-            id: "sess_initial_3",
-            type: "programming",
-            projectName: "منصة أثر v2",
-            task: "برمجة شاشات التقويم والمصاريف",
-            durationSeconds: 3 * 3600 + 30 * 60,
-            startedAt: 1762243200000,
-            endedAt: 1762255800000,
-            notes: "عمل متصل بتركيز ممتاز"
-          }
-        ],
-        gymSessions: [
-          {
-            id: "gym_initial_2",
-            gymName: "Fitness Time",
-            workoutType: "Pull Day (ظهر وبايسبس وعقلة)",
-            startTime: "16:30",
-            endTime: "17:45",
-            durationMinutes: 75,
-            notes: "عقلة بأوزان إضافية وسحب كابل"
-          }
-        ],
-        runningSessions: [],
-        socialMediaSessions: [
-          {
-            id: "social_initial_3",
-            platform: "إنستغرام",
-            startTime: "21:00",
-            endTime: "21:35",
-            durationMinutes: 35,
-            reason: "ترفيه ومراسلة أصدقاء"
-          }
-        ],
-        smokingEvents: [],
-        waterCount: 14,
-        customLogs: []
-      }
-    }
+    // Records grouped by date (YYYY-MM-DD) — genuinely empty for new users
+    recordsByDate: {},
   };
 }
 
-// Safely load state from localStorage or seed
+const LEGACY_SEED_SESSION_IDS = new Set([
+  "sess_initial_1",
+  "sess_initial_2",
+  "sess_initial_3",
+]);
+const LEGACY_SEED_GYM_IDS = new Set(["gym_initial_1", "gym_initial_2"]);
+const LEGACY_SEED_RUN_IDS = new Set(["run_initial_1"]);
+const LEGACY_SEED_SOCIAL_IDS = new Set([
+  "social_initial_1",
+  "social_initial_2",
+  "social_initial_3",
+]);
+
+function stripLegacyMockSeedFromState(parsed) {
+  if (!parsed || typeof parsed !== "object") return parsed;
+  if (parsed.cleanSeedMigrated) return parsed;
+
+  const nextRecords = {};
+  const recordsByDate = parsed.recordsByDate || {};
+
+  for (const [dateKey, day] of Object.entries(recordsByDate)) {
+    if (!day || typeof day !== "object") continue;
+    const isSeedDate = dateKey === "2026-01-01" || dateKey === "2025-12-31";
+
+    const sessions = (day.sessions || []).filter((s) => !LEGACY_SEED_SESSION_IDS.has(s?.id));
+    const gymSessions = (day.gymSessions || []).filter((g) => !LEGACY_SEED_GYM_IDS.has(g?.id));
+    const runningSessions = (day.runningSessions || []).filter(
+      (r) => !LEGACY_SEED_RUN_IDS.has(r?.id)
+    );
+    const socialMediaSessions = (day.socialMediaSessions || []).filter(
+      (s) => !LEGACY_SEED_SOCIAL_IDS.has(s?.id)
+    );
+    const smokingEvents = day.smokingEvents || [];
+    const customLogs = day.customLogs || [];
+
+    // On fake seed dates ("2026-01-01" / "2025-12-31"), drop synthetic seed prayers/water if no user logs remain
+    if (
+      isSeedDate &&
+      sessions.length === 0 &&
+      gymSessions.length === 0 &&
+      runningSessions.length === 0 &&
+      socialMediaSessions.length === 0 &&
+      smokingEvents.length === 0 &&
+      customLogs.length === 0
+    ) {
+      continue;
+    }
+
+    nextRecords[dateKey] = {
+      ...day,
+      sessions,
+      gymSessions,
+      runningSessions,
+      socialMediaSessions,
+    };
+  }
+
+  const hasAnyRealRecords = Object.keys(nextRecords).length > 0;
+  const cleanedHabits = Array.isArray(parsed.habits)
+    ? parsed.habits.map((h) => ({
+        ...h,
+        streak: hasAnyRealRecords ? h.streak : 0,
+      }))
+    : getInitialAppState().habits;
+
+  return {
+    ...parsed,
+    habits: cleanedHabits,
+    recordsByDate: nextRecords,
+    cleanSeedMigrated: true,
+  };
+}
+
+// Safely load state from localStorage or start clean
 export function loadSavedState() {
   if (typeof window === "undefined") {
     return getInitialAppState();
@@ -371,17 +299,21 @@ export function loadSavedState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) {
-      const initial = getInitialAppState();
+      const initial = { ...getInitialAppState(), cleanSeedMigrated: true };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
       return initial;
     }
     const parsed = JSON.parse(raw);
     if (!parsed || parsed.version !== STORAGE_VERSION) {
-      const initial = getInitialAppState();
+      const initial = { ...getInitialAppState(), cleanSeedMigrated: true };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
       return initial;
     }
-    return parsed;
+    const migrated = stripLegacyMockSeedFromState(parsed);
+    if (!parsed.cleanSeedMigrated) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+    }
+    return migrated;
   } catch (err) {
     console.error("Error reading localStorage, using defaults", err);
     return getInitialAppState();

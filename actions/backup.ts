@@ -123,7 +123,13 @@ export async function restoreCloudBackup(rawBackup: unknown) {
           where: { userId },
           create: {
             userId,
-            timezone: s.timezone || "Asia/Riyadh",
+            timezone: s.timezone || "UTC",
+            countryCode: s.countryCode || null,
+            governorate: s.governorate || null,
+            city: s.city || null,
+            currency: s.currency || null,
+            currencyAuto: s.currencyAuto ?? true,
+            prayerTrackingEnabled: s.prayerTrackingEnabled ?? true,
             language: s.language || "ar",
             weekStartDay: Number(s.weekStartDay ?? 6),
             themeAccent: s.themeAccent || "violet",
@@ -134,6 +140,15 @@ export async function restoreCloudBackup(rawBackup: unknown) {
           },
           update: {
             timezone: s.timezone || undefined,
+            countryCode: s.countryCode !== undefined ? s.countryCode : undefined,
+            governorate: s.governorate !== undefined ? s.governorate : undefined,
+            city: s.city !== undefined ? s.city : undefined,
+            currency: s.currency !== undefined ? s.currency : undefined,
+            currencyAuto: s.currencyAuto !== undefined ? Boolean(s.currencyAuto) : undefined,
+            prayerTrackingEnabled:
+              s.prayerTrackingEnabled !== undefined
+                ? Boolean(s.prayerTrackingEnabled)
+                : undefined,
             language: s.language || undefined,
             weekStartDay: s.weekStartDay !== undefined ? Number(s.weekStartDay) : undefined,
             themeAccent: s.themeAccent || undefined,
@@ -526,12 +541,16 @@ export async function restoreCloudBackup(rawBackup: unknown) {
             date: e.date,
             title: e.title,
             amount: Number(e.amount) || 0,
+            currency: e.currency ? String(e.currency).toUpperCase().trim() : "SAR",
+            type: e.type === "income" ? "income" : "expense",
             category: e.category || "عام",
             notes: e.notes || null,
           },
           update: {
             title: e.title,
             amount: Number(e.amount) || 0,
+            currency: e.currency ? String(e.currency).toUpperCase().trim() : undefined,
+            type: e.type ? (e.type === "income" ? "income" : "expense") : undefined,
             category: e.category || "عام",
           },
         });

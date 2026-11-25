@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
+import { useAthar } from "@/components/context/AtharContext";
 
 const SyncStatusBadge = dynamic(
   () => import("@/components/sync/SyncStatusBadge"),
@@ -49,12 +50,23 @@ export default function Navbar() {
   const pathname = usePathname();
   const router = useRouter();
   const { data: sessionData, isPending } = useSession();
+  const { userPreferences } = useAthar();
+
+  const displayName =
+    userPreferences?.profileName || sessionData?.user?.name || "المستخدم";
+  const displayImage =
+    userPreferences?.profileImage !== undefined
+      ? userPreferences.profileImage
+      : sessionData?.user?.image;
 
   const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
 
+  const headerRef = useRef(null);
+  const toggleBtnRef = useRef(null);
+  const closeDrawerBtnRef = useRef(null);
   const moreDropdownRef = useRef(null);
   const userDropdownRef = useRef(null);
   const [prevPathname, setPrevPathname] = useState(pathname);
@@ -67,18 +79,52 @@ export default function Navbar() {
     setUserDropdownOpen(false);
   }
 
-  // Lock body scroll when mobile menu is open
+  const closeMobileMenu = () => {
+    setMobileMenuOpen(false);
+  };
+
+  const toggleMobileMenu = () => {
+    setMobileMenuOpen((prev) => !prev);
+  };
+
+  // Lock page scrolling (both html and body) when mobile menu is open + Escape handler
   useEffect(() => {
-    if (mobileMenuOpen) {
-      document.body.classList.add("overflow-hidden");
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.classList.remove("overflow-hidden");
-      document.body.style.overflow = "";
-    }
+    if (!mobileMenuOpen) return;
+
+    const html = document.documentElement;
+    const body = document.body;
+    const prevHtmlOverflow = html.style.overflow;
+    const prevBodyOverflow = body.style.overflow;
+    const prevBodyOverscroll = body.style.overscrollBehavior;
+
+    html.style.overflow = "hidden";
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
+    closeDrawerBtnRef.current?.focus({ preventScroll: true });
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setMobileMenuOpen(false);
+        toggleBtnRef.current?.focus({ preventScroll: true });
+      }
+    };
+
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        setMobileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", handleResize);
+
     return () => {
-      document.body.classList.remove("overflow-hidden");
-      document.body.style.overflow = "";
+      html.style.overflow = prevHtmlOverflow;
+      body.style.overflow = prevBodyOverflow;
+      body.style.overscrollBehavior = prevBodyOverscroll;
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", handleResize);
     };
   }, [mobileMenuOpen]);
 
@@ -201,7 +247,6 @@ export default function Navbar() {
                   <span className="text-lg font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
                     أثـر
                   </span>
-
                 </div>
                 <span className="text-[11px] text-zinc-400 block -mt-0.5">
                   منظومة إتقان العادات وعمارة الوقت
@@ -229,11 +274,12 @@ export default function Navbar() {
   return (
     <>
       <header
-        className={`sticky top-0 z-40 w-full transition-all duration-300 ${
-          scrolled
+        ref={headerRef}
+        className={`sticky top-0 z-[60] w-full transition-all duration-300 ${
+          scrolled || mobileMenuOpen
             ? "border-b border-zinc-800/80 bg-[#08090d]/95 backdrop-blur-2xl shadow-xl shadow-black/40"
             : "border-b border-zinc-800/40 bg-[#08090d]/80 backdrop-blur-xl"
-        }`}
+        } ${mobileMenuOpen ? "max-lg:opacity-0 max-lg:pointer-events-none" : ""}`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
@@ -241,6 +287,7 @@ export default function Navbar() {
             <div className="flex items-center gap-6">
               <Link
                 href="/"
+                onClick={closeMobileMenu}
                 className="flex items-center gap-3 group focus:outline-none"
               >
                 <span className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-600/30 group-hover:shadow-violet-600/50 group-hover:scale-105 transition-all duration-200">
@@ -341,122 +388,22 @@ export default function Navbar() {
               </div>
             </nav>
 
-            {/* 3. Left side (User, Quick Actions, Mobile Menu) */}
+            {/* 3. Left side (Sync Status, Mobile Menu) */}
             <div className="flex items-center gap-2.5">
               {/* Live Local-First Sync / Guest Status */}
               <div className="hidden sm:flex items-center">
                 <SyncStatusBadge />
               </div>
 
-              {/* Authenticated user actions */}
-              {isAuthenticated ? (
-                <>
-                  {/* Settings link */}
-                  <Link
-                    href="/settings"
-                    className={`p-2.5 rounded-xl transition-all border ${
-                      pathname === "/settings"
-                        ? "text-white bg-zinc-800 border-zinc-700 shadow-sm"
-                        : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-850 border-zinc-800/60"
-                    }`}
-                    aria-label="الإعدادات ومجالات الحياة"
-                    title="الإعدادات ومجالات الحياة"
-                  >
-                    <Settings className="w-4 h-4" />
-                  </Link>
-
-                  {/* User Profile Popover */}
-                  <div className="relative" ref={userDropdownRef}>
-                    <button
-                      type="button"
-                      onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                      className="flex items-center gap-2 p-1 pl-2.5 rounded-xl bg-zinc-900/90 hover:bg-zinc-850 border border-zinc-800 transition-all focus:outline-none"
-                      aria-label="قائمة المستخدم"
-                    >
-                      {sessionData.user.image ? (
-                        /* eslint-disable-next-line @next/next/no-img-element */
-                        <img
-                          src={sessionData.user.image}
-                          alt={sessionData.user.name || "المستخدم"}
-                          referrerPolicy="no-referrer"
-                          className="w-7 h-7 rounded-lg object-cover border border-violet-500/30"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-700 text-white flex items-center justify-center text-xs font-black">
-                          {sessionData.user.name?.[0]?.toUpperCase() || "U"}
-                        </div>
-                      )}
-                      <span className="hidden md:inline-block text-xs font-bold text-zinc-200 max-w-[100px] truncate">
-                        {sessionData.user.name || "حسابي"}
-                      </span>
-                      <ChevronDown className="w-3 h-3 text-zinc-400" />
-                    </button>
-
-                    {userDropdownOpen && (
-                      <div className="absolute left-0 top-full pt-2 min-w-[220px] z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                        <div className="p-2.5 rounded-2xl bg-[#0c0e17]/98 border border-zinc-800/90 shadow-2xl backdrop-blur-2xl space-y-2">
-                          <div className="px-2 py-1.5 border-b border-zinc-850">
-                            <span className="text-xs font-bold text-zinc-100 block truncate">
-                              {sessionData.user.name || "المستخدم"}
-                            </span>
-                            <span className="text-[11px] text-zinc-400 block truncate">
-                              {sessionData.user.email}
-                            </span>
-                          </div>
-
-                          <div className="space-y-0.5">
-                            <Link
-                              href="/"
-                              onClick={() => setUserDropdownOpen(false)}
-                              className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-850/80 transition-colors"
-                            >
-                              <LayoutDashboard className="w-3.5 h-3.5 text-violet-400" />
-                              <span>لوحة التحكم الرئيسية</span>
-                            </Link>
-                            <Link
-                              href="/settings"
-                              onClick={() => setUserDropdownOpen(false)}
-                              className="flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white hover:bg-zinc-850/80 transition-colors"
-                            >
-                              <Settings className="w-3.5 h-3.5 text-zinc-400" />
-                              <span>الإعدادات ومجالات الحياة</span>
-                            </Link>
-                          </div>
-
-                          <div className="pt-1 border-t border-zinc-850">
-                            <button
-                              type="button"
-                              onClick={handleSignOut}
-                              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:text-rose-200 hover:bg-rose-500/10 transition-colors text-right"
-                            >
-                              <LogOut className="w-3.5 h-3.5" />
-                              <span>تسجيل الخروج</span>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                /* Unauthenticated guest actions */
-                <div className="flex items-center gap-2">
-                  <Link
-                    href="/login"
-                    className="px-3.5 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all active:scale-95"
-                  >
-                    تسجيل الدخول
-                  </Link>
-            
-                </div>
-              )}
-
               {/* Mobile menu toggle button */}
               <button
+                ref={toggleBtnRef}
                 type="button"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="lg:hidden p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors"
-                aria-label="القائمة الشاملة"
+                onClick={toggleMobileMenu}
+                aria-expanded={mobileMenuOpen}
+                aria-controls="mobile-nav-drawer"
+                className="lg:hidden p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors cursor-pointer"
+                aria-label={mobileMenuOpen ? "إغلاق القائمة" : "القائمة الشاملة"}
               >
                 {mobileMenuOpen ? (
                   <X className="w-5 h-5" />
@@ -467,131 +414,204 @@ export default function Navbar() {
             </div>
           </div>
         </div>
+      </header>
 
-        {/* ------------------------------------------------------------------- */}
-        {/* Mobile Slide-Down Drawer / Overlay */}
-        {/* ------------------------------------------------------------------- */}
-        {mobileMenuOpen && (
-          <>
-            {/* Backdrop Blur Overlay: prevents seeing content underneath and closes on click */}
-            <div
-              className="fixed inset-0 bg-black/60 backdrop-blur-md z-40 lg:hidden transition-all duration-300"
-              onClick={() => setMobileMenuOpen(false)}
-              aria-hidden="true"
-            />
-            <div className="relative z-50 lg:hidden px-4 pt-2 pb-6 border-b border-zinc-800/80 bg-[#08090d]/98 backdrop-blur-2xl animate-in slide-in-from-top-4 duration-200 max-h-[calc(100vh-65px)] overflow-y-auto">
-            {/* User card if logged in */}
-            {isAuthenticated && (
-              <div className="p-3 mb-3 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  {sessionData.user.image ? (
-                    /* eslint-disable-next-line @next/next/no-img-element */
-                    <img
-                      src={sessionData.user.image}
-                      alt={sessionData.user.name || "المستخدم"}
-                      className="w-9 h-9 rounded-xl object-cover border border-violet-500/30"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center text-xs font-bold">
-                      {sessionData.user.name?.[0]?.toUpperCase() || "U"}
-                    </div>
-                  )}
-                  <div className="text-right">
-                    <span className="text-xs font-bold text-zinc-100 block">
-                      {sessionData.user.name || "المستخدم"}
-                    </span>
-                    <span className="text-[11px] text-zinc-400 block">
-                      {sessionData.user.email}
-                    </span>
+      {/* ------------------------------------------------------------------- */}
+      {/* Mobile Navigation Drawer (takes top: 0, covers screen completely)   */}
+      {/* ------------------------------------------------------------------- */}
+      {mobileMenuOpen && (
+        <>
+          {/* Backdrop: covers full screen from top: 0, blurs background, closes on click */}
+          <div
+            className="athar-drawer-backdrop fixed inset-0 bg-black/75 backdrop-blur-md z-[70] lg:hidden touch-none"
+            onClick={closeMobileMenu}
+            aria-hidden="true"
+          />
+
+          {/* Right-edge Drawer: starts at top: 0, full height */}
+          <div
+            id="mobile-nav-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-label="القائمة الشاملة"
+            className="athar-drawer-right fixed top-0 right-0 bottom-0 z-[75] lg:hidden w-[min(22.5rem,88vw)] max-w-[90vw] bg-[#08090d] border-l border-zinc-800/90 shadow-2xl shadow-black/80 flex flex-col"
+          >
+            {/* Drawer Header with Brand Logo & explicit X close button */}
+            <div className="flex items-center justify-between px-4 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] pb-3.5 border-b border-zinc-800/80 shrink-0 bg-[#08090d]">
+              <Link
+                href="/"
+                onClick={closeMobileMenu}
+                className="flex items-center gap-2.5 group focus:outline-none"
+              >
+                <span className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-md shadow-violet-600/30 group-hover:scale-105 transition-transform">
+                  <Flame className="w-4 h-4 fill-white" />
+                </span>
+                <div className="text-right">
+                  <span className="text-base font-black text-zinc-100 tracking-tight block leading-tight group-hover:text-white transition-colors">
+                    أثـر
+                  </span>
+                  <span className="text-[10px] text-zinc-400 block -mt-0.5">
+                    منظومة أثـر
+                  </span>
+                </div>
+              </Link>
+              <button
+                ref={closeDrawerBtnRef}
+                type="button"
+                onClick={closeMobileMenu}
+                aria-label="إغلاق القائمة"
+                className="p-2 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/80 border border-zinc-800/80 transition-colors cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Scrollable Drawer Body */}
+            <div className="flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-[calc(2rem+env(safe-area-inset-bottom,0px))]">
+              {/* Primary Navigation Grid */}
+              <div className="space-y-4">
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-400 px-1 uppercase tracking-wider block mb-2">
+                    الأقسام الرئيسية
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {primaryLinks.map((link) => {
+                      const Icon = link.icon;
+                      const active = isActive(link.href);
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={closeMobileMenu}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
+                            active
+                              ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
+                              : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
+                          }`}
+                        >
+                          <Icon
+                            className={`w-4 h-4 shrink-0 ${active ? "text-violet-400" : "text-zinc-400"}`}
+                          />
+                          <span className="truncate">{link.label}</span>
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleSignOut}
-                  className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                  title="تسجيل الخروج"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
-            )}
-
-            {/* Primary Navigation Grid */}
-            <div className="space-y-3">
-              <div>
-                <span className="text-[10px] font-bold text-zinc-400 px-1 uppercase tracking-wider block mb-2">
-                  الأقسام الرئيسية
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {primaryLinks.map((link) => {
-                    const Icon = link.icon;
-                    const active = isActive(link.href);
-                    return (
-                      <Link
-                        key={link.href}
-                        href={link.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
-                          active
-                            ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
-                            : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
-                        }`}
-                      >
-                        <Icon
-                          className={`w-4 h-4 ${active ? "text-violet-400" : "text-zinc-400"}`}
-                        />
-                        <span>{link.label}</span>
-                      </Link>
-                    );
-                  })}
+                {/* Specialized Areas */}
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-400 px-1 uppercase tracking-wider block mb-2">
+                    المسارات المتخصصة
+                  </span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {moreLinks.map((link) => {
+                      const Icon = link.icon;
+                      const active = isActive(link.href);
+                      return (
+                        <Link
+                          key={link.href}
+                          href={link.href}
+                          onClick={closeMobileMenu}
+                          className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
+                            active
+                              ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
+                              : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
+                          }`}
+                        >
+                          <Icon className="w-4 h-4 text-zinc-400 shrink-0" />
+                          <span className="truncate">{link.label}</span>
+                        </Link>
+                      );
+                    })}
+                    <Link
+                      href="/settings"
+                      onClick={closeMobileMenu}
+                      className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
+                        pathname === "/settings"
+                          ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
+                          : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
+                      }`}
+                    >
+                      <Settings className="w-4 h-4 text-zinc-400 shrink-0" />
+                      <span className="truncate">الإعدادات</span>
+                    </Link>
+                  </div>
                 </div>
-              </div>
 
-              {/* Specialized Areas */}
-              <div>
-                <span className="text-[10px] font-bold text-zinc-400 px-1 uppercase tracking-wider block mb-2">
-                  المسارات المتخصصة
-                </span>
-                <div className="grid grid-cols-2 gap-2">
-                  {moreLinks.map((link) => {
-                    const Icon = link.icon;
-                    const active = isActive(link.href);
-                    return (
+                {/* User / Auth section moved below navigation links */}
+                <div>
+                  <span className="text-[10px] font-bold text-zinc-400 px-1 uppercase tracking-wider block mb-2">
+                    الملف الشخصي
+                  </span>
+                  {isAuthenticated ? (
+                    <div className="p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between gap-2">
                       <Link
-                        key={link.href}
-                        href={link.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
-                          active
-                            ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
-                            : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
-                        }`}
+                        href="/settings"
+                        onClick={closeMobileMenu}
+                        className="flex items-center gap-3 min-w-0 flex-1 group"
                       >
-                        <Icon className="w-4 h-4 text-zinc-400" />
-                        <span>{link.label}</span>
+                        {displayImage ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img
+                            src={displayImage}
+                            alt={displayName}
+                            referrerPolicy="no-referrer"
+                            className="w-9 h-9 rounded-xl object-cover border border-violet-500/30 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                            {displayName?.[0]?.toUpperCase() || "U"}
+                          </div>
+                        )}
+                        <div className="text-right min-w-0">
+                          <span className="text-xs font-bold text-zinc-100 group-hover:text-violet-300 transition-colors block truncate">
+                            {displayName}
+                          </span>
+                          <span className="text-[11px] text-zinc-400 block truncate">
+                            {sessionData.user.email}
+                          </span>
+                        </div>
                       </Link>
-                    );
-                  })}
-                  <Link
-                    href="/settings"
-                    onClick={() => setMobileMenuOpen(false)}
-                    className={`flex items-center gap-2.5 p-3 rounded-xl text-right text-xs font-bold transition-all ${
-                      pathname === "/settings"
-                        ? "bg-violet-600/15 text-violet-300 border border-violet-500/30 shadow-sm"
-                        : "bg-zinc-900/60 text-zinc-300 hover:bg-zinc-850 border border-zinc-800/60"
-                    }`}
-                  >
-                    <Settings className="w-4 h-4 text-zinc-400" />
-                    <span>الإعدادات</span>
-                  </Link>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          closeMobileMenu();
+                          handleSignOut();
+                        }}
+                        className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0 cursor-pointer"
+                        title="تسجيل الخروج"
+                        aria-label="تسجيل الخروج"
+                      >
+                        <LogOut className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800/80 flex items-center justify-between gap-2">
+                      <div className="text-right">
+                        <span className="text-xs font-bold text-zinc-100 block">
+                          حساب أثـر
+                        </span>
+                        <span className="text-[11px] text-zinc-400 block">
+                          سجل دخولك لحفظ ومزامنة بياناتك
+                        </span>
+                      </div>
+                      <Link
+                        href="/login"
+                        onClick={closeMobileMenu}
+                        className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0"
+                      >
+                        تسجيل الدخول
+                      </Link>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </>
       )}
-      </header>
     </>
   );
 }

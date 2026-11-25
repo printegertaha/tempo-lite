@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import {
   CreateTaskSchema,
   UpdateTaskSchema,
@@ -630,6 +631,7 @@ export async function deleteTask(taskId: string) {
     await prisma.task.delete({
       where: { id: taskId },
     });
+    await recordDeletionTombstone(userId, "task", taskId);
 
     revalidatePath("/tasks");
     revalidatePath("/journal");

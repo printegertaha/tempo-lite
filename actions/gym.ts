@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 
 async function requireAuth() {
   const session = await getServerSession();
@@ -106,6 +107,7 @@ export async function deleteGymWorkout(id: string) {
     await prisma.gymWorkout.deleteMany({
       where: { id, userId },
     });
+    await recordDeletionTombstone(userId, "gym_workout", id);
 
     revalidatePath("/gym");
     return { success: true };

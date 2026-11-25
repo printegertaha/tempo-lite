@@ -27,7 +27,6 @@ import {
   Loader2,
   AlertCircle,
 } from "lucide-react";
-import { createTracker, updateTracker } from "@/actions/trackers";
 import { saveTrackerLocalFirst } from "@/lib/local-db/habit-ops";
 import { LIFE_AREA_COLORS } from "@/lib/validations/life-area";
 import {
@@ -290,71 +289,26 @@ function TrackerForm({
     };
 
     try {
-      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        const localRes = await saveTrackerLocalFirst(
-          userId,
-          trackerPayload,
-          isEditing,
-          editingTracker?.id
-        );
-        if (localRes.success) {
-          onToast?.(
-            isEditing
-              ? "تم تحديث المتعقب محلياً بنجاح ✨"
-              : "تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉",
-            "success"
-          );
-          onSaved?.(localRes.data);
-          onClose();
-        }
-        return;
-      }
-
-      if (isEditing) {
-        const res = await updateTracker({
-          id: editingTracker.id,
-          ...trackerPayload,
-        });
-
-        if (res.success) {
-          onToast?.("تم تحديث المتعقب بنجاح ✨", "success");
-          onSaved?.(res.data);
-          onClose();
-        } else {
-          onToast?.(res.error || "تعذر تحديث المتعقب", "error");
-        }
-      } else {
-        const res = await createTracker(trackerPayload);
-
-        if (res.success) {
-          onToast?.("تم إنشاء المتعقب بنجاح 🎉", "success");
-          onSaved?.(res.data);
-          onClose();
-        } else {
-          const localRes = await saveTrackerLocalFirst(userId, trackerPayload, false);
-          if (localRes.success) {
-            onToast?.("تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉", "success");
-            onSaved?.(localRes.data);
-            onClose();
-          } else {
-            onToast?.(res.error || "تعذر إنشاء المتعقب", "error");
-          }
-        }
-      }
-    } catch {
       const localRes = await saveTrackerLocalFirst(
         userId,
         trackerPayload,
         isEditing,
         editingTracker?.id
-      ).catch(() => null);
+      );
       if (localRes?.success) {
-        onToast?.("تم الحفظ محلياً (وضع عدم الاتصال) ✨", "success");
+        onToast?.(
+          isEditing
+            ? "تم تحديث المتعقب وحفظه محلياً بنجاح ✨"
+            : "تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉",
+          "success"
+        );
         onSaved?.(localRes.data);
         onClose();
       } else {
-        onToast?.("حدث خطأ غير متوقع", "error");
+        onToast?.("تعذر حفظ المتعقب محلياً", "error");
       }
+    } catch {
+      onToast?.("حدث خطأ غير متوقع", "error");
     } finally {
       setIsSubmitting(false);
     }

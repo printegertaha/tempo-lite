@@ -16,6 +16,7 @@ export async function importGuestData(payload: {
   gymWorkouts?: any[];
   mealEntries?: any[];
   expenseEntries?: any[];
+  preferences?: any;
 }) {
   try {
     const session = await getServerSession();
@@ -35,6 +36,7 @@ export async function importGuestData(payload: {
       gymWorkouts = [],
       mealEntries = [],
       expenseEntries = [],
+      preferences = null,
     } = payload;
 
     const importedCounts: Record<string, number> = {
@@ -367,6 +369,13 @@ export async function importGuestData(payload: {
         const expId =
           existingExp && existingExp.userId !== userId ? crypto.randomUUID() : origExpId;
 
+        const txCurrency = e.currency
+          ? String(e.currency).toUpperCase().trim()
+          : preferences?.currency
+            ? String(preferences.currency).toUpperCase().trim()
+            : "EGP";
+        const txType = e.type === "income" ? "income" : "expense";
+
         await tx.expenseEntry.upsert({
           where: { id: expId },
           create: {
@@ -375,17 +384,82 @@ export async function importGuestData(payload: {
             date: e.date,
             title: e.title,
             amount: e.amount || 0,
+            currency: txCurrency,
+            type: txType,
             category: e.category || "عام",
             notes: e.notes || null,
           },
           update: {
             title: e.title,
             amount: e.amount || 0,
+            currency: txCurrency,
+            type: txType,
             category: e.category || "عام",
           },
         });
 
         importedCounts.expenseEntries++;
+      }
+
+      // 7b. Merge explicit guest localization/prayer preferences if present
+      if (preferences && typeof preferences === "object") {
+        const existingSettings = await tx.userSettings.findUnique({
+          where: { userId },
+          select: { id: true, dashboardConfig: true, countryCode: true },
+        });
+        const prevCfg =
+          existingSettings?.dashboardConfig && typeof existingSettings.dashboardConfig === "object"
+            ? (existingSettings.dashboardConfig as Record<string, any>)
+            : {};
+
+        await tx.userSettings.upsert({
+          where: { userId },
+          create: {
+            userId,
+            timezone: preferences.timezone || "Africa/Cairo",
+            countryCode: preferences.countryCode || null,
+            governorate: preferences.governorate || null,
+            city: preferences.city || null,
+            currency: preferences.currency || null,
+            currencyAuto: preferences.currencyAuto ?? true,
+            prayerTrackingEnabled: preferences.prayerTrackingEnabled ?? true,
+            dashboardConfig: {
+              ...prevCfg,
+              ...(preferences.country ? { country: preferences.country } : {}),
+              ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
+              ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
+              ...(preferences.city !== undefined ? { city: preferences.city } : {}),
+              ...(preferences.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
+              ...(preferences.prayerPreferenceConfigured !== undefined
+                ? { prayerPreferenceConfigured: Boolean(preferences.prayerPreferenceConfigured) }
+                : {}),
+            },
+          },
+          update: {
+            ...(preferences.timezone ? { timezone: preferences.timezone } : {}),
+            ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
+            ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
+            ...(preferences.city !== undefined ? { city: preferences.city } : {}),
+            ...(preferences.currency ? { currency: preferences.currency } : {}),
+            ...(preferences.currencyAuto !== undefined
+              ? { currencyAuto: Boolean(preferences.currencyAuto) }
+              : {}),
+            ...(preferences.prayerTrackingEnabled !== undefined
+              ? { prayerTrackingEnabled: Boolean(preferences.prayerTrackingEnabled) }
+              : {}),
+            dashboardConfig: {
+              ...prevCfg,
+              ...(preferences.country ? { country: preferences.country } : {}),
+              ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
+              ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
+              ...(preferences.city !== undefined ? { city: preferences.city } : {}),
+              ...(preferences.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
+              ...(preferences.prayerPreferenceConfigured !== undefined
+                ? { prayerPreferenceConfigured: Boolean(preferences.prayerPreferenceConfigured) }
+                : {}),
+            },
+          },
+        });
       }
 
       // 8. Import Prayer Records

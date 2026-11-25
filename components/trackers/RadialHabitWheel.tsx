@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import { soundManager } from "@/lib/audio";
+import { useLocalSession } from "@/hooks/useLocalSession";
 import {
   Flame,
   Calendar,
@@ -64,8 +65,11 @@ const WHEEL_COLORS = ["#10b981", "#38bdf8", "#a855f7", "#f59e0b", "#ec4899"];
 
 export default function RadialHabitWheel({
   existingTrackers = [],
-  userId = "guest",
+  userId: propUserId,
 }: RadialHabitWheelProps) {
+  const { userId: sessionUserId } = useLocalSession();
+  const userId = propUserId || sessionUserId || "guest";
+  const storageKey = `${STORAGE_KEY}:${userId}`;
   // Current Date defaults
   const today = useMemo(() => new Date(), []);
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
@@ -114,7 +118,9 @@ export default function RadialHabitWheel({
     let active = true;
     const hydrate = async () => {
       try {
-        const stored = localStorage.getItem(STORAGE_KEY);
+        const stored =
+          localStorage.getItem(storageKey) ||
+          (userId === "guest" ? localStorage.getItem(STORAGE_KEY) : null);
         if (stored) {
           const parsed = JSON.parse(stored);
           if (!active) return;
@@ -162,17 +168,17 @@ export default function RadialHabitWheel({
     return () => {
       active = false;
     };
-  }, [existingTrackers, userId]);
+  }, [existingTrackers, userId, storageKey]);
 
-  // Save to localStorage
+  // Save to user-scoped localStorage
   useEffect(() => {
     if (!isLoaded) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ habits, records }));
+      localStorage.setItem(storageKey, JSON.stringify({ habits, records }));
     } catch (e) {
       console.error("Failed to save radial habits", e);
     }
-  }, [habits, records, isLoaded]);
+  }, [habits, records, isLoaded, storageKey]);
 
   // Sync with Athar habits if available
   const importAtharHabits = () => {

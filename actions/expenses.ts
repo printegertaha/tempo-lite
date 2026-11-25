@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 
 async function requireAuth() {
   const session = await getServerSession();
@@ -38,17 +39,38 @@ export async function saveExpenseEntry(data: {
   date: string;
   title: string;
   amount: number;
+  currency?: string;
+  type?: "expense" | "income";
   category: string;
   notes?: string;
 }) {
   try {
     const userId = await requireAuth();
 
+    let resolvedCurrency = data.currency ? String(data.currency).toUpperCase().trim() : undefined;
+    if (!resolvedCurrency && !data.id) {
+      const settings = await prisma.userSettings.findUnique({
+        where: { userId },
+        select: { currency: true, countryCode: true, timezone: true },
+      });
+      if (settings?.currency) {
+        resolvedCurrency = settings.currency;
+      } else {
+        const { getCountryByCodeOrName, getCountryFromTimezone } = await import("@/lib/localization");
+        const country =
+          getCountryByCodeOrName(settings?.countryCode) ||
+          getCountryFromTimezone(settings?.timezone);
+        resolvedCurrency = country?.defaultCurrency || "EGP";
+      }
+    }
+
+    const txType = data.type === "income" ? "income" : "expense";
+
     let expense;
     if (data.id) {
       const existing = await prisma.expenseEntry.findUnique({
         where: { id: data.id },
-        select: { id: true, userId: true },
+        select: { id: true, userId: true, currency: true, type: true },
       });
       if (existing && existing.userId !== userId) {
         return { success: false, error: "غير مصرح بتعديل هذا المصروف" };
@@ -60,6 +82,8 @@ export async function saveExpenseEntry(data: {
               date: data.date,
               title: data.title,
               amount: data.amount,
+              ...(resolvedCurrency ? { currency: resolvedCurrency } : {}),
+              ...(data.type ? { type: txType } : {}),
               category: data.category,
               notes: data.notes || null,
             },
@@ -71,6 +95,8 @@ export async function saveExpenseEntry(data: {
               date: data.date,
               title: data.title,
               amount: data.amount,
+              currency: resolvedCurrency || "EGP",
+              type: txType,
               category: data.category,
               notes: data.notes || null,
             },
@@ -82,6 +108,8 @@ export async function saveExpenseEntry(data: {
           date: data.date,
           title: data.title,
           amount: data.amount,
+          currency: resolvedCurrency || "EGP",
+          type: txType,
           category: data.category,
           notes: data.notes || null,
         },
@@ -102,6 +130,7 @@ export async function deleteExpenseEntry(id: string) {
     await prisma.expenseEntry.deleteMany({
       where: { id, userId },
     });
+    await recordDeletionTombstone(userId, "expense_entry", id);
 
     revalidatePath("/expenses");
     return { success: true };

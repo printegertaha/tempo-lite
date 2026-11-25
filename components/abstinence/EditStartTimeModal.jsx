@@ -96,36 +96,11 @@ export default function EditStartTimeModal({
     };
 
     try {
-      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
-        await saveLocalStartTime();
-        onUpdated?.();
-        onClose();
-        return;
-      }
-
-      const res = await updateAbstinenceStartTime({
-        trackerId: tracker.id,
-        startDate,
-        startTime,
-        timezone,
-      });
-
-      if (res.success) {
-        onUpdated?.();
-        onClose();
-      } else {
-        await saveLocalStartTime();
-        onUpdated?.();
-        onClose();
-      }
+      await saveLocalStartTime();
+      onUpdated?.();
+      onClose();
     } catch (err) {
-      try {
-        await saveLocalStartTime();
-        onUpdated?.();
-        onClose();
-      } catch {
-        setErrorMsg(err?.message || "حدث خطأ غير متوقع");
-      }
+      setErrorMsg(err?.message || "حدث خطأ غير متوقع");
     } finally {
       setIsSubmitting(false);
     }

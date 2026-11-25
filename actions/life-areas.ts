@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import {
   CreateLifeAreaSchema,
   UpdateLifeAreaSchema,
@@ -352,6 +353,7 @@ export async function deleteLifeArea(
     await prisma.lifeArea.delete({
       where: { id },
     });
+    await recordDeletionTombstone(userId, "life_area", id);
 
     revalidatePath("/settings");
     revalidatePath("/");

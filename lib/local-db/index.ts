@@ -41,7 +41,8 @@ export type LocalEntityType =
   | "gym_workout"
   | "meal_entry"
   | "expense_entry"
-  | "prayer_record";
+  | "prayer_record"
+  | "user_settings";
 
 export interface LocalMutation {
   mutationId: string;
@@ -52,9 +53,21 @@ export interface LocalMutation {
   payload: any;
   clientTimestamp: number;
   version: number;
+  baseUpdatedAt?: string | number;
   status: "pending" | "syncing" | "failed" | "permanent_error";
   retryCount: number;
+  nextRetryAt?: number;
   lastError?: string;
+}
+
+export interface LocalConflictRecord {
+  id: string;
+  userId: string;
+  entityType: LocalEntityType;
+  entityId: string;
+  localRecord: any;
+  serverRecord: any;
+  detectedAt: number;
 }
 
 export interface LocalPrayerRecord {
@@ -101,6 +114,7 @@ interface AtharDBSchema extends DBSchema {
     indexes: {
       "by-user-date": [string, string];
       "by-tracker": string;
+      "by-user": string;
     };
   };
   daily_notes: {
@@ -108,6 +122,7 @@ interface AtharDBSchema extends DBSchema {
     value: any;
     indexes: {
       "by-user-date": [string, string];
+      "by-user": string;
     };
   };
   outbox: {
@@ -142,6 +157,7 @@ interface AtharDBSchema extends DBSchema {
     value: any;
     indexes: {
       "by-user-date": [string, string];
+      "by-user": string;
     };
   };
   meal_entries: {
@@ -149,6 +165,14 @@ interface AtharDBSchema extends DBSchema {
     value: any;
     indexes: {
       "by-user-date": [string, string];
+      "by-user": string;
+    };
+  };
+  life_areas: {
+    key: string;
+    value: any;
+    indexes: {
+      "by-user": string;
     };
   };
   expense_entries: {
@@ -156,13 +180,26 @@ interface AtharDBSchema extends DBSchema {
     value: any;
     indexes: {
       "by-user-date": [string, string];
+      "by-user": string;
     };
   };
 }
 
 const DB_NAME = "athar_local_v2";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 export const MAX_OUTBOX_RETRIES = 5;
+
+function handleStorageWriteError(err: unknown) {
+  const errName = (err as any)?.name || "";
+  if (errName === "QuotaExceededError" && typeof window !== "undefined") {
+    window.dispatchEvent(
+      new CustomEvent("athar_storage_quota_warning", {
+        detail: { message: "مساحة التخزين المحلية في المتصفح ممتلئة تقريباً." },
+      })
+    );
+  }
+  throw err;
+}
 
 let dbPromise: Promise<IDBPDatabase<AtharDBSchema>> | null = null;
 
@@ -173,7 +210,7 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
 
   if (!dbPromise) {
     dbPromise = openDB<AtharDBSchema>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
+      upgrade(db, _oldVersion, _newVersion, transaction) {
         if (!db.objectStoreNames.contains("tasks")) {
           const taskStore = db.createObjectStore("tasks", { keyPath: "id" });
           taskStore.createIndex("by-user", "userId");
@@ -186,15 +223,32 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
           trackerStore.createIndex("by-user", "userId");
         }
 
+        if (!db.objectStoreNames.contains("life_areas")) {
+          const lifeAreaStore = db.createObjectStore("life_areas", { keyPath: "id" });
+          lifeAreaStore.createIndex("by-user", "userId");
+        }
+
         if (!db.objectStoreNames.contains("tracker_entries")) {
           const entryStore = db.createObjectStore("tracker_entries", { keyPath: "id" });
           entryStore.createIndex("by-user-date", ["userId", "localDate"]);
           entryStore.createIndex("by-tracker", "trackerId");
+          entryStore.createIndex("by-user", "userId");
+        } else {
+          const entryStore = transaction.objectStore("tracker_entries");
+          if (!entryStore.indexNames.contains("by-user" as any)) {
+            entryStore.createIndex("by-user" as any, "userId");
+          }
         }
 
         if (!db.objectStoreNames.contains("daily_notes")) {
           const noteStore = db.createObjectStore("daily_notes", { keyPath: "id" });
           noteStore.createIndex("by-user-date", ["userId", "localDate"]);
+          noteStore.createIndex("by-user" as any, "userId");
+        } else {
+          const noteStore = transaction.objectStore("daily_notes");
+          if (!noteStore.indexNames.contains("by-user" as any)) {
+            noteStore.createIndex("by-user" as any, "userId");
+          }
         }
 
         if (!db.objectStoreNames.contains("outbox")) {
@@ -210,14 +264,32 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
         if (!db.objectStoreNames.contains("gym_workouts")) {
           const gymStore = db.createObjectStore("gym_workouts", { keyPath: "id" });
           gymStore.createIndex("by-user-date", ["userId", "date"]);
+          gymStore.createIndex("by-user" as any, "userId");
+        } else {
+          const gymStore = transaction.objectStore("gym_workouts");
+          if (!gymStore.indexNames.contains("by-user" as any)) {
+            gymStore.createIndex("by-user" as any, "userId");
+          }
         }
         if (!db.objectStoreNames.contains("meal_entries")) {
           const mealStore = db.createObjectStore("meal_entries", { keyPath: "id" });
           mealStore.createIndex("by-user-date", ["userId", "date"]);
+          mealStore.createIndex("by-user" as any, "userId");
+        } else {
+          const mealStore = transaction.objectStore("meal_entries");
+          if (!mealStore.indexNames.contains("by-user" as any)) {
+            mealStore.createIndex("by-user" as any, "userId");
+          }
         }
         if (!db.objectStoreNames.contains("expense_entries")) {
           const expenseStore = db.createObjectStore("expense_entries", { keyPath: "id" });
           expenseStore.createIndex("by-user-date", ["userId", "date"]);
+          expenseStore.createIndex("by-user", "userId");
+        } else {
+          const expenseStore = transaction.objectStore("expense_entries");
+          if (!expenseStore.indexNames.contains("by-user")) {
+            expenseStore.createIndex("by-user", "userId");
+          }
         }
 
         if (!db.objectStoreNames.contains("abstinence_trackers")) {
@@ -305,6 +377,58 @@ export const localTaskRepo = {
   },
 };
 
+export const localLifeAreaRepo = {
+  async getAllForUser(userId: string, includeArchived = false): Promise<any[]> {
+    const db = await getLocalDB();
+    const all = await db.getAllFromIndex("life_areas", "by-user", userId);
+    const filtered = includeArchived ? all : all.filter((a) => !a.isArchived);
+    return filtered.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  },
+
+  async getById(id: string): Promise<any | undefined> {
+    const db = await getLocalDB();
+    return db.get("life_areas", id);
+  },
+
+  async save(area: any): Promise<void> {
+    try {
+      const db = await getLocalDB();
+      await db.put("life_areas", area);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async saveBatch(areas: any[]): Promise<void> {
+    if (areas.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("life_areas", "readwrite");
+      for (const a of areas) {
+        await tx.store.put(a);
+      }
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getLocalDB();
+    await db.delete("life_areas", id);
+  },
+
+  async deleteBatch(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await getLocalDB();
+    const tx = db.transaction("life_areas", "readwrite");
+    for (const id of ids) {
+      await tx.store.delete(id);
+    }
+    await tx.done;
+  },
+};
+
 export const localTrackerRepo = {
   async getAllForUser(userId: string, includeArchived = false): Promise<any[]> {
     const db = await getLocalDB();
@@ -319,22 +443,41 @@ export const localTrackerRepo = {
   },
 
   async save(tracker: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("trackers", tracker);
+    try {
+      const db = await getLocalDB();
+      await db.put("trackers", tracker);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
 
   async saveBatch(trackers: any[]): Promise<void> {
-    const db = await getLocalDB();
-    const tx = db.transaction("trackers", "readwrite");
-    for (const t of trackers) {
-      await tx.store.put(t);
+    if (trackers.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("trackers", "readwrite");
+      for (const t of trackers) {
+        await tx.store.put(t);
+      }
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
     }
-    await tx.done;
   },
 
   async delete(id: string): Promise<void> {
     const db = await getLocalDB();
     await db.delete("trackers", id);
+  },
+
+  async deleteBatch(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await getLocalDB();
+    const tx = db.transaction("trackers", "readwrite");
+    for (const id of ids) {
+      await tx.store.delete(id);
+    }
+    await tx.done;
   },
 };
 
@@ -362,22 +505,35 @@ export const localEntryRepo = {
 
   async getAllForUser(userId: string): Promise<any[]> {
     const db = await getLocalDB();
-    const all = await db.getAll("tracker_entries");
-    return all.filter((e) => e.userId === userId);
+    try {
+      return await db.getAllFromIndex("tracker_entries", "by-user" as any, userId);
+    } catch {
+      const all = await db.getAll("tracker_entries");
+      return all.filter((e) => e.userId === userId);
+    }
   },
 
   async save(entry: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("tracker_entries", entry);
+    try {
+      const db = await getLocalDB();
+      await db.put("tracker_entries", entry);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
 
   async saveBatch(entries: any[]): Promise<void> {
-    const db = await getLocalDB();
-    const tx = db.transaction("tracker_entries", "readwrite");
-    for (const e of entries) {
-      await tx.store.put(e);
+    if (entries.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("tracker_entries", "readwrite");
+      for (const e of entries) {
+        await tx.store.put(e);
+      }
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
     }
-    await tx.done;
   },
 
   async delete(id: string): Promise<void> {
@@ -458,13 +614,33 @@ export const localNoteRepo = {
 
   async getAllForUser(userId: string): Promise<any[]> {
     const db = await getLocalDB();
-    const all = await db.getAll("daily_notes");
-    return all.filter((n) => n.userId === userId);
+    try {
+      return await db.getAllFromIndex("daily_notes", "by-user" as any, userId);
+    } catch {
+      const all = await db.getAll("daily_notes");
+      return all.filter((n) => n.userId === userId);
+    }
   },
 
   async save(note: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("daily_notes", note);
+    try {
+      const db = await getLocalDB();
+      await db.put("daily_notes", note);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async saveBatch(notes: any[]): Promise<void> {
+    if (notes.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("daily_notes", "readwrite");
+      for (const n of notes) await tx.store.put(n);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
 
   async delete(id: string): Promise<void> {
@@ -475,20 +651,43 @@ export const localNoteRepo = {
 
 export const localOutboxRepo = {
   async add(mutation: LocalMutation): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("outbox", mutation);
+    try {
+      const db = await getLocalDB();
+      await db.put("outbox", mutation);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
 
-  async getPending(userId: string): Promise<LocalMutation[]> {
+  async getPending(userId: string, respectBackoff = false): Promise<LocalMutation[]> {
     const db = await getLocalDB();
     const mutations = await db.getAllFromIndex("outbox", "by-user", userId);
+    const now = Date.now();
     return mutations
-      .filter(
-        (m) =>
+      .filter((m) => {
+        const isEligible =
           m.status === "pending" ||
-          (m.status === "failed" && (m.retryCount || 0) < MAX_OUTBOX_RETRIES)
-      )
+          (m.status === "failed" && (m.retryCount || 0) < MAX_OUTBOX_RETRIES);
+        if (!isEligible) return false;
+        if (respectBackoff && m.nextRetryAt && m.nextRetryAt > now) {
+          return false;
+        }
+        return true;
+      })
       .sort((a, b) => a.clientTimestamp - b.clientTimestamp);
+  },
+
+  async recoverStaleSyncing(userId: string): Promise<void> {
+    const db = await getLocalDB();
+    const all = await db.getAllFromIndex("outbox", "by-user", userId);
+    const stale = all.filter((m) => m.status === "syncing");
+    if (stale.length === 0) return;
+    const tx = db.transaction("outbox", "readwrite");
+    for (const m of stale) {
+      m.status = "pending";
+      await tx.store.put(m);
+    }
+    await tx.done;
   },
 
   async getFailed(userId: string): Promise<LocalMutation[]> {
@@ -504,7 +703,8 @@ export const localOutboxRepo = {
   async updateStatus(
     mutationId: string,
     status: "pending" | "syncing" | "failed" | "permanent_error",
-    error?: string
+    error?: string,
+    nextRetryAt?: number
   ): Promise<void> {
     const db = await getLocalDB();
     const m = await db.get("outbox", mutationId);
@@ -513,6 +713,11 @@ export const localOutboxRepo = {
       if (error) {
         m.lastError = error;
         m.retryCount = (m.retryCount || 0) + 1;
+      }
+      if (nextRetryAt !== undefined) {
+        m.nextRetryAt = nextRetryAt;
+      } else if (status === "pending") {
+        delete m.nextRetryAt;
       }
       await db.put("outbox", m);
     }
@@ -527,6 +732,7 @@ export const localOutboxRepo = {
       if (m.status === "failed" || m.status === "permanent_error") {
         m.status = "pending";
         m.retryCount = 0;
+        delete m.nextRetryAt;
         delete m.lastError;
         await tx.store.put(m);
         count++;
@@ -581,8 +787,98 @@ export const localMetadataRepo = {
   },
 
   async set(key: string, value: any): Promise<void> {
+    try {
+      const db = await getLocalDB();
+      await db.put("metadata", { key, value, updatedAt: Date.now() });
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async delete(key: string): Promise<void> {
     const db = await getLocalDB();
-    await db.put("metadata", { key, value, updatedAt: Date.now() });
+    await db.delete("metadata", key);
+  },
+};
+
+export const localSyncMetaRepo = {
+  async getCursor(userId: string): Promise<number | null> {
+    const val = await localMetadataRepo.get(`lastSyncCursor:${userId}`);
+    return typeof val === "number" ? val : null;
+  },
+
+  async setCursor(userId: string, timestamp: number): Promise<void> {
+    await localMetadataRepo.set(`lastSyncCursor:${userId}`, timestamp);
+  },
+
+  async getConflicts(userId: string): Promise<LocalConflictRecord[]> {
+    const val = await localMetadataRepo.get(`conflicts:${userId}`);
+    return Array.isArray(val) ? val : [];
+  },
+
+  async addConflict(record: LocalConflictRecord): Promise<void> {
+    const existing = await this.getConflicts(record.userId);
+    const filtered = existing.filter(
+      (c) => !(c.entityType === record.entityType && c.entityId === record.entityId)
+    );
+    filtered.push(record);
+    await localMetadataRepo.set(`conflicts:${record.userId}`, filtered);
+  },
+
+  async removeConflict(userId: string, conflictId: string): Promise<void> {
+    const existing = await this.getConflicts(userId);
+    await localMetadataRepo.set(
+      `conflicts:${userId}`,
+      existing.filter((c) => c.id !== conflictId)
+    );
+  },
+
+  async getLastAuthAccount(): Promise<{
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  } | null> {
+    const val = await localMetadataRepo.get("last_authenticated_account");
+    return val && typeof val === "object" && val.id ? val : null;
+  },
+
+  async setLastAuthAccount(account: {
+    id: string;
+    name?: string | null;
+    email?: string | null;
+    image?: string | null;
+  } | null): Promise<void> {
+    if (!account) {
+      await localMetadataRepo.delete("last_authenticated_account");
+      return;
+    }
+    // Store ONLY non-secret public identity descriptor for offline IDB namespace routing
+    await localMetadataRepo.set("last_authenticated_account", {
+      id: account.id,
+      name: account.name || null,
+      email: account.email || null,
+      image: account.image || null,
+      cachedAt: Date.now(),
+    });
+  },
+
+  async getUserSettings(userId: string): Promise<any | null> {
+    const val = await localMetadataRepo.get(`user_settings:${userId}`);
+    return val || null;
+  },
+
+  async saveUserSettings(userId: string, settings: any): Promise<void> {
+    await localMetadataRepo.set(`user_settings:${userId}`, settings);
+  },
+
+  async getBodyWeights(userId: string): Promise<any[]> {
+    const val = await localMetadataRepo.get(`body_weights:${userId}`);
+    return Array.isArray(val) ? val : [];
+  },
+
+  async saveBodyWeights(userId: string, weights: any[]): Promise<void> {
+    await localMetadataRepo.set(`body_weights:${userId}`, weights);
   },
 };
 
@@ -625,12 +921,31 @@ export const localPrayerRepo = {
 export const localDomainRepo = {
   async getGymWorkouts(userId: string): Promise<any[]> {
     const db = await getLocalDB();
-    const all = await db.getAll("gym_workouts");
-    return all.filter((g) => g.userId === userId);
+    try {
+      return await db.getAllFromIndex("gym_workouts", "by-user" as any, userId);
+    } catch {
+      const all = await db.getAll("gym_workouts");
+      return all.filter((g) => g.userId === userId);
+    }
   },
   async saveGymWorkout(workout: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("gym_workouts", workout);
+    try {
+      const db = await getLocalDB();
+      await db.put("gym_workouts", workout);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+  async saveGymBatch(workouts: any[]): Promise<void> {
+    if (workouts.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("gym_workouts", "readwrite");
+      for (const w of workouts) await tx.store.put(w);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
   async deleteGymWorkout(id: string): Promise<void> {
     const db = await getLocalDB();
@@ -639,12 +954,31 @@ export const localDomainRepo = {
 
   async getMealEntries(userId: string): Promise<any[]> {
     const db = await getLocalDB();
-    const all = await db.getAll("meal_entries");
-    return all.filter((m) => m.userId === userId);
+    try {
+      return await db.getAllFromIndex("meal_entries", "by-user" as any, userId);
+    } catch {
+      const all = await db.getAll("meal_entries");
+      return all.filter((m) => m.userId === userId);
+    }
   },
   async saveMealEntry(meal: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("meal_entries", meal);
+    try {
+      const db = await getLocalDB();
+      await db.put("meal_entries", meal);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+  async saveMealBatch(meals: any[]): Promise<void> {
+    if (meals.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("meal_entries", "readwrite");
+      for (const m of meals) await tx.store.put(m);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
   async deleteMealEntry(id: string): Promise<void> {
     const db = await getLocalDB();
@@ -653,12 +987,31 @@ export const localDomainRepo = {
 
   async getExpenseEntries(userId: string): Promise<any[]> {
     const db = await getLocalDB();
-    const all = await db.getAll("expense_entries");
-    return all.filter((e) => e.userId === userId);
+    try {
+      return await db.getAllFromIndex("expense_entries", "by-user", userId);
+    } catch {
+      const all = await db.getAll("expense_entries");
+      return all.filter((e) => e.userId === userId);
+    }
   },
   async saveExpenseEntry(expense: any): Promise<void> {
-    const db = await getLocalDB();
-    await db.put("expense_entries", expense);
+    try {
+      const db = await getLocalDB();
+      await db.put("expense_entries", expense);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+  async saveExpenseBatch(expenses: any[]): Promise<void> {
+    if (expenses.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("expense_entries", "readwrite");
+      for (const e of expenses) await tx.store.put(e);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
   },
   async deleteExpenseEntry(id: string): Promise<void> {
     const db = await getLocalDB();
@@ -699,14 +1052,17 @@ function readLegacyLocalStorageGuestData() {
       const parsed = JSON.parse(rawExpenses);
       if (Array.isArray(parsed?.transactions)) {
         for (const tx of parsed.transactions) {
-          // Only include transactions with titles & amounts; skip untouched mock IDs 101-106 if user hasn't modified, or import safely with deterministic ID
-          if (tx && tx.title && Number(tx.amount) > 0 && Number(tx.id) > 1000) {
+          const numericId = Number(tx?.id);
+          const isLegacySeed = Number.isInteger(numericId) && numericId >= 101 && numericId <= 106;
+          if (!isLegacySeed && tx && tx.title && Number(tx.amount) > 0) {
             expenseEntries.push({
-              id: `ls_exp_${tx.id}`,
+              id: typeof tx.id === "string" && tx.id.length > 0 ? tx.id : `ls_exp_${tx.id}`,
               userId: "guest",
               date: tx.date || new Date().toISOString().split("T")[0],
               title: tx.title,
               amount: Number(tx.amount),
+              currency: tx.currency || "EGP",
+              type: tx.type === "income" ? "income" : "expense",
               category: tx.category || "عام",
               notes: tx.notes || null,
             });
@@ -774,7 +1130,15 @@ function readLegacyLocalStorageGuestData() {
     }
   } catch {}
 
-  return { gymWorkouts, mealEntries, expenseEntries, quranSurahs };
+  let preferences: any = null;
+  try {
+    const rawSettings = localStorage.getItem("athar_user_settings");
+    if (rawSettings) {
+      preferences = JSON.parse(rawSettings);
+    }
+  } catch {}
+
+  return { gymWorkouts, mealEntries, expenseEntries, quranSurahs, preferences };
 }
 
 export interface GuestDataSummary {
@@ -871,6 +1235,7 @@ export const localGuestManager = {
     gymWorkouts: any[];
     mealEntries: any[];
     expenseEntries: any[];
+    preferences?: any;
   }> {
     const db = await getLocalDB();
     const [tasks, prayers, trackers, entries, abstinence, absSessions, notes, gym, meals, expenses] =
@@ -918,6 +1283,7 @@ export const localGuestManager = {
         expenses.filter((e: any) => e.userId === "guest"),
         legacy.expenseEntries
       ),
+      preferences: legacy.preferences || null,
     };
   },
 

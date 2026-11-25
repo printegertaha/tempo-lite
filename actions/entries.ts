@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { requireUserId } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import {
   getLocalDateString,
   parseDate,
@@ -711,6 +712,7 @@ export async function deleteTrackerEntry(
     await prisma.trackerEntry.delete({
       where: { id: entryId },
     });
+    await recordDeletionTombstone(userId, "tracker_entry", entryId);
 
     revalidatePath("/habits");
     revalidatePath("/journal");

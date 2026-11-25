@@ -33,6 +33,7 @@ export default function MobileBottomNav() {
       className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[#0a0c13]/95 border-t border-zinc-800/80 backdrop-blur-xl shadow-2xl pb-safe select-none"
       aria-label="شريط التنقل السفلي للهاتف"
     >
+      
       <div className="grid grid-cols-4 h-16 max-w-md mx-auto items-center px-1">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;

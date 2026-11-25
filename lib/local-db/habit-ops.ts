@@ -8,17 +8,7 @@ import {
   localAbstinenceRepo,
   LocalMutation,
 } from "./index";
-import { toggleTaskStatus as serverToggleTaskStatus } from "@/actions/tasks";
 import { syncEngine } from "@/lib/sync/sync-engine";
-import {
-  toggleBooleanDaily as serverToggleBooleanDaily,
-  incrementCounterDaily as serverIncrementCounterDaily,
-  logDurationSession as serverLogDurationSession,
-  toggleChecklistItem as serverToggleChecklistItem,
-  logAvoidanceDay as serverLogAvoidanceDay,
-  logTrackerEntry as serverLogTrackerEntry,
-  deleteTrackerEntry as serverDeleteTrackerEntry,
-} from "@/actions/entries";
 import { calculateAbstinenceDuration } from "@/lib/dates";
 import { slugify } from "@/lib/validations/life-area";
 
@@ -28,7 +18,8 @@ async function queueMutation(
   entityId: string,
   action: LocalMutation["action"],
   payload: any,
-  version = 1
+  version = 1,
+  baseUpdatedAt?: string | number
 ) {
   if (!userId || userId === "guest") return;
   const mutation: LocalMutation = {
@@ -40,15 +31,16 @@ async function queueMutation(
     payload,
     clientTimestamp: Date.now(),
     version,
+    ...(baseUpdatedAt !== undefined ? { baseUpdatedAt } : {}),
     status: "pending",
     retryCount: 0,
   };
   await localOutboxRepo.add(mutation);
-  syncEngine.scheduleSync(5000);
+  syncEngine.scheduleSync(600);
 }
 
 /**
- * Local-first Boolean Toggle (works identically for guests and offline auth users)
+ * Local-first Boolean Toggle: writes IDB + Outbox immediately (<16ms), syncs asynchronously.
  */
 export async function toggleBooleanEntryLocalFirst(
   userId: string,
@@ -56,20 +48,6 @@ export async function toggleBooleanEntryLocalFirst(
   localDate: string
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverToggleBooleanDaily(tracker.id, localDate);
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
-
   const existingList = await localEntryRepo.getByTrackerAndDate(
     effectiveUserId,
     tracker.id,
@@ -85,6 +63,8 @@ export async function toggleBooleanEntryLocalFirst(
     };
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
+      trackerId: tracker.id,
+      localDate,
       valueBoolean: updated.valueBoolean,
       occurredAt: updated.occurredAt,
     });
@@ -106,7 +86,7 @@ export async function toggleBooleanEntryLocalFirst(
 }
 
 /**
- * Local-first Counter Increment
+ * Local-first Counter Increment: updates IDB + Outbox immediately.
  */
 export async function incrementCounterLocalFirst(
   userId: string,
@@ -116,25 +96,6 @@ export async function incrementCounterLocalFirst(
   notes?: string | null
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverIncrementCounterDaily({
-        trackerId: tracker.id,
-        amount,
-        localDate,
-        notes: notes || null,
-      });
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
-
   const created = {
     id: crypto.randomUUID(),
     trackerId: tracker.id,
@@ -162,26 +123,6 @@ export async function logDurationLocalFirst(
   notes?: string | null
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverLogDurationSession({
-        trackerId: tracker.id,
-        durationSeconds,
-        localDate,
-        subject: subject || null,
-        notes: notes || null,
-      });
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
-
   const created = {
     id: crypto.randomUUID(),
     trackerId: tracker.id,
@@ -208,24 +149,6 @@ export async function toggleChecklistItemLocalFirst(
   localDate: string
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverToggleChecklistItem({
-        trackerId: tracker.id,
-        itemId,
-        localDate,
-      });
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
-
   const existingList = await localEntryRepo.getByTrackerAndDate(
     effectiveUserId,
     tracker.id,
@@ -256,6 +179,8 @@ export async function toggleChecklistItemLocalFirst(
     };
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
+      trackerId: tracker.id,
+      localDate,
       valueNumeric: updated.valueNumeric,
       valueBoolean: updated.valueBoolean,
       entryPayload: updated.entryPayload,
@@ -292,26 +217,6 @@ export async function logAvoidanceLocalFirst(
   notes?: string | null
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverLogAvoidanceDay({
-        trackerId: tracker.id,
-        isClean,
-        localDate,
-        urgeRating: urgeRating ?? null,
-        notes: notes || null,
-      });
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
-
   const existingList = await localEntryRepo.getByTrackerAndDate(
     effectiveUserId,
     tracker.id,
@@ -330,6 +235,8 @@ export async function logAvoidanceLocalFirst(
     };
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
+      trackerId: tracker.id,
+      localDate,
       valueBoolean: updated.valueBoolean,
       entryPayload,
       notes: updated.notes,
@@ -363,19 +270,6 @@ export async function logGenericEntryLocalFirst(
   payload: any
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
-  if (!isGuest && typeof navigator !== "undefined" && navigator.onLine) {
-    try {
-      const res = await serverLogTrackerEntry(payload);
-      if (res.success && res.data) {
-        await localEntryRepo.save({ ...res.data, userId: effectiveUserId });
-        return res;
-      }
-    } catch {
-      // Fall through to local IDB + outbox
-    }
-  }
 
   let computedDuration = payload.valueDuration ?? null;
   if (payload.timeRangeStart && payload.timeRangeEnd && computedDuration === null) {
@@ -409,20 +303,8 @@ export async function logGenericEntryLocalFirst(
  */
 export async function deleteTrackerEntryLocalFirst(userId: string, entryId: string) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
-
   await localEntryRepo.delete(entryId);
-
-  if (!isGuest) {
-    if (typeof navigator !== "undefined" && navigator.onLine) {
-      try {
-        const res = await serverDeleteTrackerEntry(entryId);
-        if (res.success) return res;
-      } catch {}
-    }
-    await queueMutation(effectiveUserId, "tracker_entry", entryId, "delete", {});
-  }
-
+  await queueMutation(effectiveUserId, "tracker_entry", entryId, "delete", {});
   return { success: true, data: true };
 }
 
@@ -450,7 +332,14 @@ export async function saveTrackerLocalFirst(
     };
     await localTrackerRepo.save(updated);
     if (!isGuest) {
-      await queueMutation(effectiveUserId, "tracker", existingId, "update", trackerData);
+      await queueMutation(
+        effectiveUserId,
+        "tracker",
+        existingId,
+        "update",
+        trackerData,
+        existing?.version || 1
+      );
     }
     return { success: true, data: updated };
   }
@@ -473,13 +362,13 @@ export async function saveTrackerLocalFirst(
   await localTrackerRepo.save(newTracker);
 
   if (!isGuest) {
-    await queueMutation(effectiveUserId, "tracker", newId, "create", newTracker);
-  } else if (newTracker.metricType === "AVOIDANCE") {
-    // Keep abstinence_trackers in sync for guest AVOIDANCE trackers
+    await queueMutation(effectiveUserId, "tracker", newId, "create", newTracker, 1);
+  }
+  if (newTracker.metricType === "AVOIDANCE") {
     const absId = crypto.randomUUID();
-    await localAbstinenceRepo.saveTracker({
+    const absTracker = {
       id: absId,
-      userId: "guest",
+      userId: effectiveUserId,
       trackerId: newId,
       name: newTracker.name,
       description: newTracker.description || null,
@@ -489,16 +378,23 @@ export async function saveTrackerLocalFirst(
       isArchived: false,
       createdAt: nowIso,
       updatedAt: nowIso,
-    });
+    };
+    await localAbstinenceRepo.saveTracker(absTracker);
     await localAbstinenceRepo.saveSession({
       id: crypto.randomUUID(),
       abstinenceTrackerId: absId,
       trackerId: absId,
-      userId: "guest",
+      userId: effectiveUserId,
       startedAt: nowIso,
       endedAt: null,
       durationSeconds: null,
     });
+    if (!isGuest) {
+      await queueMutation(effectiveUserId, "abstinence", absId, "create", {
+        ...absTracker,
+        startedAt: nowIso,
+      });
+    }
   }
 
   return { success: true, data: newTracker };
@@ -565,7 +461,6 @@ export async function toggleTaskCompletionLocalFirst(
   fallbackTask?: any
 ) {
   const effectiveUserId = userId || "guest";
-  const isGuest = effectiveUserId === "guest";
   const target = fallbackTask || (await localTaskRepo.getById(taskId));
   if (!target) return null;
 
@@ -580,6 +475,7 @@ export async function toggleTaskCompletionLocalFirst(
     completedAt,
     updatedAt: new Date(nowMs).toISOString(),
     clientUpdatedAt: nowMs,
+    _syncStatus: effectiveUserId === "guest" ? "synced" : "pending",
   };
   await localTaskRepo.save(updated);
 
@@ -601,27 +497,14 @@ export async function toggleTaskCompletionLocalFirst(
     }
   }
 
-  if (!isGuest) {
-    if (typeof navigator !== "undefined" && navigator.onLine) {
-      try {
-        await serverToggleTaskStatus(taskId);
-        return updated;
-      } catch {}
-    }
-    await localOutboxRepo.add({
-      mutationId: crypto.randomUUID(),
-      userId: effectiveUserId,
-      entityType: "task",
-      entityId: taskId,
-      action: "update",
-      payload: { status: nextStatus, completedAt },
-      clientTimestamp: nowMs,
-      version: target.version || 1,
-      status: "pending",
-      retryCount: 0,
-    });
-    syncEngine.scheduleSync(5000);
-  }
+  await queueMutation(
+    effectiveUserId,
+    "task",
+    taskId,
+    "update",
+    { status: nextStatus, completedAt },
+    target.version || 1
+  );
 
   return updated;
 }

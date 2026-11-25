@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import {
   DailyNoteSaveSchema,
   DailyNoteSaveInput,
@@ -29,12 +30,13 @@ export async function getDailyOverview(localDateInput?: string) {
   try {
     const userId = await requireAuth();
 
-    // Get user timezone for local date fallback
+    // Get user timezone & optional prayer preference
     const userSettings = await prisma.userSettings.findUnique({
       where: { userId },
-      select: { timezone: true },
+      select: { timezone: true, prayerTrackingEnabled: true },
     });
-    const timezone = userSettings?.timezone || "Asia/Riyadh";
+    const timezone = userSettings?.timezone || "Africa/Cairo";
+    const prayerTrackingEnabled = userSettings?.prayerTrackingEnabled ?? true;
     const localDate = localDateInput || getLocalDateString(new Date(), timezone);
 
     DailyOverviewQuerySchema.parse({ localDate });
@@ -87,11 +89,13 @@ export async function getDailyOverview(localDateInput?: string) {
           userId_localDate: { userId, localDate },
         },
       }),
-      // 5. Prayer Records for this date
-      prisma.prayerRecord.findMany({
-        where: { userId, date: localDate },
-        orderBy: { prayerKey: "asc" },
-      }),
+      // 5. Prayer Records for this date (skipped in UI/KPIs when disabled, never deleted)
+      prayerTrackingEnabled
+        ? prisma.prayerRecord.findMany({
+            where: { userId, date: localDate },
+            orderBy: { prayerKey: "asc" },
+          })
+        : Promise.resolve([]),
     ]);
 
     // Map trackers with their daily progress
@@ -216,9 +220,10 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
 
     const userSettings = await prisma.userSettings.findUnique({
       where: { userId },
-      select: { timezone: true },
+      select: { timezone: true, prayerTrackingEnabled: true },
     });
-    const todayStr = getLocalDateString(new Date(), userSettings?.timezone || "Asia/Riyadh");
+    const todayStr = getLocalDateString(new Date(), userSettings?.timezone || "Africa/Cairo");
+    const prayerTrackingEnabled = userSettings?.prayerTrackingEnabled ?? true;
 
     // Date-scoped queries for the month
     const [entries, tasks, notes, prayers] = await Promise.all([
@@ -258,19 +263,21 @@ export async function getCalendarMonthSummary(yearInput: number, monthInput: num
           mood: true,
         },
       }),
-      prisma.prayerRecord.findMany({
-        where: {
-          userId,
-          date: { gte: startDate, lte: endDate },
-          isCompleted: true,
-        },
-        select: {
-          id: true,
-          date: true,
-          prayerKey: true,
-          isCompleted: true,
-        },
-      }),
+      prayerTrackingEnabled
+        ? prisma.prayerRecord.findMany({
+            where: {
+              userId,
+              date: { gte: startDate, lte: endDate },
+              isCompleted: true,
+            },
+            select: {
+              id: true,
+              date: true,
+              prayerKey: true,
+              isCompleted: true,
+            },
+          })
+        : Promise.resolve([]),
     ]);
 
     // Group by localDate
@@ -393,12 +400,20 @@ export async function deleteDailyNote(localDate: string) {
   try {
     const userId = await requireAuth();
 
+    const existing = await prisma.dailyNote.findFirst({
+      where: { userId, localDate },
+      select: { id: true },
+    });
+
     await prisma.dailyNote.deleteMany({
       where: {
         userId,
         localDate,
       },
     });
+    if (existing?.id) {
+      await recordDeletionTombstone(userId, "daily_note", existing.id);
+    }
 
     revalidatePath("/journal");
     revalidatePath("/calendar");

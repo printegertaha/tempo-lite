@@ -2,8 +2,7 @@
 // Dialect: PostgreSQL (Supabase) · ORM: Prisma 7.x · Auth: Better Auth 1.x
 
 generator client {
-  provider = "prisma-client"
-  output   = "../lib/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -103,14 +102,20 @@ model UserSettings {
   userId          String   @unique
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  timezone        String   @default("Asia/Riyadh") // IANA Timezone identifier
-  language        String   @default("ar")          // Primary language (Arabic default)
-  weekStartDay    Int      @default(6)             // 6 = Saturday (السبت), 0 = Sunday
-  themeAccent     String   @default("violet")      // Brand accent token
-  dashboardConfig Json     @default("{}")          // Widget layout and visibility
-  audioEnabled    Boolean  @default(true)          // Sound effects feedback toggle
-  audioVolume     Float    @default(0.7)           // Audio volume level (0.0 to 1.0)
-  plannerConfig   Json     @default("{}")          // Weekly planner rules and preferences
+  timezone              String   @default("Asia/Riyadh") // IANA Timezone identifier
+  countryCode           String?  // ISO 3166-1 alpha-2 country code (e.g. "EG", "SA")
+  governorate           String?  // Administrative subdivision / governorate
+  city                  String?  // Optional locality / city within governorate
+  currency              String?  // ISO 4217 preferred currency code (e.g. "EGP", "SAR")
+  currencyAuto          Boolean  @default(true) // Auto-update currency on country change
+  prayerTrackingEnabled Boolean  @default(true) // Optional prayer tracking module toggle
+  language              String   @default("ar")          // Primary language (Arabic default)
+  weekStartDay          Int      @default(6)             // 6 = Saturday (السبت), 0 = Sunday
+  themeAccent           String   @default("violet")      // Brand accent token
+  dashboardConfig       Json     @default("{}")          // Widget layout and visibility
+  audioEnabled          Boolean  @default(true)          // Sound effects feedback toggle
+  audioVolume           Float    @default(0.7)           // Audio volume level (0.0 to 1.0)
+  plannerConfig         Json     @default("{}")          // Weekly planner rules and preferences
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -488,6 +493,8 @@ model ExpenseEntry {
   date      String   // Local calendar date "YYYY-MM-DD"
   title     String
   amount    Float
+  currency  String   @default("SAR") // Original ISO 4217 currency code at creation
+  type      String   @default("expense") // "expense" | "income"
   category  String   // e.g. "طعام ومطاعم", "مشتريات", "فواتير"
   notes     String?  @db.Text
   createdAt DateTime @default(now())

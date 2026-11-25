@@ -6,6 +6,7 @@ import {
   Circle,
   Clock,
   Play,
+  Pause,
   GripVertical,
   MoreVertical,
   Calendar,
@@ -16,10 +17,23 @@ import {
 } from "lucide-react";
 import TruncatedTaskTitle from "@/components/tasks/TruncatedTaskTitle";
 
+function formatCompactPausedTime(seconds = 0) {
+  const safe = Math.max(0, Math.floor(seconds));
+  const hrs = Math.floor(safe / 3600);
+  const mins = Math.floor((safe % 3600) / 60);
+  const secs = safe % 60;
+  if (hrs > 0) {
+    return `${String(hrs).padStart(2, "0")}:${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }
+  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+}
+
 export default function TaskCardItem({
   task,
   onToggleStatus,
   onStartTimer,
+  onResumeTimer,
+  pausedTimerSeconds = null,
   onEdit,
   onPostpone,
   onCopy,
@@ -27,6 +41,7 @@ export default function TaskCardItem({
   isDraggable = true,
   dragHandleProps,
 }) {
+  const isTimerPausedHere = pausedTimerSeconds !== null && task.status !== "COMPLETED";
   const isCompleted = task.status === "COMPLETED";
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -86,6 +101,17 @@ export default function TaskCardItem({
               size="sm"
             />
 
+            {/* Paused Timer Status Indicator */}
+            {isTimerPausedHere && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[10px] font-bold">
+                <Pause className="w-2.5 h-2.5" />
+                <span>متوقفة مؤقتاً</span>
+                <span dir="ltr" className="font-mono text-amber-200">
+                  {formatCompactPausedTime(pausedTimerSeconds)}
+                </span>
+              </div>
+            )}
+
             {/* Description (1 compact line by default, expands with title) */}
             {task.description && (
               <p
@@ -101,16 +127,29 @@ export default function TaskCardItem({
 
         {/* Left side: Drag handle & Action Menu */}
         <div className="flex items-center gap-1.5 shrink-0">
-          {/* Timer Trigger */}
-          {onStartTimer && !isCompleted && (
+          {/* Resume button when paused, else Start Timer Trigger */}
+          {isTimerPausedHere && onResumeTimer ? (
             <button
               type="button"
-              onClick={() => onStartTimer(task)}
-              className="p-2 rounded-xl bg-violet-600/10 hover:bg-violet-600/25 border border-violet-500/20 text-violet-300 hover:text-white transition-colors cursor-pointer"
-              title="بدء مؤقت التركيز لهذه المهمة"
+              onClick={() => onResumeTimer(task)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/35 text-amber-200 text-[11px] font-bold transition-colors cursor-pointer"
+              title="استئناف المؤقت المتوقف"
             >
-              <Play className="w-4 h-4 fill-violet-300" />
+              <Play className="w-3.5 h-3.5 fill-amber-300" />
+              <span>استئناف</span>
             </button>
+          ) : (
+            onStartTimer &&
+            !isCompleted && (
+              <button
+                type="button"
+                onClick={() => onStartTimer(task)}
+                className="p-2 rounded-xl bg-violet-600/10 hover:bg-violet-600/25 border border-violet-500/20 text-violet-300 hover:text-white transition-colors cursor-pointer"
+                title="بدء مؤقت التركيز لهذه المهمة"
+              >
+                <Play className="w-4 h-4 fill-violet-300" />
+              </button>
+            )
           )}
 
           {/* Action Dropdown Menu Trigger */}

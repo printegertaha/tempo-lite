@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 
 async function requireAuth() {
   const session = await getServerSession();
@@ -114,6 +115,7 @@ export async function deleteMealEntry(id: string) {
     await prisma.mealEntry.deleteMany({
       where: { id, userId },
     });
+    await recordDeletionTombstone(userId, "meal_entry", id);
 
     revalidatePath("/nutrition");
     return { success: true };

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import prisma from "@/lib/prisma";
 import { getServerSession } from "@/lib/auth-session";
+import { recordDeletionTombstone } from "@/lib/sync/tombstone";
 import {
   CreateAbstinenceTrackerSchema,
   LogRelapseSchema,
@@ -541,6 +542,10 @@ export async function deleteAbstinenceTracker(trackerId: string) {
         where: { id: tracker.id },
       });
     });
+    if (tracker.trackerId) {
+      await recordDeletionTombstone(userId, "tracker", tracker.trackerId);
+    }
+    await recordDeletionTombstone(userId, "abstinence", tracker.id);
 
     revalidatePath("/abstinence");
     revalidatePath("/habits");

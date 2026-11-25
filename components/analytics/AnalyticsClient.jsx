@@ -1,8 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { getAnalyticsOverview } from "@/actions/analytics";
 import { getLocalDateString, addDaysToDateString, getDefaultTimezone } from "@/lib/dates";
+import {
+  calculateTrackerStreak,
+  calculateTrackerMetrics,
+  generateChartDataPoints,
+} from "@/lib/analytics";
+import { useLocalSession } from "@/hooks/useLocalSession";
+import { useAthar } from "@/components/context/AtharContext";
+import {
+  localTaskRepo,
+  localTrackerRepo,
+  localEntryRepo,
+  localLifeAreaRepo,
+} from "@/lib/local-db";
 import StockMarketChart from "@/components/charts/StockMarketChart";
 import Link from "next/link";
 import {
@@ -16,165 +28,150 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
+const analyticsCache = new Map();
+
 export default function AnalyticsClient({
-  user,
+  user: propUser,
   initialData = null,
   initialRange = 7,
 }) {
+  const { userPreferences } = useAthar();
+  const { userId: sessionUserId } = useLocalSession();
+  const effectiveUserId = propUser?.id || sessionUserId || "guest";
+  const tz = userPreferences?.timezone || getDefaultTimezone();
+
   const [timeRange, setTimeRange] = useState(initialRange);
-  const [analyticsData, setAnalyticsData] = useState(initialData);
+  const [analyticsData, setAnalyticsData] = useState(
+    () => initialData || analyticsCache.get(`${effectiveUserId}:${initialRange}`) || null
+  );
   const [selectedTrackerId, setSelectedTrackerId] = useState("composite");
   const [isLoading, setIsLoading] = useState(false);
+
+  const computeLocalAnalytics = useCallback(
+    async (range) => {
+      const [tasks, allTrackers, entries, lifeAreas] = await Promise.all([
+        localTaskRepo.getAllForUser(effectiveUserId, true).catch(() => []),
+        localTrackerRepo.getAllForUser(effectiveUserId, false).catch(() => []),
+        localEntryRepo.getAllForUser(effectiveUserId).catch(() => []),
+        localLifeAreaRepo.getAllForUser(effectiveUserId, false).catch(() => []),
+      ]);
+
+      const activeTrackers = (allTrackers || []).filter((t) => !t.isArchived);
+      const todayStr = getLocalDateString(new Date(), tz);
+      const startDate = addDaysToDateString(todayStr, -(range - 1));
+      const rangeEntries = (entries || []).filter(
+        (e) => e.localDate && e.localDate >= startDate && e.localDate <= todayStr
+      );
+
+      const areaMap = new Map((lifeAreas || []).map((a) => [a.id, a]));
+      const trackerAnalytics = activeTrackers.map((tracker) => {
+        const tEntries = rangeEntries.filter((e) => e.trackerId === tracker.id);
+        const streak = calculateTrackerStreak(tracker, tEntries, todayStr);
+        const metrics = calculateTrackerMetrics(tracker, tEntries);
+        const chartPoints = generateChartDataPoints(tracker, tEntries, range, todayStr);
+
+        return {
+          id: tracker.id,
+          name: tracker.name,
+          slug: tracker.slug,
+          icon: tracker.icon,
+          color: tracker.color,
+          priority: tracker.priority,
+          metricType: tracker.metricType,
+          unit: tracker.unit,
+          targetValue: tracker.targetValue,
+          lifeArea: tracker.lifeAreaId ? areaMap.get(tracker.lifeAreaId) || null : null,
+          streak,
+          metrics,
+          chartPoints,
+        };
+      });
+
+      const lifeAreaStats = (lifeAreas || []).map((area) => {
+        const areaTrackers = activeTrackers.filter((t) => t.lifeAreaId === area.id);
+        const areaTrackerIds = new Set(areaTrackers.map((t) => t.id));
+        const areaEntries = rangeEntries.filter((e) => areaTrackerIds.has(e.trackerId));
+        return {
+          id: area.id,
+          name: area.name,
+          color: area.color,
+          icon: area.icon,
+          trackersCount: areaTrackers.length,
+          entriesCount: areaEntries.length,
+        };
+      });
+
+      const completedTasksInRange = (tasks || []).filter((t) => {
+        if (t.isArchived || t.status !== "COMPLETED") return false;
+        const d = t.completedAt
+          ? getLocalDateString(new Date(t.completedAt), tz)
+          : t.dueDate || todayStr;
+        return d >= startDate && d <= todayStr;
+      }).length;
+
+      const totalDurationSeconds = rangeEntries.reduce(
+        (acc, e) => acc + (e.valueDuration || 0),
+        0
+      );
+      const totalDurationHours = Number((totalDurationSeconds / 3600).toFixed(1));
+      const activeStreaksCount = trackerAnalytics.filter(
+        (t) => t.streak.currentStreak > 0
+      ).length;
+      const overallConsistencyPct =
+        activeTrackers.length > 0
+          ? Math.min(100, Math.round((activeStreaksCount / activeTrackers.length) * 100))
+          : 0;
+
+      const computed = {
+        timeRangeDays: range,
+        startDate,
+        endDate: todayStr,
+        todayStr,
+        summary: {
+          totalTrackers: activeTrackers.length,
+          activeStreaksCount,
+          totalDurationHours,
+          completedTasksInRange,
+          overallConsistencyPct,
+        },
+        trackers: trackerAnalytics,
+        lifeAreas: lifeAreaStats,
+      };
+
+      analyticsCache.set(`${effectiveUserId}:${range}`, computed);
+      setAnalyticsData(computed);
+    },
+    [effectiveUserId, tz]
+  );
 
   const handleRangeChange = useCallback(
     async (range) => {
       setTimeRange(range);
-      setIsLoading(true);
-
-      if (!user) {
-        try {
-          const { localTaskRepo, localTrackerRepo, localEntryRepo } = await import("@/lib/local-db");
-          const [guestTasks, guestTrackers, guestEntries] = await Promise.all([
-            localTaskRepo.getAllForUser("guest", true),
-            localTrackerRepo.getAllForUser("guest"),
-            localEntryRepo.getAllForUser("guest"),
-          ]);
-          const activeTrackers = (guestTrackers || []).filter((t) => !t.isArchived);
-          const tz = getDefaultTimezone();
-          const todayStr = getLocalDateString(new Date(), tz);
-          const dateWindow = [];
-          for (let i = range - 1; i >= 0; i--) {
-            dateWindow.push(addDaysToDateString(todayStr, -i));
-          }
-          const windowSet = new Set(dateWindow);
-
-          const completedTasks = (guestTasks || []).filter((t) => {
-            if (t.status !== "COMPLETED") return false;
-            const d = t.completedAt
-              ? getLocalDateString(new Date(t.completedAt), tz)
-              : t.dueDate
-              ? getLocalDateString(new Date(t.dueDate), tz)
-              : todayStr;
-            return windowSet.has(d);
-          });
-
-          const totalTasksCount = (guestTasks || []).filter((t) => !t.isArchived).length;
-          const completedAllCount = (guestTasks || []).filter((t) => t.status === "COMPLETED").length;
-
-          let totalDurationMins = 0;
-          let activeStreaksCount = 0;
-          const entriesByTracker = new Map();
-          for (const e of guestEntries || []) {
-            if (!e.trackerId) continue;
-            const list = entriesByTracker.get(e.trackerId) || [];
-            list.push(e);
-            entriesByTracker.set(e.trackerId, list);
-          }
-
-          const mappedTrackers = activeTrackers.map((t) => {
-            const tEntries = entriesByTracker.get(t.id) || [];
-            const dateTotals = new Map();
-            let completedDays = 0;
-
-            for (const e of tEntries) {
-              if (!windowSet.has(e.localDate)) continue;
-              const prev = dateTotals.get(e.localDate) || 0;
-              const val =
-                e.valueNumeric != null
-                  ? Number(e.valueNumeric)
-                  : e.valueBoolean === true
-                  ? 1
-                  : 0;
-              dateTotals.set(e.localDate, prev + val);
-              if (t.metricType === "DURATION") {
-                totalDurationMins += Number(e.valueNumeric || 0);
-              }
-            }
-
-            let curStreak = 0;
-            for (let i = 0; i < range; i++) {
-              const d = addDaysToDateString(todayStr, -i);
-              if ((dateTotals.get(d) || 0) > 0) curStreak++;
-              else if (i > 0) break;
-            }
-            if (curStreak > 0) activeStreaksCount++;
-
-            const chartPoints = dateWindow.map((d) => {
-              const v = dateTotals.get(d) || 0;
-              if (v > 0) completedDays++;
-              return {
-                label: d.slice(5),
-                date: d,
-                val: v,
-                volume: v > 0 ? 1 : 0,
-              };
-            });
-
-            const totalVal = Array.from(dateTotals.values()).reduce((a, b) => a + b, 0);
-            return {
-              id: t.id,
-              name: t.name,
-              metricType: t.metricType,
-              unit: t.unit || "",
-              streak: { currentStreak: curStreak, bestStreak: curStreak },
-              metrics: {
-                primaryStat: `${totalVal} ${t.unit || ""}`.trim(),
-                secondaryStat: `${completedDays} من ${range} يوم`,
-              },
-              chartPoints,
-            };
-          });
-
-          const pct =
-            totalTasksCount > 0
-              ? Math.round((completedAllCount / totalTasksCount) * 100)
-              : activeTrackers.length > 0 && mappedTrackers.length > 0
-              ? Math.round(
-                  (mappedTrackers.filter((t) => t.streak.currentStreak > 0).length /
-                    mappedTrackers.length) *
-                    100
-                )
-              : 0;
-
-          setAnalyticsData({
-            summary: {
-              totalTrackers: activeTrackers.length,
-              activeStreaksCount,
-              totalDurationHours: Math.round((totalDurationMins / 60) * 10) / 10,
-              completedTasksInRange: completedTasks.length,
-              overallConsistencyPct: pct,
-            },
-            trackers: mappedTrackers,
-            dailyHistory: [],
-            lifeAreas: [],
-          });
-        } catch {
-        } finally {
-          setIsLoading(false);
-        }
-        return;
-      }
-
+      const memHit = analyticsCache.get(`${effectiveUserId}:${range}`);
+      if (memHit) setAnalyticsData(memHit);
       try {
-        const res = await getAnalyticsOverview(range);
-        if (res.success && res.data) {
-          setAnalyticsData(res.data);
-        }
-      } catch (err) {
-        console.error("Error loading analytics:", err);
+        await computeLocalAnalytics(range);
       } finally {
         setIsLoading(false);
       }
     },
-    [user],
+    [effectiveUserId, computeLocalAnalytics]
   );
 
   useEffect(() => {
-    if (!user) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      handleRangeChange(timeRange);
-    }
-  }, [user, handleRangeChange, timeRange]);
+    let active = true;
+    queueMicrotask(() => {
+      if (active) void computeLocalAnalytics(timeRange);
+    });
+    const refresh = () => void computeLocalAnalytics(timeRange);
+    window.addEventListener("athar_data_synced", refresh);
+    window.addEventListener("athar_tasks_updated", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("athar_data_synced", refresh);
+      window.removeEventListener("athar_tasks_updated", refresh);
+    };
+  }, [computeLocalAnalytics, timeRange]);
 
   const trackers = analyticsData?.trackers || [];
   const summary = analyticsData?.summary || {

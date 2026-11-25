@@ -9,9 +9,12 @@ export default function GymSessionModal({
   onSaveSession,
   onClose,
 }) {
-  const [gymName, setGymName] = useState("نادي وقت اللياقة (Fitness Time)");
+  const [gymName, setGymName] = useState("");
   const [workoutType, setWorkoutType] = useState("Push Day (صدر وأكتاف وترايسبس)");
   const [durationMinutes, setDurationMinutes] = useState(initialDurationMinutes || 60);
+  const [exerciseName, setExerciseName] = useState("");
+  const [exerciseWeight, setExerciseWeight] = useState("");
+  const [exerciseReps, setExerciseReps] = useState("");
   const [notes, setNotes] = useState("");
 
   if (!isOpen) return null;
@@ -29,16 +32,35 @@ export default function GymSessionModal({
   const handleSubmit = (e) => {
     e.preventDefault();
     const end = new Date();
-    const start = new Date(end.getTime() - Number(durationMinutes) * 60000);
+    const durationNum = Math.max(1, Number(durationMinutes) || 0);
+    const start = new Date(end.getTime() - durationNum * 60000);
+
+    const parsedWeight = Number(exerciseWeight);
+    const parsedReps = Number(exerciseReps);
+    const exercises = exerciseName.trim()
+      ? [
+          {
+            name: exerciseName.trim(),
+            weightKg: Number.isFinite(parsedWeight) && parsedWeight > 0 ? parsedWeight : 0,
+            reps: Number.isFinite(parsedReps) && parsedReps > 0 ? parsedReps : 0,
+          },
+        ]
+      : [];
 
     onSaveSession({
-      gymName: gymName.trim(),
+      gymName: gymName.trim() || "النادي الرياضي",
       workoutType,
-      durationMinutes: Number(durationMinutes),
-      startTime: start.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
-      endTime: end.toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
+      durationMinutes: durationNum,
+      startTime: start.toLocaleTimeString("ar-u-nu-latn", { hour: "2-digit", minute: "2-digit" }),
+      endTime: end.toLocaleTimeString("ar-u-nu-latn", { hour: "2-digit", minute: "2-digit" }),
+      exercises,
       notes: notes.trim(),
     });
+    setGymName("");
+    setExerciseName("");
+    setExerciseWeight("");
+    setExerciseReps("");
+    setNotes("");
     onClose();
   };
 
@@ -47,7 +69,7 @@ export default function GymSessionModal({
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
       onClick={onClose}
     >
-      <div 
+      <div
         className="relative w-full max-w-lg rounded-3xl bg-[#0e111a] border border-orange-500/30 shadow-2xl overflow-hidden flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
@@ -67,23 +89,19 @@ export default function GymSessionModal({
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
-          {/* Gym Name */}
           <div>
             <label className="block text-xs font-semibold text-zinc-300 mb-1">
-              اسم النادي الرياضي أو المكان
+              اسم النادي الرياضي أو المكان (اختياري)
             </label>
             <input
               type="text"
               value={gymName}
               onChange={(e) => setGymName(e.target.value)}
-              placeholder="مثال: Fitness Time، جولدز جيم، النادي المنزلي"
+              placeholder="مثال: النادي الرياضي، الجيم المنزلي"
               className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100 focus:outline-none focus:border-orange-500"
-              required
             />
           </div>
 
-          {/* Workout Type */}
           <div>
             <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
               نوع التمرين (Split / Routine)
@@ -94,9 +112,45 @@ export default function GymSessionModal({
               className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-200 focus:outline-none focus:border-orange-500"
             >
               {workoutTypes.map((t, idx) => (
-                <option key={idx} value={t}>{t}</option>
+                <option key={idx} value={t}>
+                  {t}
+                </option>
               ))}
             </select>
+          </div>
+
+          {/* Optional main exercise & weight log — defaults to empty without auto-saving 0 */}
+          <div className="p-3 rounded-2xl bg-zinc-900/50 border border-zinc-800 space-y-2.5">
+            <span className="text-[11px] font-bold text-zinc-400 block">
+              تمرين أساسي بالوزن (اختياري)
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <input
+                type="text"
+                value={exerciseName}
+                onChange={(e) => setExerciseName(e.target.value)}
+                placeholder="اسم التمرين (مثلاً Bench Press)"
+                className="sm:col-span-1 px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs text-zinc-100"
+              />
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={exerciseWeight}
+                onChange={(e) => setExerciseWeight(e.target.value)}
+                placeholder="الوزن (كجم)"
+                className="px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-100"
+              />
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={exerciseReps}
+                onChange={(e) => setExerciseReps(e.target.value)}
+                placeholder="العدات"
+                className="px-3 py-2 rounded-xl bg-zinc-950 border border-zinc-800 text-xs font-mono text-zinc-100"
+              />
+            </div>
           </div>
 
           {/* Duration */}

@@ -17,9 +17,16 @@ export const DEFAULT_DASHBOARD_CONFIG = {
   density: "comfortable" as const,
   soundEffects: true,
   dailyQuote: true,
-  country: "المملكة العربية السعودية",
-  city: "الرياض",
-  prayerCalc: "أم القرى - مكة المكرمة",
+  countryCode: "EG",
+  country: "جمهورية مصر العربية",
+  governorate: "القاهرة",
+  city: "",
+  timezoneAuto: true,
+  currency: "EGP",
+  currencyAuto: true,
+  prayerTrackingEnabled: true,
+  prayerPreferenceConfigured: false,
+  prayerCalc: "الهيئة المصرية العامة للمساحة",
   asrMethod: "standard" as const,
   tagline: "",
   role: "",
@@ -30,7 +37,13 @@ export const DEFAULT_DASHBOARD_CONFIG = {
  * Technical safe defaults for newly initialized user profiles
  */
 export const DEFAULT_TECHNICAL_SETTINGS = {
-  timezone: "Asia/Riyadh",
+  timezone: "Africa/Cairo",
+  countryCode: "EG",
+  governorate: "القاهرة",
+  city: "",
+  currency: "EGP",
+  currencyAuto: true,
+  prayerTrackingEnabled: true,
   language: "ar",
   weekStartDay: 6, // السبت
   themeAccent: "violet",
@@ -40,29 +53,54 @@ export const DEFAULT_TECHNICAL_SETTINGS = {
 /**
  * Zod schema for updating user technical and interface preferences
  */
+export const UserProfileUpdateSchema = z.object({
+  name: z.string().trim().min(1, "يرجى إدخال الاسم المعروض").max(100).optional(),
+  image: z
+    .string()
+    .max(750_000, "حجم الصورة يتجاوز الحد المسموح")
+    .nullable()
+    .optional(),
+});
+
 export const UserSettingsUpdateSchema = z.object({
   timezone: z
     .string()
     .min(1, "المنطقة الزمنية مطلوبة")
     .max(100)
-    .default("Asia/Riyadh"),
-  language: z.enum(["ar", "en"]).default("ar"),
-  weekStartDay: z.number().int().min(0).max(6).default(6),
-  themeAccent: z.enum(THEME_ACCENTS).default("violet"),
+    .optional(),
+  countryCode: z.string().max(10).nullable().optional(),
+  governorate: z.string().max(120).nullable().optional(),
+  city: z.string().max(120).nullable().optional(),
+  currency: z.string().max(10).nullable().optional(),
+  currencyAuto: z.boolean().optional(),
+  prayerTrackingEnabled: z.boolean().optional(),
+  language: z.enum(["ar", "en"]).optional(),
+  weekStartDay: z.number().int().min(0).max(6).optional(),
+  themeAccent: z.enum(THEME_ACCENTS).optional(),
   dashboardConfig: z
     .object({
-      density: z.enum(["comfortable", "compact"]).default("comfortable"),
-      soundEffects: z.boolean().default(true),
-      dailyQuote: z.boolean().default(true),
-      country: z.string().max(100).default("المملكة العربية السعودية"),
-      city: z.string().max(100).default("الرياض"),
-      prayerCalc: z.string().max(150).default("أم القرى - مكة المكرمة"),
-      asrMethod: z.enum(["standard", "hanafi"]).default("standard"),
-      tagline: z.string().max(250).optional().default(""),
-      role: z.string().max(150).optional().default(""),
-      timeFormat: z.enum(["12h", "24h"]).default("12h"),
+      density: z.enum(["comfortable", "compact"]).optional(),
+      soundEffects: z.boolean().optional(),
+      dailyQuote: z.boolean().optional(),
+      countryCode: z.string().max(10).optional(),
+      country: z.string().max(100).optional(),
+      governorate: z.string().max(120).optional(),
+      city: z.string().max(120).optional(),
+      timezoneAuto: z.boolean().optional(),
+      currency: z.string().max(10).optional(),
+      currencyAuto: z.boolean().optional(),
+      monthlySalary: z.number().min(0).max(100_000_000).optional(),
+      prayerTrackingEnabled: z.boolean().optional(),
+      prayerPreferenceConfigured: z.boolean().optional(),
+      preferencesUpdatedAt: z.string().max(60).optional(),
+      prayerCalc: z.string().max(150).optional(),
+      asrMethod: z.enum(["standard", "hanafi"]).optional(),
+      tagline: z.string().max(250).optional(),
+      role: z.string().max(150).optional(),
+      timeFormat: z.enum(["12h", "24h"]).optional(),
     })
-    .default(DEFAULT_DASHBOARD_CONFIG),
+    .catchall(z.any())
+    .optional(),
 });
 
 export type UserSettingsUpdateInput = z.infer<typeof UserSettingsUpdateSchema>;
