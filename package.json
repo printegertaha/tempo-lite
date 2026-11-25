@@ -12,7 +12,8 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:validate": "prisma validate"
+    "db:validate": "prisma validate",
+    "auth:diagnose": "node scripts/auth-diagnose.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.1",

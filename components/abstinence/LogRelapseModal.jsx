@@ -13,7 +13,9 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { logRelapse } from "@/actions/abstinence";
-import { getLocalDateString } from "@/lib/dates";
+import { getLocalDateString, parseLocalDateTimeToUtc } from "@/lib/dates";
+import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 const COMMON_TRIGGERS = [
   "توتر وضغوط العمل",
@@ -27,6 +29,7 @@ const COMMON_TRIGGERS = [
 export default function LogRelapseModal({
   isOpen,
   onClose,
+  userId = "guest",
   tracker,
   timezone = "Asia/Riyadh",
   onRelapseLogged,
@@ -54,7 +57,93 @@ export default function LogRelapseModal({
     setIsSubmitting(true);
     setErrorMsg("");
 
+    const effectiveUserId = userId || "guest";
+    const isGuest = effectiveUserId === "guest";
+
+    const saveLocalRelapse = async () => {
+      const relapseDt = parseLocalDateTimeToUtc(relapseDate, relapseTime, timezone);
+      const newStartDt = startNewFromRelapse
+        ? relapseDt
+        : parseLocalDateTimeToUtc(newStartDate, newStartTime, timezone);
+
+      const sessions = await localAbstinenceRepo.getSessionsForTracker(
+        effectiveUserId,
+        tracker.id
+      );
+      const activeSession =
+        sessions.find((s) => !s.endedAt) || tracker.activeSession || null;
+
+      if (activeSession) {
+        const startedMs = new Date(activeSession.startedAt).getTime();
+        const durationSeconds = Math.max(
+          0,
+          Math.floor((relapseDt.getTime() - startedMs) / 1000)
+        );
+        const closedSession = {
+          ...activeSession,
+          abstinenceTrackerId: tracker.id,
+          trackerId: tracker.id,
+          userId: effectiveUserId,
+          endedAt: relapseDt.toISOString(),
+          durationSeconds,
+          trigger: trigger.trim() || null,
+          relapseReason: trigger.trim() || null,
+          notes: notes.trim() || null,
+        };
+        await localAbstinenceRepo.saveSession(closedSession);
+
+        if (!isGuest) {
+          await localOutboxRepo.add({
+            mutationId: crypto.randomUUID(),
+            userId: effectiveUserId,
+            entityType: "abstinence_session",
+            entityId: closedSession.id,
+            action: "update",
+            payload: closedSession,
+            clientTimestamp: Date.now(),
+            version: 1,
+            status: "pending",
+            retryCount: 0,
+          });
+        }
+      }
+
+      const newSession = {
+        id: crypto.randomUUID(),
+        abstinenceTrackerId: tracker.id,
+        trackerId: tracker.id,
+        userId: effectiveUserId,
+        startedAt: newStartDt.toISOString(),
+        endedAt: null,
+        durationSeconds: null,
+      };
+      await localAbstinenceRepo.saveSession(newSession);
+
+      if (!isGuest) {
+        await localOutboxRepo.add({
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "abstinence_session",
+          entityId: newSession.id,
+          action: "create",
+          payload: newSession,
+          clientTimestamp: Date.now() + 1,
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        });
+        syncEngine.scheduleSync(5000);
+      }
+    };
+
     try {
+      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        await saveLocalRelapse();
+        onRelapseLogged?.();
+        onClose();
+        return;
+      }
+
       const res = await logRelapse({
         trackerId: tracker.id,
         relapseDate,
@@ -72,10 +161,18 @@ export default function LogRelapseModal({
         onRelapseLogged?.();
         onClose();
       } else {
-        setErrorMsg(res.error || "تعذر تسجيل الانتكاسة");
+        await saveLocalRelapse();
+        onRelapseLogged?.();
+        onClose();
       }
     } catch (err) {
-      setErrorMsg(err?.message || "حدث خطأ أثناء حفظ الانتكاسة");
+      try {
+        await saveLocalRelapse();
+        onRelapseLogged?.();
+        onClose();
+      } catch {
+        setErrorMsg(err?.message || "حدث خطأ أثناء حفظ الانتكاسة");
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -15,16 +15,19 @@ import {
   Hash,
   Scale,
 } from "lucide-react";
+import { getTrackerDailyAggregate } from "@/actions/entries";
+import { getLocalDateString, computeTimeRange } from "@/lib/dates";
 import {
-  logTrackerEntry,
-  getTrackerDailyAggregate,
-  deleteTrackerEntry,
-} from "@/actions/entries";
-import { getLocalDateString } from "@/lib/dates";
+  logGenericEntryLocalFirst,
+  deleteTrackerEntryLocalFirst,
+} from "@/lib/local-db/habit-ops";
+import { localEntryRepo } from "@/lib/local-db";
 
 export default function LogEntryModal({
   isOpen,
   onClose,
+  userId = "guest",
+  timezone = "Asia/Riyadh",
   tracker,
   localDate: defaultLocalDate,
   onLogged,
@@ -51,20 +54,39 @@ export default function LogEntryModal({
   // Daily entries state
   const [dayEntries, setDayEntries] = useState([]);
 
-  // Load existing entries for the chosen date
+  // Load existing entries for the chosen date (guest: IDB, auth: server with IDB fallback)
   useEffect(() => {
     let active = true;
     if (isOpen && tracker?.id && localDate) {
-      getTrackerDailyAggregate(tracker.id, localDate).then((res) => {
-        if (active && res.success && res.data) {
-          setDayEntries(res.data.entries || []);
-        }
-      });
+      const effectiveUserId = userId || "guest";
+      if (effectiveUserId === "guest") {
+        localEntryRepo
+          .getByTrackerAndDate("guest", tracker.id, localDate)
+          .then((entries) => {
+            if (active) setDayEntries(entries || []);
+          })
+          .catch(() => {});
+      } else {
+        getTrackerDailyAggregate(tracker.id, localDate)
+          .then((res) => {
+            if (active && res.success && res.data) {
+              setDayEntries(res.data.entries || []);
+            }
+          })
+          .catch(() => {
+            localEntryRepo
+              .getByTrackerAndDate(effectiveUserId, tracker.id, localDate)
+              .then((entries) => {
+                if (active) setDayEntries(entries || []);
+              })
+              .catch(() => {});
+          });
+      }
     }
     return () => {
       active = false;
     };
-  }, [isOpen, tracker?.id, localDate]);
+  }, [isOpen, tracker?.id, localDate, userId]);
 
   if (!isOpen || !tracker) return null;
 
@@ -98,28 +120,17 @@ export default function LogEntryModal({
           payload.entryPayload = { subject: subject.trim() };
         }
       } else if (tracker.metricType === "TIME_RANGE") {
-        // Construct ISO timestamps
-        const [sy, sm, sd] = localDate.split("-").map(Number);
-        const [sh, smin] = timeStart.split(":").map(Number);
-        const [eh, emin] = timeEnd.split(":").map(Number);
-
-        const startDate = new Date(Date.UTC(sy, sm - 1, sd, sh, smin));
-        const endDate = new Date(Date.UTC(sy, sm - 1, sd, eh, emin));
-
-        // If end time is earlier than start time, it crossed midnight (next calendar day)
-        if (endDate.getTime() <= startDate.getTime()) {
-          endDate.setUTCDate(endDate.getUTCDate() + 1);
-        }
-
-        payload.timeRangeStart = startDate.toISOString();
-        payload.timeRangeEnd = endDate.toISOString();
+        // Timezone-aware UTC calculation with midnight crossing
+        const range = computeTimeRange(localDate, timeStart, timeEnd, timezone);
+        payload.timeRangeStart = range.startTime.toISOString();
+        payload.timeRangeEnd = range.endTime.toISOString();
+        payload.valueDuration = range.durationSeconds;
       }
 
-      const res = await logTrackerEntry(payload);
+      const res = await logGenericEntryLocalFirst(userId, tracker, payload);
       if (res.success) {
         onToast?.("تم حفظ السجل بنجاح ✨", "success");
         onLogged?.();
-        // Refresh local day entries
         setDayEntries((prev) => [...prev, res.data]);
         setNumericValue("");
         setNotes("");
@@ -136,7 +147,7 @@ export default function LogEntryModal({
 
   const handleDeleteEntry = async (entryId) => {
     try {
-      const res = await deleteTrackerEntry(entryId);
+      const res = await deleteTrackerEntryLocalFirst(userId, entryId);
       if (res.success) {
         setDayEntries((prev) => prev.filter((e) => e.id !== entryId));
         onLogged?.();

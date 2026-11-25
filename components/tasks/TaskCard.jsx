@@ -17,12 +17,14 @@ import {
   Folder,
   FastForward,
   Maximize2,
+  Play,
   CheckSquare,
   Square,
   Coffee,
   Repeat
 } from "lucide-react";
 import { formatArabicDueDate } from "@/lib/dates";
+import TruncatedTaskTitle from "@/components/tasks/TruncatedTaskTitle";
 
 const PRIORITY_CONFIG = {
   URGENT: {
@@ -60,11 +62,13 @@ export default function TaskCard({
   onDelete,
   onArchive,
   onOpenZen,
+  onStartTimer,
   onToggleSubtask,
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [postponeMenuOpen, setPostponeMenuOpen] = useState(false);
   const [subtasksExpanded, setSubtasksExpanded] = useState(false);
+  const [titleExpanded, setTitleExpanded] = useState(false);
 
   const isCompleted = task.status === "COMPLETED";
   const priorityInfo = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.MEDIUM;
@@ -87,8 +91,8 @@ export default function TaskCard({
   };
 
   return (
-    <div
-      className={`group relative rounded-2xl border transition-all duration-200 bg-zinc-950/70 p-4 sm:p-5 flex flex-col justify-between ${
+    <article
+      className={`group relative rounded-2xl border transition-all duration-200 bg-zinc-950/75 p-5 sm:p-6 min-h-[184px] flex flex-col justify-between h-full ${
         isCompleted
           ? "border-zinc-800/50 opacity-60 bg-zinc-900/20"
           : dueInfo.isOverdue
@@ -98,9 +102,9 @@ export default function TaskCard({
           : "border-zinc-800/80 hover:border-zinc-700 hover:bg-zinc-900/50 hover:shadow-xl hover:shadow-black/50"
       }`}
     >
-      <div>
-        {/* Top Header: Checkbox + Title + Actions */}
-        <div className="flex items-start gap-3.5">
+      <div className="min-w-0">
+        {/* Top Header: Checkbox + Full-Width Uniform Title */}
+        <div className="flex items-start gap-2.5 min-w-0">
           {/* Large Touch Target Completion Checkbox */}
           <button
             type="button"
@@ -112,6 +116,7 @@ export default function TaskCard({
                 ? "text-red-400 hover:text-red-300"
                 : "text-zinc-500 hover:text-violet-400"
             }`}
+            aria-label={isCompleted ? "إعادة فتح المهمة" : "إتمام المهمة"}
             title={isCompleted ? "إعادة فتح المهمة" : "إتمام المهمة"}
           >
             {isCompleted ? (
@@ -121,24 +126,20 @@ export default function TaskCard({
             )}
           </button>
 
-          {/* Title & Badges */}
-          <div className="flex-1 min-w-0">
-            <h3
-              onClick={handleToggle}
-              className={`text-sm sm:text-base font-bold leading-snug cursor-pointer select-none transition-colors break-words ${
-                isCompleted
-                  ? "line-through text-zinc-500"
-                  : "text-zinc-100 group-hover:text-white"
-              }`}
-            >
-              {task.title}
-            </h3>
+          <TruncatedTaskTitle
+            title={task.title}
+            isCompleted={isCompleted}
+            isExpanded={titleExpanded}
+            onToggleExpand={() => setTitleExpanded((prev) => !prev)}
+            size="md"
+          />
+        </div>
 
-            {/* Badges bar */}
-            <div className="flex items-center gap-1.5 flex-wrap mt-2">
+        {/* Badges bar */}
+        <div className="flex items-center gap-2 flex-wrap mt-3">
               {/* Priority Indicator */}
               <span
-                className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${priorityInfo.color}`}
+                className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${priorityInfo.color}`}
               >
                 {priorityInfo.label}
               </span>
@@ -191,10 +192,14 @@ export default function TaskCard({
               )}
             </div>
 
-            {/* Description */}
+            {/* Description (uniform 1-line unless title card is expanded) */}
             {task.description && (
               <p
-                className={`text-xs mt-2 leading-relaxed whitespace-pre-wrap break-words ${
+                className={`text-xs mt-2 leading-relaxed ${
+                  titleExpanded
+                    ? "whitespace-pre-wrap break-words"
+                    : "truncate"
+                } ${
                   isCompleted ? "text-zinc-600 line-through" : "text-zinc-400"
                 }`}
               >
@@ -255,16 +260,49 @@ export default function TaskCard({
                 )}
               </div>
             )}
-          </div>
+      </div>
 
-          {/* Action Controls */}
-          <div className="flex items-center gap-1 shrink-0">
+      {/* Unified Card Footer: Life Area / Tags + Action Controls */}
+      <footer className="flex items-center justify-between gap-2.5 mt-4 pt-3.5 border-t border-zinc-900">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0 flex-1">
+          {task.lifeArea && (
+            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300 max-w-[130px] truncate">
+              <Folder className="w-2.5 h-2.5 text-zinc-400 shrink-0" />
+              <span className="truncate">{task.lifeArea.name}</span>
+            </span>
+          )}
+          {Array.isArray(task.tags) &&
+            task.tags.slice(0, 2).map((tag, idx) => (
+              <span
+                key={idx}
+                className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-zinc-900/60 border border-zinc-800/80 text-zinc-400 max-w-[90px] truncate"
+              >
+                <Tag className="w-2.5 h-2.5 shrink-0" />
+                <span className="truncate">{tag}</span>
+              </span>
+            ))}
+        </div>
+
+        {/* Action Controls (Fixed clean toolbar baseline across all cards) */}
+        <div className="flex items-center gap-1 shrink-0">
+            {/* Start Stopwatch Timer Button */}
+            {onStartTimer && !isCompleted && (
+              <button
+                type="button"
+                onClick={() => onStartTimer(task)}
+                className="p-2 rounded-xl text-zinc-400 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                title="تشغيل مؤقت المهمة"
+              >
+                <Play className="w-4 h-4" />
+              </button>
+            )}
+
             {/* Zen Mode Button (Focus) */}
             {onOpenZen && !isCompleted && (
               <button
                 type="button"
                 onClick={() => onOpenZen(task)}
-                className="p-1.5 rounded-xl text-zinc-500 hover:text-violet-400 hover:bg-violet-500/10 transition-colors cursor-pointer"
+                className="p-2 rounded-xl text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10 transition-colors cursor-pointer"
                 title="فتح وضع التركيز العميق (Zen Mode)"
               >
                 <Maximize2 className="w-4 h-4" />
@@ -277,7 +315,7 @@ export default function TaskCard({
                 <button
                   type="button"
                   onClick={() => setPostponeMenuOpen((prev) => !prev)}
-                  className="p-1.5 rounded-xl text-zinc-500 hover:text-amber-400 hover:bg-zinc-800/60 transition-colors cursor-pointer"
+                  className="p-2 rounded-xl text-zinc-400 hover:text-amber-400 hover:bg-zinc-800/60 transition-colors cursor-pointer"
                   title="تأجيل المهمة"
                 >
                   <FastForward className="w-4 h-4" />
@@ -394,31 +432,8 @@ export default function TaskCard({
                 </>
               )}
             </div>
-          </div>
         </div>
-      </div>
-
-      {/* Footer tags / category */}
-      {(task.lifeArea || (task.tags && task.tags.length > 0)) && (
-        <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-zinc-900 flex-wrap">
-          {task.lifeArea && (
-            <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md bg-zinc-900 border border-zinc-800 text-zinc-300">
-              <Folder className="w-2.5 h-2.5 text-zinc-400" />
-              <span>{task.lifeArea.name}</span>
-            </span>
-          )}
-          {Array.isArray(task.tags) &&
-            task.tags.map((tag, idx) => (
-              <span
-                key={idx}
-                className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-zinc-900/80 border border-zinc-800 text-zinc-400"
-              >
-                <Tag className="w-2.5 h-2.5 text-zinc-500" />
-                <span>{tag}</span>
-              </span>
-            ))}
-        </div>
-      )}
-    </div>
+      </footer>
+    </article>
   );
 }

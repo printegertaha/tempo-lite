@@ -47,17 +47,37 @@ export async function saveGymWorkout(data: {
 
     let workout;
     if (data.id) {
-      workout = await prisma.gymWorkout.update({
-        where: { id: data.id, userId },
-        data: {
-          date: data.date,
-          title: data.title,
-          muscleGroup: data.muscleGroup || null,
-          durationMinutes: data.durationMinutes || 60,
-          exercises: data.exercises || [],
-          notes: data.notes || null,
-        },
+      const existing = await prisma.gymWorkout.findUnique({
+        where: { id: data.id },
+        select: { id: true, userId: true },
       });
+      if (existing && existing.userId !== userId) {
+        return { success: false, error: "غير مصرح بتعديل هذا التمرين" };
+      }
+      workout = existing
+        ? await prisma.gymWorkout.update({
+            where: { id: data.id },
+            data: {
+              date: data.date,
+              title: data.title,
+              muscleGroup: data.muscleGroup || null,
+              durationMinutes: data.durationMinutes || 60,
+              exercises: data.exercises || [],
+              notes: data.notes || null,
+            },
+          })
+        : await prisma.gymWorkout.create({
+            data: {
+              id: data.id,
+              userId,
+              date: data.date,
+              title: data.title,
+              muscleGroup: data.muscleGroup || null,
+              durationMinutes: data.durationMinutes || 60,
+              exercises: data.exercises || [],
+              notes: data.notes || null,
+            },
+          });
     } else {
       workout = await prisma.gymWorkout.create({
         data: {

@@ -57,10 +57,14 @@ const STORAGE_KEY = "athar_radial_habits_v1";
 
 interface RadialHabitWheelProps {
   existingTrackers?: any[];
+  userId?: string;
 }
+
+const WHEEL_COLORS = ["#10b981", "#38bdf8", "#a855f7", "#f59e0b", "#ec4899"];
 
 export default function RadialHabitWheel({
   existingTrackers = [],
+  userId = "guest",
 }: RadialHabitWheelProps) {
   // Current Date defaults
   const today = useMemo(() => new Date(), []);
@@ -105,24 +109,60 @@ export default function RadialHabitWheel({
     today.getFullYear() === selectedYear && today.getMonth() === selectedMonth;
   const currentDayNumber = isCurrentMonth ? today.getDate() : null;
 
-  // Load from localStorage on mount
+  // Load from localStorage on mount, seeding from real Athar trackers if not yet customized
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed.habits && Array.isArray(parsed.habits)) {
-          setHabits(parsed.habits);
+    let active = true;
+    const hydrate = async () => {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (!active) return;
+          if (parsed.habits && Array.isArray(parsed.habits) && parsed.habits.length > 0) {
+            setHabits(parsed.habits);
+          }
+          if (parsed.records) {
+            setRecords(parsed.records);
+          }
+          setIsLoaded(true);
+          return;
         }
-        if (parsed.records) {
-          setRecords(parsed.records);
+
+        let sourceTrackers = existingTrackers;
+        if (!sourceTrackers || sourceTrackers.length === 0) {
+          try {
+            const { localTrackerRepo } = await import("@/lib/local-db");
+            const localTrackers = await localTrackerRepo.getAllForUser(userId || "guest");
+            sourceTrackers = (localTrackers || []).filter((t: any) => !t.isArchived);
+          } catch {}
         }
+
+        if (!active) return;
+        if (sourceTrackers && sourceTrackers.length > 0) {
+          const seeded: WheelHabit[] = sourceTrackers.slice(0, 5).map((t: any, idx: number) => ({
+            id: t.id || `h${idx + 1}`,
+            name: t.name || `عادة ${idx + 1}`,
+            color: WHEEL_COLORS[idx % WHEEL_COLORS.length],
+          }));
+          while (seeded.length < 5) {
+            seeded.push(DEFAULT_HABITS[seeded.length]);
+          }
+          setHabits(seeded);
+        }
+      } catch (e) {
+        console.error("Failed to load radial habits", e);
       }
-    } catch (e) {
-      console.error("Failed to load radial habits", e);
-    }
-    setIsLoaded(true);
-  }, []);
+      if (active) setIsLoaded(true);
+    };
+
+    queueMicrotask(() => {
+      hydrate();
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [existingTrackers, userId]);
 
   // Save to localStorage
   useEffect(() => {

@@ -6,26 +6,28 @@ import { syncEngine, SyncState } from "@/lib/sync/sync-engine";
 export interface SyncStatusInfo {
   status: SyncState;
   pendingCount: number;
+  failedCount: number;
   lastSyncedAt: number | null;
   error?: string;
   flushNow: () => Promise<boolean>;
+  retryFailed: () => Promise<boolean>;
 }
 
 export function useSyncStatus(): SyncStatusInfo {
-  // Deterministic initial state for SSR & client hydration parity
   const [state, setState] = useState<{
     status: SyncState;
     pendingCount: number;
+    failedCount: number;
     lastSyncedAt: number | null;
     error?: string;
   }>({
     status: "idle",
     pendingCount: 0,
+    failedCount: 0,
     lastSyncedAt: null,
   });
 
   useEffect(() => {
-    // syncEngine.subscribe() asynchronously notifies the listener with the true live state
     const unsubscribe = syncEngine.subscribe((updated) => {
       setState(updated);
     });
@@ -35,6 +37,6 @@ export function useSyncStatus(): SyncStatusInfo {
   return {
     ...state,
     flushNow: () => syncEngine.flushNow(),
+    retryFailed: () => syncEngine.retryFailed(),
   };
 }
-

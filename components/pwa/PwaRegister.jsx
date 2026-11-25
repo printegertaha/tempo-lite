@@ -14,7 +14,23 @@ export default function PwaRegister() {
       return;
     }
 
-    // Register Service Worker
+    // In development, unregister any existing SW and clear Athar caches so HMR/Turbopack chunks
+    // and RSC Flight payloads are never served stale from a prior compilation.
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker.getRegistrations().then((registrations) => {
+        registrations.forEach((reg) => reg.unregister());
+      });
+      if ("caches" in window) {
+        caches.keys().then((keys) => {
+          keys.forEach((key) => {
+            if (key.startsWith("athar-")) caches.delete(key);
+          });
+        });
+      }
+      return;
+    }
+
+    // Register Service Worker in production only
     navigator.serviceWorker
       .register("/sw.js")
       .then((registration) => {

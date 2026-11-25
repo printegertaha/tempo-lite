@@ -105,14 +105,25 @@ export type PostponeTaskInput = z.infer<typeof PostponeTaskSchema>;
  * Tasks Query Filters Schema
  */
 export const TaskQueryFiltersSchema = z.object({
-  view: z.enum(["all", "today", "upcoming", "overdue", "completed", "archived"]).default("today"),
+  view: z
+    .enum([
+      "all",
+      "today",
+      "home",
+      "full",
+      "upcoming",
+      "overdue",
+      "completed",
+      "archived",
+    ])
+    .default("today"),
   lifeAreaId: z.string().optional().nullable(),
   trackerId: z.string().optional().nullable(),
   localDate: LocalDateSchema.optional(),
   searchQuery: z.string().trim().optional(),
   isArchived: z.boolean().optional(),
   page: z.number().int().min(1).optional().default(1),
-  pageSize: z.number().int().min(1).max(200).optional().default(50),
+  pageSize: z.number().int().min(1).max(500).optional().default(100),
 });
 
 export type TaskQueryFilters = z.infer<typeof TaskQueryFiltersSchema>;

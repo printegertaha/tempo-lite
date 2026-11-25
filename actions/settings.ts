@@ -13,8 +13,6 @@ export type ActionResponse<T> =
   | { success: true; data: T; error?: never }
   | { success: false; error: string; fieldErrors?: Record<string, string[]> };
 
-export { DEFAULT_TECHNICAL_SETTINGS };
-
 /**
  * Fetch or auto-initialize technical settings for the authenticated user.
  * Strictly guarantees that no default habits, goals, or tasks are created.

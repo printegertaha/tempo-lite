@@ -1,17 +1,17 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
+import { getServerUserTemporalContext } from "@/lib/server-user";
 import { getTasks } from "@/actions/tasks";
 import { getDailyPrayers } from "@/actions/prayers";
 import { getLifeAreas } from "@/actions/life-areas";
-import { getLocalDateString } from "@/lib/dates";
 import HomeView from "@/components/home/HomeView";
 import { Loader2 } from "lucide-react";
 
 async function HomeServer() {
   await connection();
   const session = await getServerSession();
-  const todayStr = getLocalDateString();
+  const { timezone, todayStr } = await getServerUserTemporalContext(session?.user?.id);
 
   // If unauthenticated, render Home in Guest Mode directly (Zero friction first visit)
   if (!session?.user) {
@@ -26,6 +26,7 @@ async function HomeServer() {
       <HomeView
         user={guestUser}
         initialDate={todayStr}
+        timezone={timezone}
         initialTodayTasks={[]}
         initialPrayers={[]}
         initialLifeAreas={[]}
@@ -33,9 +34,9 @@ async function HomeServer() {
     );
   }
 
-  // Parallel server fetch for authenticated user
+  // Parallel server fetch for authenticated user (includes active, overdue, open, upcoming, and today's completed tasks)
   const [tasksRes, prayersRes, areasRes] = await Promise.all([
-    getTasks({ view: "today", localDate: todayStr }),
+    getTasks({ view: "home", localDate: todayStr, pageSize: 300 }),
     getDailyPrayers(todayStr),
     getLifeAreas(false),
   ]);
@@ -44,6 +45,7 @@ async function HomeServer() {
     <HomeView
       user={session.user}
       initialDate={todayStr}
+      timezone={timezone}
       initialTodayTasks={tasksRes.success ? tasksRes.data || [] : []}
       initialPrayers={prayersRes.success ? prayersRes.data || [] : []}
       initialLifeAreas={areasRes.success ? areasRes.data || [] : []}

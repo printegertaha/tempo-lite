@@ -35,14 +35,44 @@ import {
   Calendar,
 } from "lucide-react";
 
+import {
+  localTrackerRepo,
+  localEntryRepo,
+  localOutboxRepo,
+} from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
+import { getDefaultTimezone } from "@/lib/dates";
+
+async function submitTrackerMutation(isGuest, effectiveUserId, entityId, action, payload) {
+  if (isGuest) return;
+  await localOutboxRepo.add({
+    mutationId: crypto.randomUUID(),
+    userId: effectiveUserId,
+    entityType: "tracker",
+    entityId,
+    action,
+    payload,
+    clientTimestamp: Date.now(),
+    version: 1,
+    status: "pending",
+    retryCount: 0,
+  });
+  syncEngine.scheduleSync(5000);
+}
+
 export default function HabitsClient({
   user,
   initialDate,
+  timezone,
   initialTrackers = [],
   initialLifeAreas = [],
   initialDailyEntries = [],
 }) {
   const { showToast } = useAthar();
+  const effectiveUserId = user?.id || "guest";
+  const isGuest = !user?.id || user?.id === "guest";
+  const effectiveTimezone =
+    timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
 
   const [trackers, setTrackers] = useState(initialTrackers);
   const [lifeAreas, setLifeAreas] = useState(initialLifeAreas);
@@ -64,29 +94,56 @@ export default function HabitsClient({
 
   const isInitialMount = useRef(true);
 
+  const queueTrackerMutation = (entityId, action, payload) =>
+    submitTrackerMutation(isGuest, effectiveUserId, entityId, action, payload);
+
   // Load Trackers, Life Areas, and Today's Entries when tab or date changes
   const fetchDailyEntries = async (date) => {
-    if (!user) return;
     const targetDate = date || selectedDate;
     if (!targetDate) return;
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      try {
+        const local = await localEntryRepo.getByDate(effectiveUserId, targetDate);
+        setDailyEntries(local || []);
+      } catch {}
+      return;
+    }
     try {
       const res = await getDailyEntries(targetDate);
       if (res.success) {
-        setDailyEntries(res.data || []);
+        const rows = res.data || [];
+        setDailyEntries(rows);
+        await localEntryRepo.saveBatch(rows.map((e) => ({ ...e, userId: effectiveUserId })));
       }
-    } catch {}
+    } catch {
+      const local = await localEntryRepo.getByDate(effectiveUserId, targetDate).catch(() => []);
+      setDailyEntries(local);
+    }
   };
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      if (user) return;
+      if (!isGuest) {
+        // Cache initial server data locally for offline viewing
+        if (initialTrackers.length > 0) {
+          localTrackerRepo
+            .saveBatch(initialTrackers.map((t) => ({ ...t, userId: effectiveUserId })))
+            .catch(() => {});
+        }
+        if (initialDailyEntries.length > 0) {
+          localEntryRepo
+            .saveBatch(initialDailyEntries.map((e) => ({ ...e, userId: effectiveUserId })))
+            .catch(() => {});
+        }
+        return;
+      }
     }
 
     let isCancelled = false;
 
     async function loadData() {
-      if (user) {
+      if (!isGuest && (typeof navigator === "undefined" || navigator.onLine)) {
         setIsLoading(true);
         try {
           const [trackersRes, areasRes, entriesRes] = await Promise.all([
@@ -98,13 +155,21 @@ export default function HabitsClient({
           if (isCancelled) return;
 
           if (trackersRes.success) {
-            setTrackers(trackersRes.data || []);
+            const rows = trackersRes.data || [];
+            setTrackers(rows);
+            await localTrackerRepo
+              .saveBatch(rows.map((t) => ({ ...t, userId: effectiveUserId })))
+              .catch(() => {});
           }
           if (areasRes.success) {
             setLifeAreas(areasRes.data || []);
           }
           if (entriesRes.success) {
-            setDailyEntries(entriesRes.data || []);
+            const rows = entriesRes.data || [];
+            setDailyEntries(rows);
+            await localEntryRepo
+              .saveBatch(rows.map((e) => ({ ...e, userId: effectiveUserId })))
+              .catch(() => {});
           }
         } catch (err) {
           console.error("Error loading trackers:", err);
@@ -112,17 +177,22 @@ export default function HabitsClient({
           if (!isCancelled) setIsLoading(false);
         }
       } else {
-        // Guest mode: load from local IndexedDB
+        // Guest mode or Offline Auth Fallback: load trackers AND daily entries from IndexedDB
         setIsLoading(true);
         try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          const localTrackers = await db.getAllFromIndex("trackers", "by-user", "guest");
+          const [localTrackers, localEntries] = await Promise.all([
+            localTrackerRepo.getAllForUser(effectiveUserId, true),
+            localEntryRepo.getByDate(effectiveUserId, selectedDate),
+          ]);
           if (!isCancelled) {
-            setTrackers(localTrackers || []);
+            const filteredByArchive = localTrackers.filter((t) =>
+              statusTab === "archived" ? Boolean(t.isArchived) : !t.isArchived
+            );
+            setTrackers(filteredByArchive);
+            setDailyEntries(localEntries || []);
           }
         } catch (err) {
-          console.warn("Failed loading guest trackers from IndexedDB:", err);
+          console.warn("Failed loading local trackers/entries from IndexedDB:", err);
         } finally {
           if (!isCancelled) setIsLoading(false);
         }
@@ -134,7 +204,7 @@ export default function HabitsClient({
     return () => {
       isCancelled = true;
     };
-  }, [user, statusTab, selectedDate]);
+  }, [user, isGuest, effectiveUserId, statusTab, selectedDate, initialTrackers, initialDailyEntries]);
 
   // Actions
   const handleOpenCreate = () => {
@@ -158,6 +228,18 @@ export default function HabitsClient({
   };
 
   const handleTogglePin = async (tracker) => {
+    const nextPinned = !Boolean(tracker.displayPreferences?.isPinned);
+    const updatedPrefs = { ...(tracker.displayPreferences || {}), isPinned: nextPinned };
+    const updatedTracker = { ...tracker, displayPreferences: updatedPrefs };
+
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      setTrackers((prev) => prev.map((t) => (t.id === tracker.id ? updatedTracker : t)));
+      await localTrackerRepo.save({ ...updatedTracker, userId: effectiveUserId });
+      await queueTrackerMutation(tracker.id, "update", { displayPreferences: updatedPrefs });
+      showToast(nextPinned ? "تم تثبيت المتعقب في الواجهة 📌" : "تم إلغاء تثبيت المتعقب", "info");
+      return;
+    }
+
     try {
       const res = await togglePinTracker(tracker.id);
       if (res.success) {
@@ -173,6 +255,20 @@ export default function HabitsClient({
   };
 
   const handleTogglePause = async (tracker) => {
+    const nextPaused = !tracker.isPaused;
+    const updatedTracker = { ...tracker, isPaused: nextPaused };
+
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      setTrackers((prev) => prev.map((t) => (t.id === tracker.id ? updatedTracker : t)));
+      await localTrackerRepo.save({ ...updatedTracker, userId: effectiveUserId });
+      await queueTrackerMutation(tracker.id, "update", { isPaused: nextPaused });
+      showToast(
+        nextPaused ? "تم إيقاف المتعقب مؤقتاً ⏸️" : "تم استئناف تشغيل المتعقب ▶️",
+        "info"
+      );
+      return;
+    }
+
     try {
       const res = await togglePauseTracker(tracker.id);
       if (res.success) {
@@ -190,6 +286,14 @@ export default function HabitsClient({
   };
 
   const handleArchive = async (tracker) => {
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+      await localTrackerRepo.save({ ...tracker, userId: effectiveUserId, isArchived: true });
+      await queueTrackerMutation(tracker.id, "update", { isArchived: true });
+      showToast("تم نقل المتعقب إلى الأرشيف (سجلاتك محفوظة بالكامل) 📁", "info");
+      return;
+    }
+
     try {
       const res = await archiveTracker(tracker.id);
       if (res.success) {
@@ -202,6 +306,14 @@ export default function HabitsClient({
   };
 
   const handleRestore = async (tracker) => {
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+      await localTrackerRepo.save({ ...tracker, userId: effectiveUserId, isArchived: false });
+      await queueTrackerMutation(tracker.id, "update", { isArchived: false });
+      showToast("تمت استعادة المتعقب بنجاح ✨", "success");
+      return;
+    }
+
     try {
       const res = await restoreTracker(tracker.id);
       if (res.success) {
@@ -214,10 +326,22 @@ export default function HabitsClient({
   };
 
   const handleDelete = async (tracker) => {
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      if (confirm(`هل أنت متأكد من حذف المتعقب "${tracker.name}" وجميع سجلاته؟`)) {
+        setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+        await localTrackerRepo.delete(tracker.id);
+        await localEntryRepo.deleteByTracker(effectiveUserId, tracker.id);
+        await queueTrackerMutation(tracker.id, "delete", {});
+        showToast("تم حذف المتعقب بنجاح", "info");
+      }
+      return;
+    }
+
     try {
       const res = await deleteTracker(tracker.id, false);
       if (res.success) {
         setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+        await localTrackerRepo.delete(tracker.id).catch(() => {});
         showToast("تم حذف المتعقب بنجاح", "info");
       } else if (res.code === "HAS_ENTRIES") {
         if (
@@ -228,6 +352,7 @@ export default function HabitsClient({
           const forceRes = await deleteTracker(tracker.id, true);
           if (forceRes.success) {
             setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+            await localTrackerRepo.delete(tracker.id).catch(() => {});
             showToast("تم حذف المتعقب وسجلاته نهائياً", "info");
           }
         }
@@ -254,7 +379,6 @@ export default function HabitsClient({
       sortOrder: idx,
     }));
 
-    // 1. Optimistic update
     setTrackers((prev) =>
       prev.map((t) => {
         const found = reorderPayload.find((p) => p.id === t.id);
@@ -262,15 +386,24 @@ export default function HabitsClient({
       })
     );
 
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      for (const p of reorderPayload) {
+        const trk = trackers.find((t) => t.id === p.id);
+        if (trk) {
+          await localTrackerRepo.save({ ...trk, userId: effectiveUserId, sortOrder: p.sortOrder });
+          await queueTrackerMutation(p.id, "update", { sortOrder: p.sortOrder });
+        }
+      }
+      return;
+    }
+
     try {
       const res = await reorderTrackers({ items: reorderPayload });
       if (!res.success) {
-        // Rollback
         setTrackers(previousTrackers);
         showToast(res.error || "تعذر حفظ الترتيب، تم التراجع", "error");
       }
     } catch {
-      // Rollback on network error
       setTrackers(previousTrackers);
       showToast("تعذر حفظ الترتيب، تم التراجع", "error");
     }
@@ -598,6 +731,7 @@ export default function HabitsClient({
           {filteredTrackers.map((tracker, index) => (
             <TrackerCard
               key={tracker.id}
+              userId={effectiveUserId}
               tracker={tracker}
               index={index}
               totalCount={filteredTrackers.length}
@@ -636,6 +770,7 @@ export default function HabitsClient({
       <TrackerModal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
+        userId={effectiveUserId}
         editingTracker={editingTracker}
         lifeAreas={lifeAreas}
         onSaved={handleSaved}
@@ -646,6 +781,8 @@ export default function HabitsClient({
       <LogEntryModal
         isOpen={logModalOpen}
         onClose={() => setLogModalOpen(false)}
+        userId={effectiveUserId}
+        timezone={effectiveTimezone}
         tracker={loggingTracker}
         localDate={selectedDate}
         onLogged={() => fetchDailyEntries(selectedDate)}

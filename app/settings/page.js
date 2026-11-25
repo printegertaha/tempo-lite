@@ -5,6 +5,22 @@ import { useAthar } from "@/components/context/AtharContext";
 import { useSession } from "@/lib/auth-client";
 import { getUserSettings, updateUserSettings } from "@/actions/settings";
 import { getLifeAreas } from "@/actions/life-areas";
+import {
+  exportCloudBackup,
+  restoreCloudBackup,
+  clearCloudUserData,
+} from "@/actions/backup";
+import {
+  getLocalDB,
+  clearAllLocalIndexedDB,
+  localTaskRepo,
+  localTrackerRepo,
+  localEntryRepo,
+  localNoteRepo,
+  localPrayerRepo,
+  localAbstinenceRepo,
+  localDomainRepo,
+} from "@/lib/local-db";
 import LifeAreasManager from "@/components/settings/LifeAreasManager";
 import Link from "next/link";
 import { 
@@ -49,6 +65,10 @@ export default function SettingsPage() {
   const [isPending, startTransition] = useTransition();
 
   const [resetModalOpen, setResetModalOpen] = useState(false);
+  const [resetScope, setResetScope] = useState("local"); // "local" | "cloud_and_local"
+  const [isResetting, setIsResetting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [serverLoaded, setServerLoaded] = useState(false);
   const [lifeAreas, setLifeAreas] = useState([]);
 
@@ -181,48 +201,231 @@ export default function SettingsPage() {
     });
   };
 
-  // Export all user records across all domains as a unified JSON backup
-  const handleExportData = () => {
-    const backupData = {
-      exportMetadata: {
-        exportedAt: new Date().toISOString(),
-        platform: "Athar Life Tracker (أثـر)",
-        version: "2.0.0",
-        author: profile.name,
-      },
-      userSettings: profile,
-      lifeAreas: lifeAreas,
-      prayerSchedule: prayerSchedule,
-      appState: appState,
-      habits: habits,
-      journal: journalData,
-      expenses: expensesData,
-      nutrition: nutritionData,
-      gymWorkouts: gymData,
-    };
+  // Export all user records across EVERY supported domain (Cloud + Local IDB + Quran)
+  const handleExportData = async () => {
+    setIsExporting(true);
+    try {
+      const effectiveUid = sessionData?.user?.id || "guest";
+      let domainSnapshot;
 
-    const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: "application/json;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    const dateStr = new Date().toISOString().split("T")[0];
-    a.download = `athar-backup-${dateStr}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+      if (sessionData?.user) {
+        const cloudRes = await exportCloudBackup();
+        if (!cloudRes.success || !cloudRes.data) {
+          showToast(cloudRes.error || "تعذر تصدير البيانات السحابية", "error");
+          return;
+        }
+        domainSnapshot = cloudRes.data;
+      } else {
+        const [
+          tasks,
+          prayerRecords,
+          trackers,
+          trackerEntries,
+          dailyNotes,
+          absTrackers,
+          absSessions,
+          gymWorkouts,
+          mealEntries,
+          expenseEntries,
+        ] = await Promise.all([
+          localTaskRepo.getAllForUser("guest", true).catch(() => []),
+          localPrayerRepo.getAllForUser("guest").catch(() => []),
+          localTrackerRepo.getAllForUser("guest", true).catch(() => []),
+          localEntryRepo.getAllForUser("guest").catch(() => []),
+          localNoteRepo.getAllForUser("guest").catch(() => []),
+          localAbstinenceRepo.getAllTrackers("guest").catch(() => []),
+          localAbstinenceRepo.getAllSessions("guest").catch(() => []),
+          localDomainRepo.getGymWorkouts("guest").catch(() => []),
+          localDomainRepo.getMealEntries("guest").catch(() => []),
+          localDomainRepo.getExpenseEntries("guest").catch(() => []),
+        ]);
 
-    showToast("تم تصدير ملف النسخة الاحتياطية الكاملة (JSON) بنجاح 📁", "success");
+        const abstinenceTrackers = absTrackers.map((t) => ({
+          ...t,
+          sessions: absSessions.filter(
+            (s) => s.abstinenceTrackerId === t.id || s.trackerId === t.id
+          ),
+        }));
+
+        domainSnapshot = {
+          userSettings: profile,
+          lifeAreas,
+          trackers,
+          trackerEntries,
+          tasks,
+          dailyNotes,
+          prayerRecords,
+          abstinenceTrackers,
+          gymWorkouts,
+          mealEntries,
+          expenseEntries,
+        };
+      }
+
+      let quranMemorized = [];
+      try {
+        const rawQuran = localStorage.getItem("athar_quran_memorization_v1");
+        if (rawQuran) quranMemorized = JSON.parse(rawQuran);
+      } catch {}
+
+      const backupData = {
+        exportMetadata: {
+          exportedAt: new Date().toISOString(),
+          platform: "Athar Life Tracker (أثـر)",
+          version: "3.0.0",
+          author: profile.name,
+          scope: sessionData?.user ? "cloud" : "local_guest",
+          userId: effectiveUid,
+        },
+        ...domainSnapshot,
+        quranMemorization: quranMemorized,
+        legacyLocalState: {
+          prayerSchedule,
+          expenses: expensesData,
+          nutrition: nutritionData,
+          gymWorkoutsLegacy: gymData,
+        },
+      };
+
+      const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+        type: "application/json;charset=utf-8",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const dateStr = new Date().toISOString().split("T")[0];
+      a.download = `athar-backup-${dateStr}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      showToast("تم تصدير النسخة الاحتياطية الشاملة بنجاح 📁", "success");
+    } catch (err) {
+      console.error("Backup export failed:", err);
+      showToast("فشل تصدير النسخة الاحتياطية", "error");
+    } finally {
+      setIsExporting(false);
+    }
   };
 
-  // Confirm Reset Modal action
-  const handleConfirmReset = () => {
-    if (typeof window !== "undefined") {
-      localStorage.clear();
-      showToast("تم مسح السجلات بنجاح وإعادة ضبط النظام", "info");
+  // Validate and restore full JSON backup
+  const handleRestoreBackup = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setIsRestoring(true);
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+
+      if (!parsed || !parsed.exportMetadata || !parsed.exportMetadata.platform) {
+        showToast("ملف النسخة الاحتياطية غير صالح أو لا يخص تطبيق أثر", "error");
+        return;
+      }
+
+      if (sessionData?.user) {
+        const res = await restoreCloudBackup(parsed);
+        if (!res.success) {
+          showToast(res.error || "فشل استعادة النسخة الاحتياطية السحابية", "error");
+          return;
+        }
+        // Clear local cache so next reload fetches fresh restored cloud state cleanly
+        await clearAllLocalIndexedDB().catch(() => {});
+      } else {
+        // Restore into local IndexedDB for guest mode
+        const db = await getLocalDB();
+        const putAll = async (storeName, items, extraUserId = true) => {
+          if (!Array.isArray(items) || items.length === 0) return;
+          const tx = db.transaction(storeName, "readwrite");
+          for (const item of items) {
+            if (!item?.id) continue;
+            await tx.store.put(extraUserId ? { ...item, userId: "guest" } : item);
+          }
+          await tx.done;
+        };
+
+        await putAll("tasks", parsed.tasks);
+        await putAll("trackers", parsed.trackers);
+        await putAll("tracker_entries", parsed.trackerEntries);
+        await putAll("daily_notes", parsed.dailyNotes);
+        await putAll("prayer_records", parsed.prayerRecords);
+        await putAll("gym_workouts", parsed.gymWorkouts);
+        await putAll("meal_entries", parsed.mealEntries);
+        await putAll("expense_entries", parsed.expenseEntries);
+
+        if (Array.isArray(parsed.abstinenceTrackers)) {
+          for (const a of parsed.abstinenceTrackers) {
+            if (!a?.id) continue;
+            await localAbstinenceRepo.saveTracker({ ...a, userId: "guest" });
+            for (const s of a.sessions || []) {
+              if (!s?.id) continue;
+              await localAbstinenceRepo.saveSession({
+                ...s,
+                abstinenceTrackerId: a.id,
+                trackerId: a.id,
+                userId: "guest",
+              });
+            }
+          }
+        }
+      }
+
+      if (Array.isArray(parsed.quranMemorization)) {
+        localStorage.setItem(
+          "athar_quran_memorization_v1",
+          JSON.stringify(parsed.quranMemorization)
+        );
+      }
+
+      showToast("تمت استعادة النسخة الاحتياطية بنجاح! جاري التحديث... ✨", "success");
       setTimeout(() => {
         window.location.reload();
-      }, 500);
+      }, 900);
+    } catch (err) {
+      console.error("Restore failed:", err);
+      showToast("تعذر قراءة أو استعادة ملف النسخة الاحتياطية", "error");
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  // Confirm Reset Modal action (clears BOTH localStorage AND IndexedDB; optionally Cloud too)
+  const handleConfirmReset = async () => {
+    if (typeof window === "undefined") return;
+    setIsResetting(true);
+
+    try {
+      if (resetScope === "cloud_and_local" && sessionData?.user) {
+        const res = await clearCloudUserData();
+        if (!res.success) {
+          showToast(res.error || "فشل مسح البيانات السحابية، لم يتم المسح", "error");
+          setIsResetting(false);
+          return;
+        }
+      }
+
+      await clearAllLocalIndexedDB();
+      localStorage.clear();
+      sessionStorage.clear();
+
+      setResetModalOpen(false);
+      showToast(
+        resetScope === "cloud_and_local"
+          ? "تم مسح البيانات السحابية والمحلية بنجاح"
+          : "تم مسح كافة البيانات المحلية على هذا الجهاز بنجاح",
+        "info"
+      );
+
+      setTimeout(() => {
+        window.location.reload();
+      }, 600);
+    } catch (err) {
+      console.error("Reset failed:", err);
+      showToast("حدث خطأ أثناء مسح البيانات، يرجى المحاولة مرة أخرى", "error");
+    } finally {
+      setIsResetting(false);
     }
   };
 
@@ -689,19 +892,35 @@ export default function SettingsPage() {
               <button
                 type="button"
                 onClick={handleExportData}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-750 text-zinc-100 text-xs font-bold border border-zinc-700 transition-all cursor-pointer shadow-md hover:border-cyan-500/40"
+                disabled={isExporting}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-zinc-800 hover:bg-zinc-750 disabled:opacity-50 text-zinc-100 text-xs font-bold border border-zinc-700 transition-all cursor-pointer shadow-md hover:border-cyan-500/40"
               >
-                <Download className="w-4 h-4 text-cyan-400" />
-                <span>تصدير نسخة احتياطية كاملة (JSON)</span>
+                {isExporting ? <Loader2 className="w-4 h-4 animate-spin text-cyan-400" /> : <Download className="w-4 h-4 text-cyan-400" />}
+                <span>{isExporting ? "جاري تجهيز النسخة..." : "تصدير نسخة احتياطية شاملة (JSON)"}</span>
               </button>
+
+              <label className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-xs font-bold border border-zinc-750 transition-all cursor-pointer">
+                {isRestoring ? <Loader2 className="w-4 h-4 animate-spin text-emerald-400" /> : <Check className="w-4 h-4 text-emerald-400" />}
+                <span>{isRestoring ? "جاري الاستعادة..." : "استعادة نسخة احتياطية (JSON)"}</span>
+                <input
+                  type="file"
+                  accept="application/json,.json"
+                  onChange={handleRestoreBackup}
+                  disabled={isRestoring}
+                  className="hidden"
+                />
+              </label>
 
               <button
                 type="button"
-                onClick={() => setResetModalOpen(true)}
+                onClick={() => {
+                  setResetScope("local");
+                  setResetModalOpen(true);
+                }}
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-rose-950/20 hover:bg-rose-950/40 text-rose-300 text-xs font-bold border border-rose-800/30 transition-all cursor-pointer"
               >
                 <RotateCcw className="w-4 h-4 text-rose-400" />
-                <span>مسح البيانات وإعادة الضبط الافتراضي</span>
+                <span>مسح البيانات المحلية وإعادة الضبط</span>
               </button>
             </div>
           </div>
@@ -710,14 +929,14 @@ export default function SettingsPage() {
 
       </div>
 
-      {/* Confirmation Modal for Resetting Local Data */}
+      {/* Confirmation Modal for Resetting Local or Cloud Data */}
       {resetModalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200"
-          onClick={() => setResetModalOpen(false)}
+          onClick={() => !isResetting && setResetModalOpen(false)}
         >
           <div
-            className="w-full max-w-md rounded-3xl bg-[#0f111a] border border-rose-500/30 p-6 sm:p-7 shadow-2xl space-y-6"
+            className="w-full max-w-md rounded-3xl bg-[#0f111a] border border-rose-500/30 p-6 sm:p-7 shadow-2xl space-y-5"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start gap-4">
@@ -725,30 +944,70 @@ export default function SettingsPage() {
                 <AlertTriangle className="w-6 h-6" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-base font-bold text-zinc-100">تأكيد مسح كافة البيانات المحلية</h3>
+                <h3 className="text-base font-bold text-zinc-100">تأكيد مسح البيانات وإعادة الضبط</h3>
                 <p className="text-xs text-zinc-400 leading-relaxed">
-                  هذا الإجراء سيقوم بحذف كافة السجلات المخزنة في المتصفح بما في ذلك جلسات العمل العميق، العادات، والمصاريف واليوميات. لن تتمكن من التراجع عن هذا الإجراء إلا إذا كنت قد حمّلت نسخة JSON احتياطية مسبقاً.
+                  اختر نطاق المسح بدقة. مسح البيانات المحلية يزيل السجلات المخزنة في هذا المتصفح (IndexedDB و LocalStorage) دون المساس بحسابك السحابي.
                 </p>
               </div>
             </div>
+
+            {sessionData?.user && (
+              <div className="space-y-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setResetScope("local")}
+                  className={`w-full text-right p-3 rounded-xl border transition-colors ${
+                    resetScope === "local"
+                      ? "bg-zinc-800 border-amber-500/50 text-zinc-100"
+                      : "bg-zinc-900/60 border-zinc-800 text-zinc-400"
+                  }`}
+                >
+                  <div className="font-bold">مسح بيانات هذا الجهاز فقط (محلياً)</div>
+                  <div className="text-[11px] text-zinc-400 mt-0.5">
+                    تبقى بياناتك المحفوظة في السحابة آمنة وتُحمّل عند الدخول مجدداً.
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setResetScope("cloud_and_local")}
+                  className={`w-full text-right p-3 rounded-xl border transition-colors ${
+                    resetScope === "cloud_and_local"
+                      ? "bg-rose-950/40 border-rose-500/60 text-rose-200"
+                      : "bg-zinc-900/60 border-zinc-800 text-zinc-400"
+                  }`}
+                >
+                  <div className="font-bold text-rose-300">مسح كافة البيانات السحابية والمحلية نهائياً</div>
+                  <div className="text-[11px] text-rose-300/80 mt-0.5">
+                    يحذف جميع المهام والعادات والصلوات والسجلات من الخادم ومن المتصفح مع إبقاء الحساب نشطاً.
+                  </div>
+                </button>
+              </div>
+            )}
 
             <div className="flex items-center justify-end gap-3 pt-2 border-t border-zinc-800">
               <button
                 type="button"
                 onClick={() => setResetModalOpen(false)}
+                disabled={isResetting}
                 className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-semibold transition-colors cursor-pointer"
               >
                 إلغاء الأمر
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setResetModalOpen(false);
-                  handleConfirmReset();
-                }}
-                className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
+                disabled={isResetting}
+                onClick={handleConfirmReset}
+                className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition-all cursor-pointer"
               >
-                تأكيد المسح وإعادة الضبط
+                {isResetting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>
+                  {isResetting
+                    ? "جاري المسح..."
+                    : resetScope === "cloud_and_local"
+                    ? "تأكيد المسح السحابي والمحلي"
+                    : "تأكيد المسح المحلي"}
+                </span>
               </button>
             </div>
           </div>

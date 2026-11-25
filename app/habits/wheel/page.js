@@ -1,13 +1,33 @@
 import { Suspense } from "react";
+import { connection } from "next/server";
+import { getServerSession } from "@/lib/auth-session";
+import { getTrackers } from "@/actions/trackers";
 import RadialHabitWheel from "@/components/trackers/RadialHabitWheel";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { ArrowRight, Flame } from "lucide-react";
 
 export const metadata = {
   title: "العجلة الشهرية للعادات — 31 يوماً | أثـر",
   description: "مخطط دائري لتتبع عاداتك طوال الشهر بالألوان: الأخضر للإنجاز والأحمر للإخفاق.",
 };
+
+async function HabitWheelServer() {
+  await connection();
+  const session = await getServerSession();
+  let initialTrackers = [];
+
+  if (session?.user) {
+    const res = await getTrackers({ isArchived: false });
+    if (res.success) initialTrackers = res.data || [];
+  }
+
+  return (
+    <RadialHabitWheel
+      existingTrackers={initialTrackers}
+      userId={session?.user?.id || "guest"}
+    />
+  );
+}
 
 export default function HabitWheelPage() {
   return (
@@ -29,7 +49,7 @@ export default function HabitWheelPage() {
           </div>
         }
       >
-        <RadialHabitWheel />
+        <HabitWheelServer />
       </Suspense>
     </div>
   );

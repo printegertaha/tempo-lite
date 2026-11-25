@@ -26,9 +26,25 @@ import SocialMediaModal from "../social/SocialMediaModal";
 import SmokingEventModal from "../smoking/SmokingEventModal";
 import RunningSessionModal from "../running/RunningSessionModal";
 import GymSessionModal from "../gym/GymSessionModal";
-import { saveGymWorkout, deleteGymWorkout } from "@/actions/gym";
-import { saveMealEntry, deleteMealEntry } from "@/actions/nutrition";
-import { saveExpenseEntry, deleteExpenseEntry } from "@/actions/expenses";
+import {
+  saveGymWorkout,
+  deleteGymWorkout,
+  getGymWorkouts,
+} from "@/actions/gym";
+import {
+  saveMealEntry,
+  deleteMealEntry,
+  getMealEntries,
+} from "@/actions/nutrition";
+import {
+  saveExpenseEntry,
+  deleteExpenseEntry,
+  getExpenseEntries,
+} from "@/actions/expenses";
+import { useSession } from "@/lib/auth-client";
+import { localDomainRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
+import { activeTimerEngine } from "@/lib/timer/active-timer";
 
 const AtharContext = createContext(null);
 
@@ -56,6 +72,9 @@ export function AtharProvider({ children }) {
 
   // Toast feedback
   const [toast, setToast] = useState(null);
+  const { data: sessionData } = useSession();
+  const activeUserId = sessionData?.user?.id || "guest";
+  const isGuestUser = !sessionData?.user?.id;
 
   const showToast = (message, type = "success") => {
     setToast({ id: Date.now(), message, type });
@@ -91,6 +110,130 @@ export function AtharProvider({ children }) {
       } catch {}
     }
   }, []);
+
+  // Hydrate Expenses, Meals & Gym from PostgreSQL for authenticated users
+  useEffect(() => {
+    if (!isMounted || isGuestUser) return;
+    let cancelled = false;
+
+    async function hydrateAuthenticatedDomains() {
+      try {
+        const [expRes, mealRes, gymRes] = await Promise.all([
+          getExpenseEntries(),
+          getMealEntries(),
+          getGymWorkouts(),
+        ]);
+        if (cancelled) return;
+
+        const today = getLocalDateString();
+        const currentMonthPrefix = today.slice(0, 7);
+
+        if (expRes?.success && Array.isArray(expRes.data) && expRes.data.length > 0) {
+          const rows = expRes.data;
+          const todaySpent = rows
+            .filter((r) => r.date === today)
+            .reduce((s, r) => s + Number(r.amount || 0), 0);
+          const monthlyRows = rows.filter((r) => (r.date || "").startsWith(currentMonthPrefix));
+          const monthlySpent = monthlyRows.reduce((s, r) => s + Number(r.amount || 0), 0);
+          const dayOfMonth = Math.max(1, Number(today.split("-")[2] || 1));
+
+          setExpensesData((prev) => {
+            const updatedCats = prev.categories.map((c) => {
+              const catSpent = monthlyRows
+                .filter((r) => c.name.includes(r.category) || (r.category || "").includes(c.name))
+                .reduce((s, r) => s + Number(r.amount || 0), 0);
+              return {
+                ...c,
+                spent: catSpent,
+                percent: Math.min(100, Math.round((catSpent / (c.budget || 1)) * 100)),
+              };
+            });
+            return {
+              ...prev,
+              transactions: rows.map((r) => ({
+                id: r.id,
+                title: r.title,
+                amount: Number(r.amount),
+                category: r.category,
+                date: r.date,
+                time: r.createdAt
+                  ? new Date(r.createdAt).toLocaleTimeString("ar-SA", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })
+                  : "",
+              })),
+              todaySpent,
+              monthlySpent,
+              dailyAverageSpent: Math.round(monthlySpent / dayOfMonth),
+              categories: updatedCats,
+            };
+          });
+        }
+
+        if (mealRes?.success && Array.isArray(mealRes.data) && mealRes.data.length > 0) {
+          const rows = mealRes.data;
+          const todayMeals = rows.filter((m) => m.date === today);
+          setNutritionData((prev) => ({
+            ...prev,
+            meals: rows.map((m) => ({
+              id: m.id,
+              name: m.title,
+              title: m.title,
+              mealType: m.mealType,
+              date: m.date,
+              calories: m.calories,
+              protein: m.protein,
+              carbs: m.carbs,
+              fat: m.fat,
+              notes: m.notes,
+            })),
+            todayLogged: {
+              ...prev.todayLogged,
+              calories: todayMeals.reduce((s, m) => s + Number(m.calories || 0), 0),
+              protein: todayMeals.reduce((s, m) => s + Number(m.protein || 0), 0),
+              carbs: todayMeals.reduce((s, m) => s + Number(m.carbs || 0), 0),
+              fat: todayMeals.reduce((s, m) => s + Number(m.fat || 0), 0),
+            },
+          }));
+        }
+
+        if (gymRes?.success && Array.isArray(gymRes.data) && gymRes.data.length > 0) {
+          setAppState((prev) => {
+            const nextRecords = { ...(prev.recordsByDate || {}) };
+            for (const w of gymRes.data) {
+              const dKey = w.date || today;
+              const existingDay = nextRecords[dKey] || { gymSessions: [] };
+              const exists = (existingDay.gymSessions || []).some((s) => s.id === w.id);
+              if (!exists) {
+                nextRecords[dKey] = {
+                  ...existingDay,
+                  gymSessions: [
+                    {
+                      id: w.id,
+                      workoutType: w.title,
+                      gymName: "النادي الرياضي",
+                      durationMinutes: w.durationMinutes || 60,
+                      notes: w.notes || "",
+                    },
+                    ...(existingDay.gymSessions || []),
+                  ],
+                };
+              }
+            }
+            return { ...prev, recordsByDate: nextRecords };
+          });
+        }
+      } catch (err) {
+        console.warn("Hydration of domain entries failed, using local cache:", err);
+      }
+    }
+
+    hydrateAuthenticatedDomains();
+    return () => {
+      cancelled = true;
+    };
+  }, [isMounted, isGuestUser, activeUserId]);
 
   useEffect(() => {
     if (isMounted && typeof window !== "undefined") {
@@ -171,6 +314,15 @@ export function AtharProvider({ children }) {
   // 1. UNIFIED TIMER SYSTEM (Timestamps as single source of truth)
   // ----------------------------------------------------
   const startTimer = (type = "programming", title = "جلسة عمل عميق", metadata = {}) => {
+    const taskTimer = activeTimerEngine.getSession();
+    if (taskTimer && (taskTimer.status === "running" || taskTimer.status === "paused")) {
+      showToast(
+        `مؤقت المهمة "${taskTimer.taskTitle}" قيد التشغيل الآن — أوقفه أو أنهِه أولاً`,
+        "info"
+      );
+      return;
+    }
+
     if (appState.activeTimer && appState.activeTimer.isRunning) {
       showToast("هناك جلسة نشطة بالفعل! أوقف الجلسة الحالية أولاً", "info");
       return;
@@ -450,9 +602,10 @@ export function AtharProvider({ children }) {
   // ----------------------------------------------------
   const addGymSession = (session, dateStr = selectedDate) => {
     const day = getDayRecords(dateStr);
+    const gymId = crypto.randomUUID();
     const newSession = {
       ...session,
-      id: generateId("gym"),
+      id: gymId,
     };
     setAppState((prev) => ({
       ...prev,
@@ -464,12 +617,40 @@ export function AtharProvider({ children }) {
         },
       },
     }));
-    saveGymWorkout({
+
+    const workoutPayload = {
+      id: gymId,
+      userId: activeUserId,
       date: dateStr,
       title: session.workoutType || session.gymName || "تمرين رياضي",
       durationMinutes: Number(session.durationMinutes) || 60,
       notes: session.notes || null,
-    }).catch((err) => console.warn("Could not sync gym workout to server:", err));
+    };
+    localDomainRepo.saveGymWorkout(workoutPayload).catch(() => {});
+
+    if (!isGuestUser) {
+      saveGymWorkout(workoutPayload)
+        .then((res) => {
+          if (!res?.success) throw new Error(res?.error);
+        })
+        .catch(() => {
+          localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "gym_workout",
+              entityId: gymId,
+              action: "create",
+              payload: workoutPayload,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(5000))
+            .catch(() => {});
+        });
+    }
     showToast("تم توثيق تمرين الجيم والقوة 💪", "success");
   };
 
@@ -485,7 +666,31 @@ export function AtharProvider({ children }) {
         },
       },
     }));
-    deleteGymWorkout(id).catch((err) => console.warn("Could not delete gym workout from server:", err));
+    localDomainRepo.deleteGymWorkout(String(id)).catch(() => {});
+
+    if (!isGuestUser) {
+      deleteGymWorkout(String(id))
+        .then((res) => {
+          if (!res?.success) throw new Error(res?.error);
+        })
+        .catch(() => {
+          localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "gym_workout",
+              entityId: String(id),
+              action: "delete",
+              payload: {},
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(5000))
+            .catch(() => {});
+        });
+    }
     showToast("تم حذف جلسة التمرين", "info");
   };
 
@@ -670,12 +875,14 @@ export function AtharProvider({ children }) {
 
   // 10. Secondary domain helpers (Expenses, Nutrition, Gym, Journal)
   const addExpense = (expense) => {
+    const expenseId = crypto.randomUUID();
+    const txDate = selectedDate || getLocalDateString();
     const newTx = {
-      id: Date.now(),
+      id: expenseId,
       title: expense.title,
       amount: Number(expense.amount),
       category: expense.category,
-      date: selectedDate || getLocalDateString(),
+      date: txDate,
       time: new Date().toLocaleTimeString("ar-SA", { hour: "2-digit", minute: "2-digit" }),
     };
 
@@ -690,7 +897,7 @@ export function AtharProvider({ children }) {
           return {
             ...c,
             spent: newSpent,
-            percent: Math.min(100, Math.round((newSpent / c.budget) * 100)),
+            percent: Math.min(100, Math.round((newSpent / (c.budget || 1)) * 100)),
           };
         }
         return c;
@@ -704,22 +911,102 @@ export function AtharProvider({ children }) {
         categories: updatedCats,
       };
     });
-    saveExpenseEntry({
-      date: selectedDate,
+
+    const expensePayload = {
+      id: expenseId,
+      userId: activeUserId,
+      date: txDate,
       title: expense.title,
       amount: Number(expense.amount),
       category: expense.category,
       notes: expense.notes || null,
-    }).catch((err) => console.warn("Could not sync expense to server:", err));
+    };
+    localDomainRepo.saveExpenseEntry(expensePayload).catch(() => {});
+
+    if (!isGuestUser) {
+      saveExpenseEntry(expensePayload)
+        .then((res) => {
+          if (!res?.success) throw new Error(res?.error);
+        })
+        .catch(() => {
+          localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "expense_entry",
+              entityId: expenseId,
+              action: "create",
+              payload: expensePayload,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(5000))
+            .catch(() => {});
+        });
+    }
     showToast(`تم تسجيل مصروف بقيمة ${expense.amount} ر.س 💳`, "success");
   };
 
   const deleteExpense = (id) => {
-    setExpensesData((prev) => ({
-      ...prev,
-      transactions: prev.transactions.filter((t) => t.id !== id),
-    }));
-    deleteExpenseEntry(String(id)).catch((err) => console.warn("Could not delete expense from server:", err));
+    const targetId = String(id);
+    const today = getLocalDateString();
+
+    setExpensesData((prev) => {
+      const removed = prev.transactions.find((t) => String(t.id) === targetId);
+      const removedAmount = Number(removed?.amount || 0);
+      const isToday = removed?.date === today;
+
+      const updatedCats = prev.categories.map((c) => {
+        if (
+          removed &&
+          (c.name.includes(removed.category) || (removed.category || "").includes(c.name))
+        ) {
+          const newSpent = Math.max(0, c.spent - removedAmount);
+          return {
+            ...c,
+            spent: newSpent,
+            percent: Math.min(100, Math.round((newSpent / (c.budget || 1)) * 100)),
+          };
+        }
+        return c;
+      });
+
+      return {
+        ...prev,
+        transactions: prev.transactions.filter((t) => String(t.id) !== targetId),
+        todaySpent: isToday ? Math.max(0, prev.todaySpent - removedAmount) : prev.todaySpent,
+        monthlySpent: Math.max(0, prev.monthlySpent - removedAmount),
+        categories: updatedCats,
+      };
+    });
+
+    localDomainRepo.deleteExpenseEntry(targetId).catch(() => {});
+
+    if (!isGuestUser) {
+      deleteExpenseEntry(targetId)
+        .then((res) => {
+          if (!res?.success) throw new Error(res?.error);
+        })
+        .catch(() => {
+          localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "expense_entry",
+              entityId: targetId,
+              action: "delete",
+              payload: {},
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(5000))
+            .catch(() => {});
+        });
+    }
     showToast("تم حذف المصروف", "info");
   };
 
@@ -739,9 +1026,11 @@ export function AtharProvider({ children }) {
   };
 
   const addMeal = (meal) => {
+    const mealId = crypto.randomUUID();
+    const mealDate = selectedDate || getLocalDateString();
     setNutritionData((prev) => {
       const updatedMeals = [
-        { ...meal, id: `m_${Date.now()}` },
+        { ...meal, id: mealId, date: mealDate },
         ...prev.meals,
       ];
       return {
@@ -756,8 +1045,11 @@ export function AtharProvider({ children }) {
         }
       };
     });
-    saveMealEntry({
-      date: selectedDate,
+
+    const mealPayload = {
+      id: mealId,
+      userId: activeUserId,
+      date: mealDate,
       mealType: meal.mealType || "lunch",
       title: meal.name || meal.title || "وجبة",
       calories: Number(meal.calories) || 0,
@@ -765,7 +1057,32 @@ export function AtharProvider({ children }) {
       carbs: Number(meal.carbs) || 0,
       fat: Number(meal.fat) || 0,
       notes: meal.notes || null,
-    }).catch((err) => console.warn("Could not sync meal to server:", err));
+    };
+    localDomainRepo.saveMealEntry(mealPayload).catch(() => {});
+
+    if (!isGuestUser) {
+      saveMealEntry(mealPayload)
+        .then((res) => {
+          if (!res?.success) throw new Error(res?.error);
+        })
+        .catch(() => {
+          localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "meal_entry",
+              entityId: mealId,
+              action: "create",
+              payload: mealPayload,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(5000))
+            .catch(() => {});
+        });
+    }
     showToast("تم تسجيل الوجبة بنجاح 🥗", "success");
   };
 

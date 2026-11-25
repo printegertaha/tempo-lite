@@ -54,6 +54,7 @@ const ICON_MAP = {
 };
 
 export default function TrackerCard({
+  userId = "guest",
   tracker,
   index,
   totalCount,
@@ -291,6 +292,7 @@ export default function TrackerCard({
           </span>
           <div className="flex-1 flex sm:justify-end">
             <QuickLogControls
+              userId={userId}
               tracker={tracker}
               localDate={localDate}
               dailySummary={dailySummary}

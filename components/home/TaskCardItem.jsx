@@ -12,10 +12,9 @@ import {
   Copy,
   Trash2,
   Edit2,
-  ChevronDown,
-  ChevronUp,
   ListTree,
 } from "lucide-react";
+import TruncatedTaskTitle from "@/components/tasks/TruncatedTaskTitle";
 
 export default function TaskCardItem({
   task,
@@ -54,22 +53,17 @@ export default function TaskCardItem({
     URGENT: "قصوى",
   }[task.priority || "MEDIUM"];
 
-  // Handle long title safely
-  const isLongTitle = (task.title || "").length > 70;
-  const displayTitle =
-    isLongTitle && !isExpanded ? `${task.title.slice(0, 68)}...` : task.title;
-
   return (
-    <div
-      className={`group relative rounded-2xl border transition-all duration-150 p-3.5 sm:p-4 text-right space-y-2.5 ${
+    <article
+      className={`group relative rounded-2xl border transition-all duration-150 p-4 sm:p-5 text-right space-y-3 ${
         isCompleted
           ? "bg-zinc-950/40 border-zinc-850 opacity-60 line-through"
           : "bg-zinc-900/70 hover:bg-zinc-900 border-zinc-800 shadow-sm hover:border-zinc-750"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        {/* Right side: Checkbox & Title */}
-        <div className="flex items-start gap-3 flex-1 min-w-0">
+      <div className="flex items-start justify-between gap-2.5 min-w-0">
+        {/* Right side: Checkbox & Responsive Single-Line Title */}
+        <div className="flex items-start gap-2.5 flex-1 min-w-0">
           <button
             type="button"
             onClick={handleCheck}
@@ -84,34 +78,21 @@ export default function TaskCardItem({
           </button>
 
           <div className="flex-1 min-w-0 space-y-1">
-            <div className="flex items-start justify-between gap-2">
-              <span
-                onClick={() => isLongTitle && setIsExpanded(!isExpanded)}
-                className={`text-xs sm:text-sm font-semibold text-zinc-100 leading-snug break-words ${
-                  isLongTitle ? "cursor-pointer" : ""
+            <TruncatedTaskTitle
+              title={task.title}
+              isCompleted={isCompleted}
+              isExpanded={isExpanded}
+              onToggleExpand={() => setIsExpanded((prev) => !prev)}
+              size="sm"
+            />
+
+            {/* Description (1 compact line by default, expands with title) */}
+            {task.description && (
+              <p
+                className={`text-xs text-zinc-400 leading-relaxed ${
+                  isExpanded ? "whitespace-pre-wrap break-words" : "truncate"
                 }`}
               >
-                {displayTitle}
-              </span>
-
-              {isLongTitle && (
-                <button
-                  type="button"
-                  onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-zinc-500 hover:text-zinc-300 p-0.5 shrink-0"
-                >
-                  {isExpanded ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
-                  ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
-                  )}
-                </button>
-              )}
-            </div>
-
-            {/* Description if present and expanded */}
-            {task.description && (
-              <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">
                 {task.description}
               </p>
             )}
@@ -119,16 +100,16 @@ export default function TaskCardItem({
         </div>
 
         {/* Left side: Drag handle & Action Menu */}
-        <div className="flex items-center gap-1 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0">
           {/* Timer Trigger */}
           {onStartTimer && !isCompleted && (
             <button
               type="button"
               onClick={() => onStartTimer(task)}
-              className="p-1.5 rounded-xl bg-violet-600/10 hover:bg-violet-600/25 border border-violet-500/20 text-violet-300 hover:text-white transition-colors cursor-pointer"
+              className="p-2 rounded-xl bg-violet-600/10 hover:bg-violet-600/25 border border-violet-500/20 text-violet-300 hover:text-white transition-colors cursor-pointer"
               title="بدء مؤقت التركيز لهذه المهمة"
             >
-              <Play className="w-3.5 h-3.5 fill-violet-300" />
+              <Play className="w-4 h-4 fill-violet-300" />
             </button>
           )}
 
@@ -274,6 +255,6 @@ export default function TaskCardItem({
           </span>
         )}
       </div>
-    </div>
+    </article>
   );
 }

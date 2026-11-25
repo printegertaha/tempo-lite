@@ -56,6 +56,13 @@ export default function GuestImportModal() {
       if (res.success) {
         // Safe: only clear guest data AFTER server confirmed atomic transaction success
         await localGuestManager.clearGuestData();
+        if (typeof window !== "undefined") {
+          // Clear legacy guest domain storage only after verified import
+          localStorage.removeItem("athar_expenses");
+          localStorage.removeItem("athar_nutrition");
+          localStorage.removeItem("athar_gym");
+          localStorage.removeItem("athar_state_v1");
+        }
 
         setIsSuccess(true);
         soundManager.playTaskDone();
@@ -167,6 +174,24 @@ export default function GuestImportModal() {
                   <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
                     <Wallet className="w-4 h-4 text-amber-400" />
                     <span>{summary.expensesCount} حركة مصروفات</span>
+                  </div>
+                )}
+                {summary.trackersCount > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
+                    <Sparkles className="w-4 h-4 text-emerald-400" />
+                    <span>{summary.trackersCount} عادة / متعقب</span>
+                  </div>
+                )}
+                {summary.entriesCount > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
+                    <CheckCircle2 className="w-4 h-4 text-sky-400" />
+                    <span>{summary.entriesCount} تسجيل عادة</span>
+                  </div>
+                )}
+                {summary.mealsCount > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
+                    <ArrowRight className="w-4 h-4 text-lime-400" />
+                    <span>{summary.mealsCount} وجبة</span>
                   </div>
                 )}
                 {summary.abstinenceCount > 0 && (

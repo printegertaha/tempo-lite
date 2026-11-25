@@ -10,6 +10,7 @@ export const SyncBatchMutationSchema = z.object({
     "tracker_entry",
     "daily_note",
     "abstinence",
+    "abstinence_session",
     "life_area",
     "gym_workout",
     "meal_entry",
@@ -35,12 +36,35 @@ export interface SyncBatchResultItem {
   status: "applied" | "duplicate" | "conflict" | "error";
   serverVersion?: number;
   error?: string;
+  permanent?: boolean;
 }
 
 export interface SyncBatchResponse {
   success: boolean;
   results: SyncBatchResultItem[];
   serverTimestamp: number;
+}
+
+const PERMANENT_ERROR_CODES = new Set([
+  "FORBIDDEN_ENTITY_ID",
+  "NOT_FOUND_OR_UNAUTHORIZED",
+  "UNSUPPORTED_ENTITY_TYPE",
+  "UNSUPPORTED_ACTION",
+  "MISSING_REQUIRED_FIELD",
+]);
+
+function parseOptionalDate(val: unknown): Date | null {
+  if (!val) return null;
+  const d = new Date(val as any);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+class PermanentSyncError extends Error {
+  code: string;
+  constructor(code: string, message?: string) {
+    super(message || code);
+    this.code = code;
+  }
 }
 
 export async function processSyncBatch(
@@ -54,6 +78,14 @@ export async function processSyncBatch(
 
   const { mutations } = parsed.data;
   const results: SyncBatchResultItem[] = [];
+
+  if (mutations.length === 0) {
+    return {
+      success: true,
+      results,
+      serverTimestamp: Date.now(),
+    };
+  }
 
   // Check idempotency first: find which mutations were already executed
   const existingReceipts = await prisma.mutationReceipt.findMany({
@@ -87,83 +119,123 @@ export async function processSyncBatch(
     };
   }
 
-  // Execute remaining mutations inside a single atomic Prisma transaction
-  await prisma.$transaction(async (tx) => {
-    for (const mut of pendingToApply) {
-      try {
+  // Execute each mutation inside its OWN atomic transaction so one failure
+  // never aborts PostgreSQL's transaction state (25P02) for other valid mutations.
+  for (const mut of pendingToApply) {
+    try {
+      const itemResult = await prisma.$transaction(async (tx) => {
+        // Double-check receipt inside transaction for concurrent batch race protection
+        const receiptExists = await tx.mutationReceipt.findFirst({
+          where: { id: mut.mutationId },
+          select: { id: true, userId: true },
+        });
+        if (receiptExists) {
+          if (receiptExists.userId !== userId) {
+            throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+          }
+          return {
+            mutationId: mut.mutationId,
+            entityId: mut.entityId,
+            status: "duplicate" as const,
+          };
+        }
+
+        let serverVersion: number | undefined;
+
         if (mut.entityType === "task") {
           if (mut.action === "create") {
-            const task = await tx.task.upsert({
+            const existingOwner = await tx.task.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                title: mut.payload.title || "مهمة جديدة",
-                description: mut.payload.description || null,
-                dueDate: mut.payload.dueDate || null,
-                startTime: mut.payload.startTime || null,
-                durationMinutes: mut.payload.durationMinutes || null,
-                priority: mut.payload.priority || "MEDIUM",
-                status: mut.payload.status || "TODO",
-                completedAt: mut.payload.status === "COMPLETED" ? new Date() : null,
-                isPomodoro: Boolean(mut.payload.isPomodoro),
-                workCycle: mut.payload.workCycle ?? 25,
-                breakCycle: mut.payload.breakCycle ?? 5,
-                isRecurring: Boolean(mut.payload.isRecurring),
-                subtasks: mut.payload.subtasks ?? [],
-                tags: mut.payload.tags ?? [],
-                sortOrder: mut.payload.sortOrder ?? 0,
-                version: (mut.payload.version ?? 1) + 1,
-                lifeAreaId: mut.payload.lifeAreaId || null,
-                trackerId: mut.payload.trackerId || null,
-              },
-              update: {
-                // If it already existed, update safely
-                title: mut.payload.title,
-                description: mut.payload.description,
-                dueDate: mut.payload.dueDate,
-                startTime: mut.payload.startTime,
-                durationMinutes: mut.payload.durationMinutes,
-                priority: mut.payload.priority,
-                status: mut.payload.status,
-                completedAt: mut.payload.completedAt ? new Date(mut.payload.completedAt) : null,
-                isPomodoro: mut.payload.isPomodoro,
-                workCycle: mut.payload.workCycle,
-                breakCycle: mut.payload.breakCycle,
-                isRecurring: mut.payload.isRecurring,
-                subtasks: mut.payload.subtasks,
-                tags: mut.payload.tags,
-                sortOrder: mut.payload.sortOrder,
-                version: { increment: 1 },
-              },
+              select: { id: true, userId: true },
             });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
 
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-              serverVersion: task.version,
-            });
+            // Validate optional FKs safely
+            let safeLifeAreaId: string | null = mut.payload.lifeAreaId || null;
+            if (safeLifeAreaId) {
+              const area = await tx.lifeArea.findFirst({
+                where: { id: safeLifeAreaId, userId },
+                select: { id: true },
+              });
+              if (!area) safeLifeAreaId = null;
+            }
+
+            let safeTrackerId: string | null = mut.payload.trackerId || null;
+            if (safeTrackerId) {
+              const trk = await tx.tracker.findFirst({
+                where: { id: safeTrackerId, userId },
+                select: { id: true },
+              });
+              if (!trk) safeTrackerId = null;
+            }
+
+            const status = mut.payload.status || "TODO";
+            const completedAt =
+              status === "COMPLETED"
+                ? parseOptionalDate(mut.payload.completedAt) || new Date()
+                : null;
+
+            const task = existingOwner
+              ? await tx.task.update({
+                  where: { id: mut.entityId },
+                  data: {
+                    title: mut.payload.title || "مهمة جديدة",
+                    description: mut.payload.description ?? null,
+                    dueDate: mut.payload.dueDate ?? null,
+                    startTime: mut.payload.startTime ?? null,
+                    durationMinutes: mut.payload.durationMinutes ?? null,
+                    priority: mut.payload.priority || "MEDIUM",
+                    status,
+                    completedAt,
+                    isPomodoro: Boolean(mut.payload.isPomodoro),
+                    workCycle: mut.payload.workCycle ?? 25,
+                    breakCycle: mut.payload.breakCycle ?? 5,
+                    isRecurring: Boolean(mut.payload.isRecurring),
+                    subtasks: mut.payload.subtasks ?? [],
+                    tags: mut.payload.tags ?? [],
+                    sortOrder: mut.payload.sortOrder ?? 0,
+                    lifeAreaId: safeLifeAreaId,
+                    trackerId: safeTrackerId,
+                    version: { increment: 1 },
+                  },
+                })
+              : await tx.task.create({
+                  data: {
+                    id: mut.entityId,
+                    userId,
+                    title: mut.payload.title || "مهمة جديدة",
+                    description: mut.payload.description ?? null,
+                    dueDate: mut.payload.dueDate ?? null,
+                    startTime: mut.payload.startTime ?? null,
+                    durationMinutes: mut.payload.durationMinutes ?? null,
+                    priority: mut.payload.priority || "MEDIUM",
+                    status,
+                    completedAt,
+                    isPomodoro: Boolean(mut.payload.isPomodoro),
+                    workCycle: mut.payload.workCycle ?? 25,
+                    breakCycle: mut.payload.breakCycle ?? 5,
+                    isRecurring: Boolean(mut.payload.isRecurring),
+                    subtasks: mut.payload.subtasks ?? [],
+                    tags: mut.payload.tags ?? [],
+                    sortOrder: mut.payload.sortOrder ?? 0,
+                    version: (mut.payload.version ?? 1) + 1,
+                    lifeAreaId: safeLifeAreaId,
+                    trackerId: safeTrackerId,
+                  },
+                });
+            serverVersion = task.version;
           } else if (mut.action === "update") {
-            // Verify ownership
             const existing = await tx.task.findFirst({
               where: { id: mut.entityId, userId },
               select: { id: true, version: true },
             });
-
             if (!existing) {
-              results.push({
-                mutationId: mut.mutationId,
-                entityId: mut.entityId,
-                status: "error",
-                error: "NOT_FOUND_OR_UNAUTHORIZED",
-              });
-              continue;
+              throw new PermanentSyncError("NOT_FOUND_OR_UNAUTHORIZED");
             }
 
-            const updateData: any = {
-              version: { increment: 1 },
-            };
+            const updateData: any = { version: { increment: 1 } };
             if (mut.payload.title !== undefined) updateData.title = mut.payload.title;
             if (mut.payload.description !== undefined) updateData.description = mut.payload.description;
             if (mut.payload.dueDate !== undefined) updateData.dueDate = mut.payload.dueDate;
@@ -172,7 +244,32 @@ export async function processSyncBatch(
             if (mut.payload.priority !== undefined) updateData.priority = mut.payload.priority;
             if (mut.payload.status !== undefined) {
               updateData.status = mut.payload.status;
-              updateData.completedAt = mut.payload.status === "COMPLETED" ? new Date() : null;
+              updateData.completedAt =
+                mut.payload.status === "COMPLETED"
+                  ? parseOptionalDate(mut.payload.completedAt) || new Date()
+                  : null;
+            }
+            if (mut.payload.lifeAreaId !== undefined) {
+              if (mut.payload.lifeAreaId) {
+                const area = await tx.lifeArea.findFirst({
+                  where: { id: mut.payload.lifeAreaId, userId },
+                  select: { id: true },
+                });
+                updateData.lifeAreaId = area ? area.id : null;
+              } else {
+                updateData.lifeAreaId = null;
+              }
+            }
+            if (mut.payload.trackerId !== undefined) {
+              if (mut.payload.trackerId) {
+                const trk = await tx.tracker.findFirst({
+                  where: { id: mut.payload.trackerId, userId },
+                  select: { id: true },
+                });
+                updateData.trackerId = trk ? trk.id : null;
+              } else {
+                updateData.trackerId = null;
+              }
             }
             if (mut.payload.isPomodoro !== undefined) updateData.isPomodoro = mut.payload.isPomodoro;
             if (mut.payload.workCycle !== undefined) updateData.workCycle = mut.payload.workCycle;
@@ -183,32 +280,25 @@ export async function processSyncBatch(
             if (mut.payload.sortOrder !== undefined) updateData.sortOrder = mut.payload.sortOrder;
             if (mut.payload.isArchived !== undefined) {
               updateData.isArchived = mut.payload.isArchived;
-              updateData.archivedAt = mut.payload.isArchived ? new Date() : null;
+              updateData.archivedAt = mut.payload.isArchived
+                ? parseOptionalDate(mut.payload.archivedAt) || new Date()
+                : null;
             }
 
             const updated = await tx.task.update({
               where: { id: mut.entityId },
               data: updateData,
             });
-
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-              serverVersion: updated.version,
-            });
+            serverVersion = updated.version;
           } else if (mut.action === "delete") {
             await tx.task.deleteMany({
               where: { id: mut.entityId, userId },
             });
-
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "daily_note") {
+          if (!mut.payload.localDate) {
+            throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "localDate required");
+          }
           if (mut.action === "create" || mut.action === "update") {
             await tx.dailyNote.upsert({
               where: {
@@ -220,297 +310,392 @@ export async function processSyncBatch(
               create: {
                 userId,
                 localDate: mut.payload.localDate,
+                title: mut.payload.title ?? null,
                 content: mut.payload.content || "",
-                mood: mut.payload.mood || null,
+                mood: mut.payload.mood ?? null,
                 tags: mut.payload.tags || [],
               },
               update: {
-                content: mut.payload.content,
-                mood: mut.payload.mood,
-                tags: mut.payload.tags,
+                ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
+                content: mut.payload.content ?? "",
+                ...(mut.payload.mood !== undefined ? { mood: mut.payload.mood } : {}),
+                ...(mut.payload.tags !== undefined ? { tags: mut.payload.tags } : {}),
               },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
+          } else if (mut.action === "delete") {
+            await tx.dailyNote.deleteMany({
+              where: { userId, localDate: mut.payload.localDate },
             });
           }
         } else if (mut.entityType === "tracker_entry") {
-          if (mut.action === "create") {
-            await tx.trackerEntry.create({
-              data: {
-                id: mut.entityId,
-                userId,
-                trackerId: mut.payload.trackerId,
-                localDate: mut.payload.localDate,
-                occurredAt: mut.payload.occurredAt ? new Date(mut.payload.occurredAt) : new Date(),
-                valueBoolean: mut.payload.valueBoolean ?? null,
-                valueNumeric: mut.payload.valueNumeric ?? null,
-                valueDuration: mut.payload.valueDuration ?? null,
-                entryPayload: mut.payload.entryPayload ?? null,
-                notes: mut.payload.notes ?? null,
-              },
+          if (mut.action === "create" || mut.action === "update") {
+            const existingOwner = await tx.trackerEntry.findUnique({
+              where: { id: mut.entityId },
+              select: { id: true, userId: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+
+            if (mut.action === "create" || !existingOwner) {
+              if (!mut.payload.trackerId || !mut.payload.localDate) {
+                throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "trackerId and localDate required");
+              }
+              const tracker = await tx.tracker.findFirst({
+                where: { id: mut.payload.trackerId, userId },
+                select: { id: true, version: true },
+              });
+              if (!tracker) {
+                throw new PermanentSyncError("NOT_FOUND_OR_UNAUTHORIZED", "Tracker not found");
+              }
+
+              await tx.trackerEntry.upsert({
+                where: { id: mut.entityId },
+                create: {
+                  id: mut.entityId,
+                  userId,
+                  trackerId: mut.payload.trackerId,
+                  localDate: mut.payload.localDate,
+                  occurredAt: parseOptionalDate(mut.payload.occurredAt) || new Date(),
+                  valueBoolean: mut.payload.valueBoolean ?? null,
+                  valueNumeric: mut.payload.valueNumeric ?? null,
+                  valueDuration: mut.payload.valueDuration ?? null,
+                  timeRangeStart: parseOptionalDate(mut.payload.timeRangeStart),
+                  timeRangeEnd: parseOptionalDate(mut.payload.timeRangeEnd),
+                  entryPayload: mut.payload.entryPayload ?? undefined,
+                  notes: mut.payload.notes ?? null,
+                  trackerVersion: mut.payload.trackerVersion ?? tracker.version,
+                },
+                update: {
+                  occurredAt: parseOptionalDate(mut.payload.occurredAt) || new Date(),
+                  valueBoolean: mut.payload.valueBoolean ?? null,
+                  valueNumeric: mut.payload.valueNumeric ?? null,
+                  valueDuration: mut.payload.valueDuration ?? null,
+                  timeRangeStart: parseOptionalDate(mut.payload.timeRangeStart),
+                  timeRangeEnd: parseOptionalDate(mut.payload.timeRangeEnd),
+                  entryPayload: mut.payload.entryPayload ?? undefined,
+                  notes: mut.payload.notes ?? null,
+                },
+              });
+            } else {
+              await tx.trackerEntry.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.valueBoolean !== undefined ? { valueBoolean: mut.payload.valueBoolean } : {}),
+                  ...(mut.payload.valueNumeric !== undefined ? { valueNumeric: mut.payload.valueNumeric } : {}),
+                  ...(mut.payload.valueDuration !== undefined ? { valueDuration: mut.payload.valueDuration } : {}),
+                  ...(mut.payload.entryPayload !== undefined ? { entryPayload: mut.payload.entryPayload } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                  occurredAt: parseOptionalDate(mut.payload.occurredAt) || new Date(),
+                },
+              });
+            }
           } else if (mut.action === "delete") {
             await tx.trackerEntry.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "gym_workout") {
           if (mut.action === "create" || mut.action === "update") {
-            await tx.gymWorkout.upsert({
+            const existingOwner = await tx.gymWorkout.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                date: mut.payload.date,
-                title: mut.payload.title || "تمرين رياضي",
-                muscleGroup: mut.payload.muscleGroup || null,
-                durationMinutes: mut.payload.durationMinutes || 60,
-                exercises: mut.payload.exercises || [],
-                notes: mut.payload.notes || null,
-              },
-              update: {
-                date: mut.payload.date,
-                title: mut.payload.title,
-                muscleGroup: mut.payload.muscleGroup,
-                durationMinutes: mut.payload.durationMinutes,
-                exercises: mut.payload.exercises,
-                notes: mut.payload.notes,
-              },
+              select: { id: true, userId: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (existingOwner) {
+              await tx.gymWorkout.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
+                  ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
+                  ...(mut.payload.muscleGroup !== undefined ? { muscleGroup: mut.payload.muscleGroup } : {}),
+                  ...(mut.payload.durationMinutes !== undefined ? { durationMinutes: mut.payload.durationMinutes } : {}),
+                  ...(mut.payload.exercises !== undefined ? { exercises: mut.payload.exercises } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                },
+              });
+            } else {
+              await tx.gymWorkout.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  date: mut.payload.date || new Date().toISOString().split("T")[0],
+                  title: mut.payload.title || "تمرين رياضي",
+                  muscleGroup: mut.payload.muscleGroup || null,
+                  durationMinutes: mut.payload.durationMinutes || 60,
+                  exercises: mut.payload.exercises || [],
+                  notes: mut.payload.notes || null,
+                },
+              });
+            }
           } else if (mut.action === "delete") {
             await tx.gymWorkout.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "meal_entry") {
           if (mut.action === "create" || mut.action === "update") {
-            await tx.mealEntry.upsert({
+            const existingOwner = await tx.mealEntry.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                date: mut.payload.date,
-                mealType: mut.payload.mealType || "lunch",
-                title: mut.payload.title || "وجبة",
-                calories: mut.payload.calories || 0,
-                protein: mut.payload.protein || 0,
-                carbs: mut.payload.carbs || 0,
-                fat: mut.payload.fat || 0,
-                notes: mut.payload.notes || null,
-              },
-              update: {
-                date: mut.payload.date,
-                mealType: mut.payload.mealType,
-                title: mut.payload.title,
-                calories: mut.payload.calories,
-                protein: mut.payload.protein,
-                carbs: mut.payload.carbs,
-                fat: mut.payload.fat,
-                notes: mut.payload.notes,
-              },
+              select: { id: true, userId: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (existingOwner) {
+              await tx.mealEntry.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
+                  ...(mut.payload.mealType !== undefined ? { mealType: mut.payload.mealType } : {}),
+                  ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
+                  ...(mut.payload.calories !== undefined ? { calories: Number(mut.payload.calories) || 0 } : {}),
+                  ...(mut.payload.protein !== undefined ? { protein: Number(mut.payload.protein) || 0 } : {}),
+                  ...(mut.payload.carbs !== undefined ? { carbs: Number(mut.payload.carbs) || 0 } : {}),
+                  ...(mut.payload.fat !== undefined ? { fat: Number(mut.payload.fat) || 0 } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                },
+              });
+            } else {
+              await tx.mealEntry.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  date: mut.payload.date || new Date().toISOString().split("T")[0],
+                  mealType: mut.payload.mealType || "lunch",
+                  title: mut.payload.title || "وجبة",
+                  calories: Number(mut.payload.calories) || 0,
+                  protein: Number(mut.payload.protein) || 0,
+                  carbs: Number(mut.payload.carbs) || 0,
+                  fat: Number(mut.payload.fat) || 0,
+                  notes: mut.payload.notes || null,
+                },
+              });
+            }
           } else if (mut.action === "delete") {
             await tx.mealEntry.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "expense_entry") {
           if (mut.action === "create" || mut.action === "update") {
-            await tx.expenseEntry.upsert({
+            const existingOwner = await tx.expenseEntry.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                date: mut.payload.date,
-                title: mut.payload.title || "مصروف",
-                amount: mut.payload.amount || 0,
-                category: mut.payload.category || "عام",
-                notes: mut.payload.notes || null,
-              },
-              update: {
-                date: mut.payload.date,
-                title: mut.payload.title,
-                amount: mut.payload.amount,
-                category: mut.payload.category,
-                notes: mut.payload.notes,
-              },
+              select: { id: true, userId: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (existingOwner) {
+              await tx.expenseEntry.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
+                  ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
+                  ...(mut.payload.amount !== undefined ? { amount: Number(mut.payload.amount) || 0 } : {}),
+                  ...(mut.payload.category !== undefined ? { category: mut.payload.category } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                },
+              });
+            } else {
+              await tx.expenseEntry.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  date: mut.payload.date || new Date().toISOString().split("T")[0],
+                  title: mut.payload.title || "مصروف",
+                  amount: Number(mut.payload.amount) || 0,
+                  category: mut.payload.category || "عام",
+                  notes: mut.payload.notes || null,
+                },
+              });
+            }
           } else if (mut.action === "delete") {
             await tx.expenseEntry.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "tracker") {
           if (mut.action === "create" || mut.action === "update") {
-            const rawSlug = mut.payload.slug || slugify(mut.payload.name || `tracker-${mut.entityId}`);
-            const tracker = await tx.tracker.upsert({
+            const existingOwner = await tx.tracker.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                lifeAreaId: mut.payload.lifeAreaId || null,
-                name: mut.payload.name || "عادة جديدة",
-                slug: rawSlug,
-                description: mut.payload.description || null,
-                icon: mut.payload.icon || "Flame",
-                color: mut.payload.color || "emerald",
-                priority: mut.payload.priority ?? 1,
-                metricType: mut.payload.metricType || "BOOLEAN",
-                unit: mut.payload.unit || null,
-                targetValue: mut.payload.targetValue ?? null,
-                targetFrequency: mut.payload.targetFrequency || "DAILY",
-                scheduleConfig: mut.payload.scheduleConfig ?? {},
-                trackerConfig: mut.payload.trackerConfig ?? {},
-                displayPreferences: mut.payload.displayPreferences ?? {},
-                sortOrder: mut.payload.sortOrder ?? 0,
-                version: (mut.payload.version ?? 1) + 1,
-                isPaused: Boolean(mut.payload.isPaused),
-                isArchived: Boolean(mut.payload.isArchived),
-              },
-              update: {
-                name: mut.payload.name,
-                description: mut.payload.description,
-                icon: mut.payload.icon,
-                color: mut.payload.color,
-                priority: mut.payload.priority,
-                unit: mut.payload.unit,
-                targetValue: mut.payload.targetValue,
-                targetFrequency: mut.payload.targetFrequency,
-                scheduleConfig: mut.payload.scheduleConfig,
-                trackerConfig: mut.payload.trackerConfig,
-                displayPreferences: mut.payload.displayPreferences,
-                sortOrder: mut.payload.sortOrder,
-                isPaused: mut.payload.isPaused,
-                isArchived: mut.payload.isArchived,
-                version: { increment: 1 },
-              },
+              select: { id: true, userId: true, version: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-              serverVersion: tracker.version,
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+
+            if (existingOwner) {
+              const tracker = await tx.tracker.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.name !== undefined ? { name: mut.payload.name } : {}),
+                  ...(mut.payload.description !== undefined ? { description: mut.payload.description } : {}),
+                  ...(mut.payload.icon !== undefined ? { icon: mut.payload.icon } : {}),
+                  ...(mut.payload.color !== undefined ? { color: mut.payload.color } : {}),
+                  ...(mut.payload.priority !== undefined ? { priority: mut.payload.priority } : {}),
+                  ...(mut.payload.unit !== undefined ? { unit: mut.payload.unit } : {}),
+                  ...(mut.payload.targetValue !== undefined ? { targetValue: mut.payload.targetValue } : {}),
+                  ...(mut.payload.targetFrequency !== undefined ? { targetFrequency: mut.payload.targetFrequency } : {}),
+                  ...(mut.payload.scheduleConfig !== undefined ? { scheduleConfig: mut.payload.scheduleConfig } : {}),
+                  ...(mut.payload.trackerConfig !== undefined ? { trackerConfig: mut.payload.trackerConfig } : {}),
+                  ...(mut.payload.displayPreferences !== undefined ? { displayPreferences: mut.payload.displayPreferences } : {}),
+                  ...(mut.payload.sortOrder !== undefined ? { sortOrder: mut.payload.sortOrder } : {}),
+                  ...(mut.payload.isPaused !== undefined ? { isPaused: mut.payload.isPaused } : {}),
+                  ...(mut.payload.isArchived !== undefined ? { isArchived: mut.payload.isArchived } : {}),
+                  version: { increment: 1 },
+                },
+              });
+              serverVersion = tracker.version;
+            } else {
+              // Ensure slug uniqueness per user
+              const baseSlug = mut.payload.slug || slugify(mut.payload.name || `tracker-${mut.entityId}`);
+              let finalSlug = baseSlug;
+              let slugCounter = 1;
+              while (
+                await tx.tracker.findUnique({
+                  where: { userId_slug: { userId, slug: finalSlug } },
+                  select: { id: true },
+                })
+              ) {
+                slugCounter++;
+                finalSlug = `${baseSlug}-${slugCounter}`;
+              }
+
+              let safeLifeAreaId: string | null = mut.payload.lifeAreaId || null;
+              if (safeLifeAreaId) {
+                const area = await tx.lifeArea.findFirst({
+                  where: { id: safeLifeAreaId, userId },
+                  select: { id: true },
+                });
+                if (!area) safeLifeAreaId = null;
+              }
+
+              const tracker = await tx.tracker.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  lifeAreaId: safeLifeAreaId,
+                  name: mut.payload.name || "عادة جديدة",
+                  slug: finalSlug,
+                  description: mut.payload.description || null,
+                  icon: mut.payload.icon || "Flame",
+                  color: mut.payload.color || "emerald",
+                  priority: mut.payload.priority ?? 1,
+                  metricType: mut.payload.metricType || "BOOLEAN",
+                  unit: mut.payload.unit || null,
+                  targetValue: mut.payload.targetValue ?? null,
+                  targetFrequency: mut.payload.targetFrequency || "DAILY",
+                  scheduleConfig: mut.payload.scheduleConfig ?? {},
+                  trackerConfig: mut.payload.trackerConfig ?? {},
+                  displayPreferences: mut.payload.displayPreferences ?? {},
+                  sortOrder: mut.payload.sortOrder ?? 0,
+                  version: (mut.payload.version ?? 1) + 1,
+                  isPaused: Boolean(mut.payload.isPaused),
+                  isArchived: Boolean(mut.payload.isArchived),
+                },
+              });
+              serverVersion = tracker.version;
+            }
           } else if (mut.action === "delete") {
             await tx.tracker.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "life_area") {
           if (mut.action === "create" || mut.action === "update") {
-            const rawSlug = mut.payload.slug || slugify(mut.payload.name || `area-${mut.entityId}`);
-            await tx.lifeArea.upsert({
+            const existingOwner = await tx.lifeArea.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                name: mut.payload.name || "تصنيف جديد",
-                slug: rawSlug,
-                description: mut.payload.description || null,
-                icon: mut.payload.icon || "Sparkles",
-                color: mut.payload.color || "violet",
-                priority: mut.payload.priority ?? 1,
-                sortOrder: mut.payload.sortOrder ?? 0,
-                hiddenOnDashboard: Boolean(mut.payload.hiddenOnDashboard),
-                isArchived: Boolean(mut.payload.isArchived),
-              },
-              update: {
-                name: mut.payload.name,
-                description: mut.payload.description,
-                icon: mut.payload.icon,
-                color: mut.payload.color,
-                priority: mut.payload.priority,
-                sortOrder: mut.payload.sortOrder,
-                hiddenOnDashboard: mut.payload.hiddenOnDashboard,
-                isArchived: mut.payload.isArchived,
-              },
+              select: { id: true, userId: true },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (existingOwner) {
+              await tx.lifeArea.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.name !== undefined ? { name: mut.payload.name } : {}),
+                  ...(mut.payload.description !== undefined ? { description: mut.payload.description } : {}),
+                  ...(mut.payload.icon !== undefined ? { icon: mut.payload.icon } : {}),
+                  ...(mut.payload.color !== undefined ? { color: mut.payload.color } : {}),
+                  ...(mut.payload.priority !== undefined ? { priority: mut.payload.priority } : {}),
+                  ...(mut.payload.sortOrder !== undefined ? { sortOrder: mut.payload.sortOrder } : {}),
+                  ...(mut.payload.hiddenOnDashboard !== undefined ? { hiddenOnDashboard: mut.payload.hiddenOnDashboard } : {}),
+                  ...(mut.payload.isArchived !== undefined ? { isArchived: mut.payload.isArchived } : {}),
+                },
+              });
+            } else {
+              const baseSlug = mut.payload.slug || slugify(mut.payload.name || `area-${mut.entityId}`);
+              let finalSlug = baseSlug;
+              let slugCounter = 1;
+              while (
+                await tx.lifeArea.findUnique({
+                  where: { userId_slug: { userId, slug: finalSlug } },
+                  select: { id: true },
+                })
+              ) {
+                slugCounter++;
+                finalSlug = `${baseSlug}-${slugCounter}`;
+              }
+              await tx.lifeArea.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  name: mut.payload.name || "تصنيف جديد",
+                  slug: finalSlug,
+                  description: mut.payload.description || null,
+                  icon: mut.payload.icon || "Sparkles",
+                  color: mut.payload.color || "violet",
+                  priority: mut.payload.priority ?? 1,
+                  sortOrder: mut.payload.sortOrder ?? 0,
+                  hiddenOnDashboard: Boolean(mut.payload.hiddenOnDashboard),
+                  isArchived: Boolean(mut.payload.isArchived),
+                },
+              });
+            }
           } else if (mut.action === "delete") {
             await tx.lifeArea.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else if (mut.entityType === "abstinence") {
           if (mut.action === "create" || mut.action === "update") {
-            await tx.abstinenceTracker.upsert({
+            const existingOwner = await tx.abstinenceTracker.findUnique({
               where: { id: mut.entityId },
-              create: {
-                id: mut.entityId,
-                userId,
-                name: mut.payload.name || "هدف امتناع",
-                description: mut.payload.description || null,
-                icon: mut.payload.icon || "ShieldCheck",
-                color: mut.payload.color || "rose",
-                targetDays: mut.payload.targetDays ?? null,
-                isArchived: Boolean(mut.payload.isArchived),
-              },
-              update: {
-                name: mut.payload.name,
-                description: mut.payload.description,
-                icon: mut.payload.icon,
-                color: mut.payload.color,
-                targetDays: mut.payload.targetDays,
-                isArchived: mut.payload.isArchived,
-              },
+              select: { id: true, userId: true },
             });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (existingOwner) {
+              await tx.abstinenceTracker.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.name !== undefined ? { name: mut.payload.name } : {}),
+                  ...(mut.payload.description !== undefined ? { description: mut.payload.description } : {}),
+                  ...(mut.payload.icon !== undefined ? { icon: mut.payload.icon } : {}),
+                  ...(mut.payload.color !== undefined ? { color: mut.payload.color } : {}),
+                  ...(mut.payload.targetDays !== undefined ? { targetDays: mut.payload.targetDays } : {}),
+                  ...(mut.payload.isArchived !== undefined ? { isArchived: mut.payload.isArchived } : {}),
+                },
+              });
+            } else {
+              await tx.abstinenceTracker.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  name: mut.payload.name || "هدف امتناع",
+                  description: mut.payload.description || null,
+                  icon: mut.payload.icon || "ShieldCheck",
+                  color: mut.payload.color || "rose",
+                  targetDays: mut.payload.targetDays ?? null,
+                  isArchived: Boolean(mut.payload.isArchived),
+                },
+              });
+            }
 
             if (mut.payload.startedAt) {
               const activeSession = await tx.abstinenceSession.findFirst({
@@ -521,29 +706,101 @@ export async function processSyncBatch(
                   data: {
                     abstinenceTrackerId: mut.entityId,
                     userId,
-                    startedAt: new Date(mut.payload.startedAt),
+                    startedAt: parseOptionalDate(mut.payload.startedAt) || new Date(),
                   },
                 });
               }
             }
-
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           } else if (mut.action === "delete") {
             await tx.abstinenceTracker.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
+          }
+        } else if (mut.entityType === "abstinence_session") {
+          const trackerId = mut.payload.abstinenceTrackerId || mut.payload.trackerId;
+          if (mut.action === "create" || mut.action === "update") {
+            if (!trackerId) {
+              throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "abstinenceTrackerId required");
+            }
+            const trackerOwner = await tx.abstinenceTracker.findFirst({
+              where: { id: trackerId, userId },
+              select: { id: true },
+            });
+            if (!trackerOwner) {
+              throw new PermanentSyncError("NOT_FOUND_OR_UNAUTHORIZED");
+            }
+
+            const existingOwner = await tx.abstinenceSession.findUnique({
+              where: { id: mut.entityId },
+              select: { id: true, userId: true },
+            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+
+            if (existingOwner) {
+              await tx.abstinenceSession.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.startedAt !== undefined
+                    ? { startedAt: parseOptionalDate(mut.payload.startedAt) || new Date() }
+                    : {}),
+                  ...(mut.payload.endedAt !== undefined
+                    ? { endedAt: parseOptionalDate(mut.payload.endedAt) }
+                    : {}),
+                  ...(mut.payload.durationSeconds !== undefined
+                    ? { durationSeconds: mut.payload.durationSeconds }
+                    : {}),
+                  ...(mut.payload.relapseReason !== undefined
+                    ? { relapseReason: mut.payload.relapseReason }
+                    : {}),
+                  ...(mut.payload.trigger !== undefined ? { trigger: mut.payload.trigger } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                },
+              });
+            } else {
+              // If opening a new active session (endedAt == null), close any lingering active session first
+              if (!mut.payload.endedAt) {
+                const lingering = await tx.abstinenceSession.findFirst({
+                  where: { abstinenceTrackerId: trackerId, userId, endedAt: null },
+                });
+                if (lingering) {
+                  const endTime = parseOptionalDate(mut.payload.startedAt) || new Date();
+                  const dur = Math.max(
+                    0,
+                    Math.floor((endTime.getTime() - lingering.startedAt.getTime()) / 1000)
+                  );
+                  await tx.abstinenceSession.update({
+                    where: { id: lingering.id },
+                    data: { endedAt: endTime, durationSeconds: dur },
+                  });
+                }
+              }
+
+              await tx.abstinenceSession.create({
+                data: {
+                  id: mut.entityId,
+                  abstinenceTrackerId: trackerId,
+                  userId,
+                  startedAt: parseOptionalDate(mut.payload.startedAt) || new Date(),
+                  endedAt: parseOptionalDate(mut.payload.endedAt),
+                  durationSeconds: mut.payload.durationSeconds ?? null,
+                  relapseReason: mut.payload.relapseReason ?? null,
+                  trigger: mut.payload.trigger ?? null,
+                  notes: mut.payload.notes ?? null,
+                },
+              });
+            }
+          } else if (mut.action === "delete") {
+            await tx.abstinenceSession.deleteMany({
+              where: { id: mut.entityId, userId },
             });
           }
         } else if (mut.entityType === "prayer_record") {
           if (mut.action === "create" || mut.action === "update") {
+            if (!mut.payload.date || !mut.payload.prayerKey) {
+              throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "date and prayerKey required");
+            }
             await tx.prayerRecord.upsert({
               where: {
                 userId_date_prayerKey: {
@@ -553,76 +810,90 @@ export async function processSyncBatch(
                 },
               },
               create: {
-                id: mut.entityId,
                 userId,
                 date: mut.payload.date,
                 prayerKey: mut.payload.prayerKey,
                 isCompleted: Boolean(mut.payload.isCompleted),
-                completedAt: mut.payload.isCompleted ? new Date() : null,
+                completedAt: mut.payload.isCompleted
+                  ? parseOptionalDate(mut.payload.completedAt) || new Date()
+                  : null,
                 location: mut.payload.location || null,
                 withSunnah: Boolean(mut.payload.withSunnah),
                 notes: mut.payload.notes || null,
               },
               update: {
-                isCompleted: mut.payload.isCompleted,
-                completedAt: mut.payload.isCompleted ? new Date() : null,
-                location: mut.payload.location,
-                withSunnah: mut.payload.withSunnah,
-                notes: mut.payload.notes,
+                isCompleted: Boolean(mut.payload.isCompleted),
+                completedAt: mut.payload.isCompleted
+                  ? parseOptionalDate(mut.payload.completedAt) || new Date()
+                  : null,
+                ...(mut.payload.location !== undefined ? { location: mut.payload.location } : {}),
+                ...(mut.payload.withSunnah !== undefined ? { withSunnah: Boolean(mut.payload.withSunnah) } : {}),
+                ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
               },
-            });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
             });
           } else if (mut.action === "delete") {
             await tx.prayerRecord.deleteMany({
               where: { id: mut.entityId, userId },
             });
-            results.push({
-              mutationId: mut.mutationId,
-              entityId: mut.entityId,
-              status: "applied",
-            });
           }
         } else {
-          // Unsupported or unknown entity type
+          throw new PermanentSyncError(
+            "UNSUPPORTED_ENTITY_TYPE",
+            `UNSUPPORTED_ENTITY_TYPE: ${mut.entityType}`
+          );
+        }
+
+        // Write MutationReceipt atomically inside the SAME transaction
+        await tx.mutationReceipt.create({
+          data: {
+            id: mut.mutationId,
+            userId,
+            entityType: mut.entityType,
+            entityId: mut.entityId,
+            action: mut.action,
+          },
+        });
+
+        return {
+          mutationId: mut.mutationId,
+          entityId: mut.entityId,
+          status: "applied" as const,
+          ...(serverVersion !== undefined ? { serverVersion } : {}),
+        };
+      });
+
+      results.push(itemResult);
+    } catch (err: any) {
+      // Handle race condition where another concurrent request committed the same mutationId
+      if (err?.code === "P2002") {
+        const existingReceipt = await prisma.mutationReceipt
+          .findFirst({ where: { id: mut.mutationId, userId }, select: { id: true } })
+          .catch(() => null);
+        if (existingReceipt) {
           results.push({
             mutationId: mut.mutationId,
             entityId: mut.entityId,
-            status: "error",
-            error: `UNSUPPORTED_ENTITY_TYPE: ${mut.entityType}`,
+            status: "duplicate",
           });
+          continue;
         }
-
-        // Record Mutation Receipt for idempotency ONLY IF applied successfully
-        const isApplied = results.some(
-          (r) => r.mutationId === mut.mutationId && r.status === "applied"
-        );
-
-        if (isApplied) {
-          await tx.mutationReceipt.create({
-            data: {
-              id: mut.mutationId,
-              userId,
-              entityType: mut.entityType,
-              entityId: mut.entityId,
-              action: mut.action,
-            },
-          });
-        }
-      } catch (err: any) {
-        console.error(`Error processing mutation ${mut.mutationId}:`, err);
-        results.push({
-          mutationId: mut.mutationId,
-          entityId: mut.entityId,
-          status: "error",
-          error: err?.message || "TRANSACTION_MUTATION_FAILED",
-        });
       }
+
+      const isPermanent =
+        err instanceof PermanentSyncError ||
+        PERMANENT_ERROR_CODES.has(err?.code) ||
+        PERMANENT_ERROR_CODES.has(err?.message);
+
+      console.error(`Error processing mutation ${mut.mutationId} (${mut.entityType}:${mut.action}):`, err);
+      results.push({
+        mutationId: mut.mutationId,
+        entityId: mut.entityId,
+        status: "error",
+        error: err?.message || "TRANSACTION_MUTATION_FAILED",
+        permanent: isPermanent,
+      });
     }
-  });
+  }
 
   return {
     success: true,

@@ -1,6 +1,12 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { auth } from "./auth";
+import { auth, authConfig } from "./auth";
+import {
+  classifyAuthError,
+  emitAuthDiagnostic,
+  generateReferenceId,
+  generateRequestId,
+} from "./auth-diagnostics";
 
 export interface AuthSessionResult {
   user: {
@@ -32,7 +38,7 @@ export async function getServerSession(): Promise<AuthSessionResult | null> {
   try {
     const reqHeaders = await headers();
     const cookieHeader = reqHeaders.get("cookie") || "";
-    const cookieKeys = cookieHeader.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
+    const hasSessionCookie = cookieHeader.includes("better-auth.session_token");
     const host = reqHeaders.get("host") || "unknown";
 
     const session = await auth.api.getSession({
@@ -40,23 +46,61 @@ export async function getServerSession(): Promise<AuthSessionResult | null> {
     });
 
     if (!session || !session.user) {
-      if (cookieKeys.length > 0) {
-        console.log(`🔎 [SERVER_SESSION] Host: ${host} | Cookies present: [${cookieKeys.join(", ")}] | Better Auth Result: NO_SESSION_FOUND`);
+      if (hasSessionCookie && authConfig.isDevelopment) {
+        emitAuthDiagnostic({
+          timestamp: new Date().toISOString(),
+          requestId: generateRequestId(),
+          referenceId: generateReferenceId(),
+          environment: authConfig.environment,
+          provider: "session",
+          stage: "AUTH_SESSION_VALIDATION_FAILED",
+          route: "RSC:getServerSession",
+          method: "INTERNAL",
+          safeErrorCode: "session_not_found_with_cookie",
+          category: "COOKIE_BROWSER_ERROR",
+          safeErrorMessage:
+            "Session cookie was present on request, but Better Auth returned no valid session.",
+          metadata: { host, hasSessionCookie: true },
+        });
       }
       return null;
     }
 
-    console.log(`✅ [SERVER_SESSION] Host: ${host} | User: ${session.user.email} (${session.user.id}) | Valid Session`);
     return session as unknown as AuthSessionResult;
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const errAny = error as { digest?: string; message?: string };
     if (
-      error?.digest === "HANGING_PROMISE_REJECTION" ||
-      error?.digest?.startsWith?.("NEXT_") ||
-      error?.message?.includes?.("prerendering")
+      errAny?.digest === "HANGING_PROMISE_REJECTION" ||
+      errAny?.digest === "DYNAMIC_SERVER_USAGE" ||
+      errAny?.digest?.startsWith?.("NEXT_") ||
+      errAny?.message?.includes?.("prerendering")
     ) {
       throw error;
     }
-    console.error("🚨 [SERVER_SESSION_ERROR]:", error?.message || error);
+
+    const classified = classifyAuthError({
+      error,
+      route: "RSC:getServerSession",
+    });
+
+    emitAuthDiagnostic({
+      timestamp: new Date().toISOString(),
+      requestId: generateRequestId(),
+      referenceId: generateReferenceId(),
+      environment: authConfig.environment,
+      provider: "session",
+      stage: "AUTH_SESSION_VALIDATION_FAILED",
+      route: "RSC:getServerSession",
+      method: "INTERNAL",
+      safeErrorCode: classified.safeCode,
+      category: classified.category,
+      errorName: classified.errorName,
+      safeErrorMessage: classified.safeMessage,
+      originLayer: classified.originLayer,
+      correctiveAction: classified.correctiveAction,
+      serverStack: classified.serverStack,
+    });
+
     return null;
   }
 }
@@ -90,4 +134,3 @@ export async function requireUserId(): Promise<string> {
 
   return session.user.id;
 }
-

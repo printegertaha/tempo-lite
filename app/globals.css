@@ -3,6 +3,10 @@
 :root {
   --background: #08090d;
   --foreground: #f4f4f5;
+  --safe-area-top: env(safe-area-inset-top, 0px);
+  --safe-area-right: env(safe-area-inset-right, 0px);
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-area-left: env(safe-area-inset-left, 0px);
 }
 
 @theme inline {
@@ -58,4 +62,53 @@ body {
 .safe-area-bottom,
 .pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Smooth entry transitions for task bar & floating bubble */
+.athar-timer-bar-enter {
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    opacity 0.22s ease-out,
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@starting-style {
+  .athar-timer-bar-enter {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+}
+
+.athar-bubble-surface {
+  opacity: 1;
+  transform: scale(1);
+  transition:
+    opacity 0.2s ease-out,
+    transform 0.24s cubic-bezier(0.22, 1, 0.36, 1),
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+@starting-style {
+  .athar-bubble-surface {
+    opacity: 0;
+    transform: scale(0.84);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .athar-timer-bar-enter,
+  .athar-bubble-surface {
+    transform: none;
+    transition: opacity 0.1s ease-out;
+  }
+
+  @starting-style {
+    .athar-timer-bar-enter,
+    .athar-bubble-surface {
+      transform: none;
+    }
+  }
 }

@@ -13,7 +13,11 @@ import {
   TaskPriorityType,
   TaskStatusType,
 } from "@/lib/validations/task";
-import { getLocalDateString, addDaysToDateString } from "@/lib/dates";
+import {
+  getLocalDateString,
+  addDaysToDateString,
+  getUtcStartOfLocalDate,
+} from "@/lib/dates";
 
 /**
  * Helper to ensure the active user has a verified session.
@@ -123,64 +127,93 @@ export async function getTasks(filters: Record<string, any> = {}) {
     const timezone = userSettings?.timezone || "Asia/Riyadh";
     const todayStr = validated.localDate || getLocalDateString(new Date(), timezone);
 
-    // Build Prisma query condition
-    const where: any = {
-      userId,
-    };
+    // Build Prisma query condition using AND array so search + view ORs never overwrite each other
+    const andConditions: any[] = [{ userId }];
 
     // Life area & tracker filters
     if (validated.lifeAreaId) {
-      where.lifeAreaId = validated.lifeAreaId;
+      andConditions.push({ lifeAreaId: validated.lifeAreaId });
     }
     if (validated.trackerId) {
-      where.trackerId = validated.trackerId;
+      andConditions.push({ trackerId: validated.trackerId });
     }
 
     // Search query
     if (validated.searchQuery) {
-      where.OR = [
-        { title: { contains: validated.searchQuery, mode: "insensitive" } },
-        { description: { contains: validated.searchQuery, mode: "insensitive" } },
-      ];
+      andConditions.push({
+        OR: [
+          { title: { contains: validated.searchQuery, mode: "insensitive" } },
+          { description: { contains: validated.searchQuery, mode: "insensitive" } },
+        ],
+      });
     }
+
+    const startOfTodayUtc = getUtcStartOfLocalDate(todayStr, timezone);
 
     // Views logic
     switch (validated.view) {
+      case "home":
+        // Home page requires: all non-archived active tasks (today, overdue, unscheduled, upcoming)
+        // PLUS tasks completed today (by local dueDate or local completedAt boundary)
+        andConditions.push({ isArchived: false });
+        andConditions.push({
+          OR: [
+            { status: { not: "COMPLETED" } },
+            {
+              AND: [
+                { status: "COMPLETED" },
+                {
+                  OR: [
+                    { dueDate: todayStr },
+                    { completedAt: { gte: startOfTodayUtc } },
+                  ],
+                },
+              ],
+            },
+          ],
+        });
+        break;
+
+      case "full":
+        // Full task manager scope: active + completed + archived so every tab renders accurately
+        break;
+
       case "today":
-        where.isArchived = false;
-        where.status = { not: "COMPLETED" };
-        where.OR = [
-          { dueDate: todayStr },
-          { dueDate: null },
-        ];
+        andConditions.push({ isArchived: false });
+        andConditions.push({ status: { not: "COMPLETED" } });
+        andConditions.push({
+          OR: [{ dueDate: todayStr }, { dueDate: null }],
+        });
         break;
 
       case "overdue":
-        where.isArchived = false;
-        where.status = { notIn: ["COMPLETED", "CANCELLED"] };
-        where.dueDate = { lt: todayStr, not: null };
+        andConditions.push({ isArchived: false });
+        andConditions.push({ status: { notIn: ["COMPLETED", "CANCELLED"] } });
+        andConditions.push({ dueDate: { lt: todayStr, not: null } });
         break;
 
       case "upcoming":
-        where.isArchived = false;
-        where.status = { not: "COMPLETED" };
-        where.dueDate = { gt: todayStr };
+        andConditions.push({ isArchived: false });
+        andConditions.push({ status: { not: "COMPLETED" } });
+        andConditions.push({ dueDate: { gt: todayStr } });
         break;
 
       case "completed":
-        where.isArchived = false;
-        where.status = "COMPLETED";
+        andConditions.push({ isArchived: false });
+        andConditions.push({ status: "COMPLETED" });
         break;
 
       case "archived":
-        where.isArchived = true;
+        andConditions.push({ isArchived: true });
         break;
 
       case "all":
       default:
-        where.isArchived = false;
+        andConditions.push({ isArchived: false });
         break;
     }
+
+    const where: any = { AND: andConditions };
 
     const page = validated.page || 1;
     const pageSize = validated.pageSize || 50;

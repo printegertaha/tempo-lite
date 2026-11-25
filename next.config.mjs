@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  /* Disable experimental staged/partial RSC streaming flags (unused in codebase and prone to Flight chunk collisions in Next 16.4.3 Turbopack) */
   turbopack: {
     rules: {
       "*.css": {

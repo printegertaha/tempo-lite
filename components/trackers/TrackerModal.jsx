@@ -28,6 +28,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { createTracker, updateTracker } from "@/actions/trackers";
+import { saveTrackerLocalFirst } from "@/lib/local-db/habit-ops";
 import { LIFE_AREA_COLORS } from "@/lib/validations/life-area";
 import {
   TRACKER_METRIC_TYPES,
@@ -112,6 +113,7 @@ export const POPULAR_ICONS = [
 ];
 
 function TrackerForm({
+  userId = "guest",
   editingTracker,
   lifeAreas = [],
   onClose,
@@ -271,22 +273,47 @@ function TrackerForm({
     };
 
     setIsSubmitting(true);
+    const isGuest = !userId || userId === "guest";
+    const trackerPayload = {
+      name: name.trim(),
+      description: description.trim() || null,
+      lifeAreaId: lifeAreaId || null,
+      icon,
+      color,
+      priority: Number(priority),
+      metricType,
+      unit: unit.trim() || null,
+      targetValue: targetValue ? Number(targetValue) : null,
+      targetFrequency,
+      scheduleConfig,
+      trackerConfig,
+    };
+
     try {
+      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        const localRes = await saveTrackerLocalFirst(
+          userId,
+          trackerPayload,
+          isEditing,
+          editingTracker?.id
+        );
+        if (localRes.success) {
+          onToast?.(
+            isEditing
+              ? "تم تحديث المتعقب محلياً بنجاح ✨"
+              : "تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉",
+            "success"
+          );
+          onSaved?.(localRes.data);
+          onClose();
+        }
+        return;
+      }
+
       if (isEditing) {
         const res = await updateTracker({
           id: editingTracker.id,
-          name: name.trim(),
-          description: description.trim() || null,
-          lifeAreaId: lifeAreaId || null,
-          icon,
-          color,
-          priority: Number(priority),
-          metricType,
-          unit: unit.trim() || null,
-          targetValue: targetValue ? Number(targetValue) : null,
-          targetFrequency,
-          scheduleConfig,
-          trackerConfig,
+          ...trackerPayload,
         });
 
         if (res.success) {
@@ -297,60 +324,37 @@ function TrackerForm({
           onToast?.(res.error || "تعذر تحديث المتعقب", "error");
         }
       } else {
-        const res = await createTracker({
-          name: name.trim(),
-          description: description.trim() || null,
-          lifeAreaId: lifeAreaId || null,
-          icon,
-          color,
-          priority: Number(priority),
-          metricType,
-          unit: unit.trim() || null,
-          targetValue: targetValue ? Number(targetValue) : null,
-          targetFrequency,
-          scheduleConfig,
-          trackerConfig,
-        });
+        const res = await createTracker(trackerPayload);
 
         if (res.success) {
           onToast?.("تم إنشاء المتعقب بنجاح 🎉", "success");
           onSaved?.(res.data);
           onClose();
         } else {
-          // Local guest offline fallback: save to IndexedDB
-          try {
-            const { getLocalDB } = await import("@/lib/local-db");
-            const db = await getLocalDB();
-            const guestTracker = {
-              id: `guest_trk_${Date.now()}`,
-              userId: "guest",
-              name: name.trim(),
-              slug: name.trim().toLowerCase().replace(/\s+/g, "-"),
-              description: description.trim() || null,
-              icon,
-              color,
-              metricType,
-              unit: unit.trim() || null,
-              targetValue: targetValue ? Number(targetValue) : null,
-              targetFrequency,
-              scheduleConfig,
-              trackerConfig,
-              isArchived: false,
-              isPaused: false,
-              isPinned: false,
-              createdAt: new Date().toISOString(),
-            };
-            await db.put("trackers", guestTracker);
+          const localRes = await saveTrackerLocalFirst(userId, trackerPayload, false);
+          if (localRes.success) {
             onToast?.("تم إنشاء المتعقب وحفظه محلياً بنجاح 🎉", "success");
-            onSaved?.(guestTracker);
+            onSaved?.(localRes.data);
             onClose();
-          } catch {
+          } else {
             onToast?.(res.error || "تعذر إنشاء المتعقب", "error");
           }
         }
       }
     } catch {
-      onToast?.("حدث خطأ غير متوقع", "error");
+      const localRes = await saveTrackerLocalFirst(
+        userId,
+        trackerPayload,
+        isEditing,
+        editingTracker?.id
+      ).catch(() => null);
+      if (localRes?.success) {
+        onToast?.("تم الحفظ محلياً (وضع عدم الاتصال) ✨", "success");
+        onSaved?.(localRes.data);
+        onClose();
+      } else {
+        onToast?.("حدث خطأ غير متوقع", "error");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -728,6 +732,7 @@ function TrackerForm({
 export default function TrackerModal({
   isOpen,
   onClose,
+  userId = "guest",
   editingTracker = null,
   lifeAreas = [],
   onSaved,
@@ -772,6 +777,7 @@ export default function TrackerModal({
         {/* Inner Form with key ensuring clean state reset on edit change */}
         <TrackerForm
           key={editingTracker?.id || "create-new-tracker"}
+          userId={userId}
           editingTracker={editingTracker}
           lifeAreas={lifeAreas}
           onClose={onClose}

@@ -3,45 +3,50 @@
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import {
-  Flame,
-  ShieldCheck,
-  Sparkles,
-  User,
-  Mail,
-  Lock,
-  Loader2,
-  AlertCircle,
-  ArrowRight,
-} from "lucide-react";
+import { User, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { getSafeReturnUrl } from "@/lib/auth-redirect";
 import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
+import AuthErrorBanner from "@/components/auth/AuthErrorBanner";
 
 function RegisterContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const returnTo = searchParams?.get("returnTo") || "/";
+  const urlError = searchParams?.get("error");
+  const urlRef = searchParams?.get("ref");
+  const rawReturnTo = searchParams?.get("returnTo");
+  const returnTo = getSafeReturnUrl(rawReturnTo, "/");
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [formError, setFormError] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const clearUrlError = () => {
+    const nextUrl = rawReturnTo
+      ? `/register?returnTo=${encodeURIComponent(returnTo)}`
+      : "/register";
+    router.replace(nextUrl);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrorMessage("");
+    setSubmitted(true);
+    setFormError("");
 
     if (!name.trim()) {
-      setErrorMessage("يرجى إدخال الاسم");
+      setFormError("يرجى إدخال الاسم");
       return;
     }
     if (!email.trim()) {
-      setErrorMessage("يرجى إدخال البريد الإلكتروني");
+      setFormError("يرجى إدخال البريد الإلكتروني");
       return;
     }
     if (!password || password.length < 6) {
-      setErrorMessage("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
+      setFormError("كلمة المرور يجب أن تكون 6 أحرف على الأقل");
       return;
     }
 
@@ -55,7 +60,7 @@ function RegisterContent() {
       });
 
       if (res?.error) {
-        setErrorMessage(
+        setFormError(
           res.error.message ||
             (res.error.status === 422
               ? "البريد الإلكتروني مسجل بالفعل أو غير صالح"
@@ -65,12 +70,13 @@ function RegisterContent() {
         return;
       }
 
-      // Automatic sign-in is enabled by default in Better Auth, navigate directly
       router.push(returnTo);
       router.refresh();
     } catch (err) {
-      console.error("Sign up error:", err);
-      setErrorMessage("حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.");
+      if (process.env.NODE_ENV === "development") {
+        console.error("Sign up error:", err);
+      }
+      setFormError("حدث خطأ غير متوقع. يرجى المحاولة لاحقاً.");
       setLoading(false);
     }
   };
@@ -83,36 +89,60 @@ function RegisterContent() {
 
       {/* Brand Header */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center space-y-1.5 relative z-10 px-4">
-        <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
+        <h1 className="text-xl sm:text-2xl font-black text-zinc-100">
           إنشاء حساب جديد
-        </h2>
+        </h1>
         <p className="text-xs text-zinc-400 max-w-sm mx-auto">
-          إكتب إسمك وبريدك الإلكتروني وإعمل باسورد وشكراً
+          سجل مباشرة بحساب Google أو أنشئ حساباً بالبريد الإلكتروني
         </p>
       </div>
 
       {/* Main Card */}
       <div className="mt-5 sm:mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
-          {/* Error Banner */}
-          {errorMessage && (
-            <div className="flex items-start gap-2.5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs animate-in fade-in duration-200">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-              <span className="leading-relaxed">{errorMessage}</span>
-            </div>
+          {/* Structured Auth Error Banner */}
+          {(formError || urlError) && (
+            <AuthErrorBanner
+              errorCode={formError ? null : urlError}
+              referenceId={formError ? null : urlRef}
+              customMessage={formError || null}
+              onRetry={urlError && !formError ? clearUrlError : undefined}
+            />
           )}
+
+          {/* Google OAuth Sign-Up */}
+          <GoogleSignInButton
+            returnTo={returnTo}
+            label="التسجيل السريع باستخدام Google"
+          />
+
+          {/* Divider */}
+          <div className="relative flex items-center py-1">
+            <div className="flex-grow border-t border-zinc-800/80" />
+            <span className="shrink-0 px-3 text-[11px] font-medium text-zinc-400">
+              أو إنشاء حساب بالبريد
+            </span>
+            <div className="flex-grow border-t border-zinc-800/80" />
+          </div>
 
           {/* Email / Password Form */}
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              <label
+                htmlFor="register-name"
+                className="block text-xs font-semibold text-zinc-300 mb-1.5"
+              >
                 الاسم الكامل
               </label>
               <div className="relative">
                 <input
+                  id="register-name"
+                  name="name"
                   type="text"
+                  autoComplete="name"
+                  enterKeyHint="next"
                   required
-                  autoFocus
+                  aria-invalid={submitted && !name.trim() ? "true" : "false"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="مثال: طه"
@@ -123,13 +153,22 @@ function RegisterContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              <label
+                htmlFor="register-email"
+                className="block text-xs font-semibold text-zinc-300 mb-1.5"
+              >
                 البريد الإلكتروني
               </label>
               <div className="relative">
                 <input
+                  id="register-email"
+                  name="email"
                   type="email"
+                  autoComplete="username"
+                  spellCheck={false}
+                  enterKeyHint="next"
                   required
+                  aria-invalid={submitted && !email.trim() ? "true" : "false"}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
@@ -141,20 +180,45 @@ function RegisterContent() {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
+              <label
+                htmlFor="register-password"
+                className="block text-xs font-semibold text-zinc-300 mb-1.5"
+              >
                 كلمة المرور
               </label>
               <div className="relative">
                 <input
-                  type="password"
+                  id="register-password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="new-password"
+                  enterKeyHint="done"
+                  minLength={6}
                   required
+                  aria-invalid={
+                    submitted && (!password || password.length < 6)
+                      ? "true"
+                      : "false"
+                  }
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   dir="ltr"
-                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3 pl-10 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500/50 transition-all text-left"
+                  className="w-full bg-zinc-900/80 border border-zinc-800 rounded-2xl px-4 py-3 pl-10 pr-10 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500/50 transition-all text-left"
                 />
                 <Lock className="w-4 h-4 text-zinc-500 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-zinc-400 hover:text-zinc-200 transition-colors cursor-pointer"
+                  aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                >
+                  {showPassword ? (
+                    <EyeOff className="w-4 h-4" />
+                  ) : (
+                    <Eye className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
 

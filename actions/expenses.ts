@@ -46,16 +46,35 @@ export async function saveExpenseEntry(data: {
 
     let expense;
     if (data.id) {
-      expense = await prisma.expenseEntry.update({
-        where: { id: data.id, userId },
-        data: {
-          date: data.date,
-          title: data.title,
-          amount: data.amount,
-          category: data.category,
-          notes: data.notes || null,
-        },
+      const existing = await prisma.expenseEntry.findUnique({
+        where: { id: data.id },
+        select: { id: true, userId: true },
       });
+      if (existing && existing.userId !== userId) {
+        return { success: false, error: "غير مصرح بتعديل هذا المصروف" };
+      }
+      expense = existing
+        ? await prisma.expenseEntry.update({
+            where: { id: data.id },
+            data: {
+              date: data.date,
+              title: data.title,
+              amount: data.amount,
+              category: data.category,
+              notes: data.notes || null,
+            },
+          })
+        : await prisma.expenseEntry.create({
+            data: {
+              id: data.id,
+              userId,
+              date: data.date,
+              title: data.title,
+              amount: data.amount,
+              category: data.category,
+              notes: data.notes || null,
+            },
+          });
     } else {
       expense = await prisma.expenseEntry.create({
         data: {

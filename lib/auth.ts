@@ -1,66 +1,85 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import prisma from "./prisma";
+import { resolveAuthConfig, resolveRequestTrustedOrigins } from "./auth-env";
+import {
+  captureBetterAuthInternalLog,
+  classifyAuthError,
+  emitAuthDiagnostic,
+  getActiveAuthTrace,
+  recordTraceStage,
+} from "./auth-diagnostics";
 
-function resolveBaseUrl(): string {
-  let url =
-    process.env.BETTER_AUTH_URL ||
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000");
-
-  url = url.trim();
-  if (!url.startsWith("http://") && !url.startsWith("https://")) {
-    url = `https://${url}`;
-  }
-  return url.replace(/\/+$/, "");
-}
-
-const authBaseUrl = resolveBaseUrl();
-
-const originsList = [
-  "http://localhost:3000",
-  "http://127.0.0.1:3000",
-  "http://localhost:3001",
-  authBaseUrl,
-  ...(process.env.BETTER_AUTH_URL ? [process.env.BETTER_AUTH_URL.trim().replace(/\/+$/, "")] : []),
-  ...(process.env.NEXT_PUBLIC_APP_URL ? [process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/+$/, "")] : []),
-  ...(process.env.VERCEL_URL ? [`https://${process.env.VERCEL_URL.trim()}`] : []),
-  ...(process.env.VERCEL_PROJECT_PRODUCTION_URL ? [`https://${process.env.VERCEL_PROJECT_PRODUCTION_URL.trim()}`] : []),
-];
+export const authConfig = resolveAuthConfig();
 
 export const auth = betterAuth({
+  appName: "Athar",
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
-  baseURL: authBaseUrl,
-  secret: (() => {
-    const s = process.env.BETTER_AUTH_SECRET?.trim();
-    if (s && s.length >= 32) return s;
-    if (process.env.NODE_ENV === "production") {
-      throw new Error("SECURITY_ERROR: BETTER_AUTH_SECRET must be set and at least 32 characters long in production.");
-    }
-    console.warn("⚠️ [SECURITY WARNING] BETTER_AUTH_SECRET is unset. Generating a temporary runtime secret for development.");
-    return require("crypto").randomBytes(32).toString("hex");
-  })(),
-  trustedOrigins: Array.from(new Set(originsList)),
+  baseURL: authConfig.baseUrl,
+  basePath: authConfig.basePath,
+  secret: authConfig.betterAuthSecret,
+  trustedOrigins: (request) => resolveRequestTrustedOrigins(authConfig, request),
   logger: {
     disabled: false,
-    level: "debug",
+    level: authConfig.isProduction ? "warn" : "debug",
+    log: (level, message, ...args) => {
+      captureBetterAuthInternalLog(level, message, ...args);
+    },
+  },
+  onAPIError: {
+    errorURL: `${authConfig.baseUrl}/login`,
+    onError: async (error) => {
+      const trace = getActiveAuthTrace();
+      const classified = classifyAuthError({
+        error,
+        internalLogs: trace?.internalLogs,
+        hasStateCookie: trace?.hasStateCookie,
+        host: trace?.host,
+        route: trace?.route,
+      });
+
+      emitAuthDiagnostic({
+        timestamp: new Date().toISOString(),
+        requestId: trace?.requestId || "no-request-context",
+        referenceId: trace?.referenceId || "AUTH-APIERR",
+        environment: authConfig.environment,
+        provider: trace?.provider || "unknown",
+        stage: classified.failedStage,
+        route: trace?.route || authConfig.basePath,
+        method: trace?.method || "UNKNOWN",
+        safeErrorCode: classified.safeCode,
+        category: classified.category,
+        errorName: classified.errorName,
+        safeErrorMessage: classified.safeMessage,
+        originLayer: classified.originLayer,
+        lastSuccessfulStage: trace?.lastSuccessfulStage,
+        failedStage: classified.failedStage,
+        correctiveAction: classified.correctiveAction,
+        serverStack: classified.serverStack,
+      });
+    },
+  },
+  advanced: {
+    useSecureCookies: authConfig.useSecureCookies,
+    trustedProxyHeaders: authConfig.trustedProxyHeaders,
   },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
     autoSignIn: true,
   },
-  // Social authentication providers
+  account: {
+    accountLinking: {
+      enabled: true,
+      trustedProviders: ["google"],
+    },
+  },
   socialProviders: {
     google: {
-      clientId: (process.env.GOOGLE_CLIENT_ID || "").trim(),
-      clientSecret: (process.env.GOOGLE_CLIENT_SECRET || "").trim(),
+      clientId: authConfig.googleClientId,
+      clientSecret: authConfig.googleClientSecret,
       prompt: "select_account",
       accessType: "offline",
     },
@@ -77,6 +96,7 @@ export const auth = betterAuth({
     user: {
       create: {
         after: async (user) => {
+          recordTraceStage("USER_CREATED", true, `userId=${user.id}`);
           // Automatic onboarding for new user: Initialize default user settings
           // Does NOT create any default trackers or categories (Empty Canvas Principle)
           try {
@@ -93,8 +113,32 @@ export const auth = betterAuth({
               update: {},
             });
           } catch (err) {
-            console.error("Failed to initialize UserSettings for user:", user.id, err);
+            const trace = getActiveAuthTrace();
+            emitAuthDiagnostic({
+              timestamp: new Date().toISOString(),
+              requestId: trace?.requestId || "no-request-context",
+              referenceId: trace?.referenceId || "AUTH-DBHOOK",
+              environment: authConfig.environment,
+              provider: trace?.provider || "unknown",
+              stage: "AUTH_DATABASE_OPERATION_FAILED",
+              route: trace?.route || authConfig.basePath,
+              method: trace?.method || "POST",
+              safeErrorCode: "user_settings_init_failed",
+              category: "DATABASE_ERROR",
+              errorName: err instanceof Error ? err.name : "DatabaseError",
+              safeErrorMessage: "Failed to initialize UserSettings row after user creation.",
+              originLayer: "database",
+              correctiveAction: "Inspect user_settings table schema and database permissions.",
+              serverStack: err instanceof Error ? err.stack : undefined,
+            });
           }
+        },
+      },
+    },
+    session: {
+      create: {
+        after: async (session) => {
+          recordTraceStage("SESSION_CREATED", true, `sessionId=${session.id}`);
         },
       },
     },

@@ -20,14 +20,17 @@ import {
   ArrowRight,
 } from "lucide-react";
 import { soundManager } from "@/lib/audio";
-import { getLocalDateString, addDaysToDateString } from "@/lib/dates";
+import {
+  getLocalDateString,
+  addDaysToDateString,
+  splitUtcToLocalDateTime,
+  getDefaultTimezone,
+} from "@/lib/dates";
 import { useLocalTasks } from "@/hooks/useLocalTasks";
 import HomePrayerBar from "@/components/home/HomePrayerBar";
 import QuickTaskInput from "@/components/home/QuickTaskInput";
 import TaskCardItem from "@/components/home/TaskCardItem";
-import TaskTimerWidget, {
-  triggerStartTaskTimer,
-} from "@/components/home/TaskTimerWidget";
+import { activeTimerEngine } from "@/lib/timer/active-timer";
 import CompletedTasksSection from "@/components/home/CompletedTasksSection";
 import TaskEditorModal from "@/components/home/TaskEditorModal";
 import Modal from "@/components/ui/Modal";
@@ -48,13 +51,28 @@ function toIsoDateString(val) {
 export default function HomeView({
   user,
   initialDate,
+  timezone,
   initialTodayTasks = [],
   initialPrayers = [],
   initialLifeAreas = [],
 }) {
-  const todayStr = initialDate || getLocalDateString();
   const userId = user?.id || "guest";
   const isGuest = !user?.id || user?.id === "guest";
+  const effectiveTimezone = timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+  const [todayStr, setTodayStr] = useState(
+    () => initialDate || getLocalDateString(new Date(), effectiveTimezone)
+  );
+
+  // Automatically detect midnight transitions while the app stays open
+  useEffect(() => {
+    const syncDate = () => {
+      const currentLocal = getLocalDateString(new Date(), effectiveTimezone);
+      setTodayStr((prev) => (prev !== currentLocal ? currentLocal : prev));
+    };
+    syncDate();
+    const timer = setInterval(syncDate, 60000);
+    return () => clearInterval(timer);
+  }, [effectiveTimezone]);
 
   // Task Engine
   const {
@@ -66,7 +84,10 @@ export default function HomeView({
     deleteTask,
     postponeTask,
     reorderTasks,
-  } = useLocalTasks(userId, initialTodayTasks);
+  } = useLocalTasks(userId, initialTodayTasks, {
+    scope: "home",
+    timezone: effectiveTimezone,
+  });
 
   // UI state
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -149,10 +170,12 @@ export default function HomeView({
       if (t.isArchived) continue;
 
       if (t.status === "COMPLETED") {
-        const completedStr = toIsoDateString(t.completedAt);
+        const completedLocalDate = t.completedAt
+          ? splitUtcToLocalDateTime(t.completedAt, effectiveTimezone).localDate
+          : "";
         if (
           !t.completedAt ||
-          completedStr.startsWith(todayStr) ||
+          completedLocalDate === todayStr ||
           t.dueDate === todayStr
         ) {
           completed.push(t);
@@ -195,7 +218,7 @@ export default function HomeView({
       upcomingTasks: upcoming,
       completedTodayTasks: completed,
     };
-  }, [tasks, todayStr]);
+  }, [tasks, todayStr, effectiveTimezone]);
 
   // Periodic checker for scheduled start times (every 30 seconds)
   useEffect(() => {
@@ -426,12 +449,6 @@ export default function HomeView({
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 pb-28 md:pb-16 selection:bg-emerald-500/30 selection:text-emerald-200 relative">
-      {/* 6. Sticky Top "Active Running Task" Bar across ALL screen sizes (Mobile & Desktop) */}
-      <TaskTimerWidget
-        onCompleteTask={handleToggleTask}
-        onPostponeTask={handlePostponeClick}
-      />
-
       {/* Top Banner / Notification for Scheduled Task */}
       {scheduledAlertTask && (
         <div className="sticky top-0 z-40 bg-emerald-500/15 border-b border-emerald-500/30 backdrop-blur-md px-4 py-2.5">
@@ -449,7 +466,7 @@ export default function HomeView({
               <button
                 type="button"
                 onClick={() => {
-                  triggerStartTaskTimer(scheduledAlertTask);
+                  activeTimerEngine.requestStart(scheduledAlertTask, "stopwatch", userId);
                   setScheduledAlertTask(null);
                 }}
                 className="px-2.5 py-1 rounded-lg bg-emerald-500 text-zinc-950 font-semibold hover:bg-emerald-400 transition-colors cursor-pointer"
@@ -468,7 +485,7 @@ export default function HomeView({
         </div>
       )}
 
-      <main className="max-w-3xl mx-auto px-4 pt-3 md:pt-6 space-y-4 md:space-y-6">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 pt-3 md:pt-6 space-y-4 md:space-y-6">
         {/* 2. Header Section: Date & Progress (Hidden on mobile < md, visible on desktop md:flex) */}
         <header className="hidden md:flex md:items-center justify-between border-b border-zinc-800/80 pb-4 gap-3 pt-2">
           <div>
@@ -565,7 +582,7 @@ export default function HomeView({
                   key={task.id}
                   task={task}
                   onToggleStatus={handleToggleTask}
-                  onStartTimer={triggerStartTaskTimer}
+                  onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
                   onEdit={(t) => {
                     setEditingTask(t);
                     setIsEditorOpen(true);
@@ -653,7 +670,7 @@ export default function HomeView({
                   <TaskCardItem
                     task={task}
                     onToggleStatus={handleToggleTask}
-                    onStartTimer={triggerStartTaskTimer}
+                    onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
                     onEdit={(t) => {
                       setEditingTask(t);
                       setIsEditorOpen(true);
@@ -705,7 +722,7 @@ export default function HomeView({
                     <TaskCardItem
                       task={task}
                       onToggleStatus={handleToggleTask}
-                      onStartTimer={triggerStartTaskTimer}
+                      onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
                       onEdit={(t) => {
                         setEditingTask(t);
                         setIsEditorOpen(true);
@@ -761,7 +778,7 @@ export default function HomeView({
                     key={task.id}
                     task={task}
                     onToggleStatus={handleToggleTask}
-                    onStartTimer={triggerStartTaskTimer}
+                    onStartTimer={(t) => activeTimerEngine.requestStart(t, "stopwatch", userId)}
                     onEdit={(t) => {
                       setEditingTask(t);
                       setIsEditorOpen(true);

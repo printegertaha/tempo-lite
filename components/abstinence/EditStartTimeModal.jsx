@@ -3,11 +3,18 @@
 import { useState, useEffect } from "react";
 import { Clock, Calendar, X, Loader2, Edit3, Check } from "lucide-react";
 import { updateAbstinenceStartTime } from "@/actions/abstinence";
-import { splitUtcToLocalDateTime, getLocalDateString } from "@/lib/dates";
+import {
+  splitUtcToLocalDateTime,
+  getLocalDateString,
+  parseLocalDateTimeToUtc,
+} from "@/lib/dates";
+import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 export default function EditStartTimeModal({
   isOpen,
   onClose,
+  userId = "guest",
   tracker,
   timezone = "Asia/Riyadh",
   onUpdated,
@@ -49,7 +56,53 @@ export default function EditStartTimeModal({
     setIsSubmitting(true);
     setErrorMsg("");
 
+    const effectiveUserId = userId || "guest";
+    const isGuest = effectiveUserId === "guest";
+
+    const saveLocalStartTime = async () => {
+      const newStartedIso = parseLocalDateTimeToUtc(
+        startDate,
+        startTime,
+        timezone
+      ).toISOString();
+      const updatedSession = {
+        ...activeSession,
+        id: activeSession.id || crypto.randomUUID(),
+        abstinenceTrackerId: tracker.id,
+        trackerId: tracker.id,
+        userId: effectiveUserId,
+        startedAt: newStartedIso,
+      };
+      await localAbstinenceRepo.saveSession(updatedSession);
+
+      if (!isGuest) {
+        await localOutboxRepo.add({
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "abstinence_session",
+          entityId: updatedSession.id,
+          action: "update",
+          payload: {
+            abstinenceTrackerId: tracker.id,
+            startedAt: newStartedIso,
+          },
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        });
+        syncEngine.scheduleSync(5000);
+      }
+    };
+
     try {
+      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        await saveLocalStartTime();
+        onUpdated?.();
+        onClose();
+        return;
+      }
+
       const res = await updateAbstinenceStartTime({
         trackerId: tracker.id,
         startDate,
@@ -61,10 +114,18 @@ export default function EditStartTimeModal({
         onUpdated?.();
         onClose();
       } else {
-        setErrorMsg(res.error || "تعذر تعديل وقت البداية");
+        await saveLocalStartTime();
+        onUpdated?.();
+        onClose();
       }
     } catch (err) {
-      setErrorMsg(err?.message || "حدث خطأ غير متوقع");
+      try {
+        await saveLocalStartTime();
+        onUpdated?.();
+        onClose();
+      } catch {
+        setErrorMsg(err?.message || "حدث خطأ غير متوقع");
+      }
     } finally {
       setIsSubmitting(false);
     }

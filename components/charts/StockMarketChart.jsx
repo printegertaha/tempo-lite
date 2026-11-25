@@ -23,11 +23,21 @@ export default function StockMarketChart({
   supportLevel = "84.0",
   resistanceLevel = "96.0",
   trendStatus = "اتجاه صاعد قوي (Bullish Momentum)",
+  activeRangeDays,
+  onRangeDaysChange,
 }) {
-  const [activeRange, setActiveRange] = useState("7D");
+  const [uncontrolledRange, setUncontrolledRange] = useState("ALL");
   const [hoveredPoint, setHoveredPoint] = useState(null);
 
-  const values = data.map((d) => Number(d.val) || 0);
+  const displayData = onRangeDaysChange
+    ? data
+    : uncontrolledRange === "7D"
+    ? data.slice(-7)
+    : uncontrolledRange === "14D"
+    ? data.slice(-14)
+    : data;
+
+  const values = displayData.map((d) => Number(d.val) || 0);
   const minVal = Math.min(...values, 0);
   const maxVal = Math.max(...values, 100);
   const range = maxVal - minVal || 1;
@@ -40,8 +50,8 @@ export default function StockMarketChart({
   const usableHeight = height - paddingTop - paddingBottom;
 
   // Calculate coordinates
-  const points = data.map((d, i) => {
-    const x = (i / (data.length - 1 || 1)) * (width - 40) + 20;
+  const points = displayData.map((d, i) => {
+    const x = (i / (displayData.length - 1 || 1)) * (width - 40) + 20;
     const norm = (d.val - minVal) / range;
     const y = height - paddingBottom - norm * usableHeight;
     return { x, y, ...d };
@@ -104,20 +114,39 @@ export default function StockMarketChart({
 
         {/* Timeframe Selector */}
         <div className="flex items-center gap-1 bg-zinc-900/90 p-1 rounded-xl border border-zinc-800 self-start sm:self-auto text-xs font-mono">
-          {["7D", "1M", "3M", "YTD"].map((rangeTab) => (
-            <button
-              key={rangeTab}
-              type="button"
-              onClick={() => setActiveRange(rangeTab)}
-              className={`px-2.5 py-1 rounded-lg transition-all ${
-                activeRange === rangeTab
-                  ? "bg-violet-600 text-white font-bold shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              {rangeTab}
-            </button>
-          ))}
+          {onRangeDaysChange
+            ? [
+                { days: 7, label: "7D" },
+                { days: 14, label: "14D" },
+                { days: 30, label: "30D" },
+              ].map((opt) => (
+                <button
+                  key={opt.days}
+                  type="button"
+                  onClick={() => onRangeDaysChange(opt.days)}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    activeRangeDays === opt.days
+                      ? "bg-violet-600 text-white font-bold shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))
+            : ["7D", "14D", "ALL"].map((rangeTab) => (
+                <button
+                  key={rangeTab}
+                  type="button"
+                  onClick={() => setUncontrolledRange(rangeTab)}
+                  className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer ${
+                    uncontrolledRange === rangeTab
+                      ? "bg-violet-600 text-white font-bold shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  {rangeTab}
+                </button>
+              ))}
         </div>
       </div>
 

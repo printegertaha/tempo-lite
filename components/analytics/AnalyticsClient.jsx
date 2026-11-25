@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { getAnalyticsOverview } from "@/actions/analytics";
+import { getLocalDateString, addDaysToDateString, getDefaultTimezone } from "@/lib/dates";
 import StockMarketChart from "@/components/charts/StockMarketChart";
 import Link from "next/link";
 import {
@@ -32,32 +33,118 @@ export default function AnalyticsClient({
 
       if (!user) {
         try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          const guestTasks = await db.getAllFromIndex(
-            "tasks",
-            "by-user",
-            "guest",
-          );
-          const completed = guestTasks.filter((t) => t.status === "COMPLETED");
+          const { localTaskRepo, localTrackerRepo, localEntryRepo } = await import("@/lib/local-db");
+          const [guestTasks, guestTrackers, guestEntries] = await Promise.all([
+            localTaskRepo.getAllForUser("guest", true),
+            localTrackerRepo.getAllForUser("guest"),
+            localEntryRepo.getAllForUser("guest"),
+          ]);
+          const activeTrackers = (guestTrackers || []).filter((t) => !t.isArchived);
+          const tz = getDefaultTimezone();
+          const todayStr = getLocalDateString(new Date(), tz);
+          const dateWindow = [];
+          for (let i = range - 1; i >= 0; i--) {
+            dateWindow.push(addDaysToDateString(todayStr, -i));
+          }
+          const windowSet = new Set(dateWindow);
+
+          const completedTasks = (guestTasks || []).filter((t) => {
+            if (t.status !== "COMPLETED") return false;
+            const d = t.completedAt
+              ? getLocalDateString(new Date(t.completedAt), tz)
+              : t.dueDate
+              ? getLocalDateString(new Date(t.dueDate), tz)
+              : todayStr;
+            return windowSet.has(d);
+          });
+
+          const totalTasksCount = (guestTasks || []).filter((t) => !t.isArchived).length;
+          const completedAllCount = (guestTasks || []).filter((t) => t.status === "COMPLETED").length;
+
+          let totalDurationMins = 0;
+          let activeStreaksCount = 0;
+          const entriesByTracker = new Map();
+          for (const e of guestEntries || []) {
+            if (!e.trackerId) continue;
+            const list = entriesByTracker.get(e.trackerId) || [];
+            list.push(e);
+            entriesByTracker.set(e.trackerId, list);
+          }
+
+          const mappedTrackers = activeTrackers.map((t) => {
+            const tEntries = entriesByTracker.get(t.id) || [];
+            const dateTotals = new Map();
+            let completedDays = 0;
+
+            for (const e of tEntries) {
+              if (!windowSet.has(e.localDate)) continue;
+              const prev = dateTotals.get(e.localDate) || 0;
+              const val =
+                e.valueNumeric != null
+                  ? Number(e.valueNumeric)
+                  : e.valueBoolean === true
+                  ? 1
+                  : 0;
+              dateTotals.set(e.localDate, prev + val);
+              if (t.metricType === "DURATION") {
+                totalDurationMins += Number(e.valueNumeric || 0);
+              }
+            }
+
+            let curStreak = 0;
+            for (let i = 0; i < range; i++) {
+              const d = addDaysToDateString(todayStr, -i);
+              if ((dateTotals.get(d) || 0) > 0) curStreak++;
+              else if (i > 0) break;
+            }
+            if (curStreak > 0) activeStreaksCount++;
+
+            const chartPoints = dateWindow.map((d) => {
+              const v = dateTotals.get(d) || 0;
+              if (v > 0) completedDays++;
+              return {
+                label: d.slice(5),
+                date: d,
+                val: v,
+                volume: v > 0 ? 1 : 0,
+              };
+            });
+
+            const totalVal = Array.from(dateTotals.values()).reduce((a, b) => a + b, 0);
+            return {
+              id: t.id,
+              name: t.name,
+              metricType: t.metricType,
+              unit: t.unit || "",
+              streak: { currentStreak: curStreak, bestStreak: curStreak },
+              metrics: {
+                primaryStat: `${totalVal} ${t.unit || ""}`.trim(),
+                secondaryStat: `${completedDays} من ${range} يوم`,
+              },
+              chartPoints,
+            };
+          });
+
           const pct =
-            guestTasks.length > 0
-              ? Math.round((completed.length / guestTasks.length) * 100)
+            totalTasksCount > 0
+              ? Math.round((completedAllCount / totalTasksCount) * 100)
+              : activeTrackers.length > 0 && mappedTrackers.length > 0
+              ? Math.round(
+                  (mappedTrackers.filter((t) => t.streak.currentStreak > 0).length /
+                    mappedTrackers.length) *
+                    100
+                )
               : 0;
+
           setAnalyticsData({
             summary: {
-              totalTrackers: 0,
-              activeStreaksCount: 0,
-              totalDurationHours: Math.round(
-                completed.reduce(
-                  (acc, t) => acc + (t.durationMinutes || 25),
-                  0,
-                ) / 60,
-              ),
-              completedTasksInRange: completed.length,
+              totalTrackers: activeTrackers.length,
+              activeStreaksCount,
+              totalDurationHours: Math.round((totalDurationMins / 60) * 10) / 10,
+              completedTasksInRange: completedTasks.length,
               overallConsistencyPct: pct,
             },
-            trackers: [],
+            trackers: mappedTrackers,
             dailyHistory: [],
             lifeAreas: [],
           });
@@ -293,6 +380,8 @@ export default function AnalyticsClient({
               unit={chartUnit}
               data={chartPoints}
               isPositive={true}
+              activeRangeDays={timeRange}
+              onRangeDaysChange={handleRangeChange}
             />
           </div>
 

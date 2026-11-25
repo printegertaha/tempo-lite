@@ -23,17 +23,25 @@ import EditStartTimeModal from "./EditStartTimeModal";
 import AbstinenceHistoryList from "./AbstinenceHistoryList";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { deleteAbstinenceTracker, getAbstinenceTrackers } from "@/actions/abstinence";
-import { calculateAbstinenceDuration } from "@/lib/dates";
+import { calculateAbstinenceDuration, getDefaultTimezone } from "@/lib/dates";
+import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
+import { enrichLocalAbstinenceTracker } from "@/lib/local-db/habit-ops";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 export default function AbstinenceHub({
+  userId = "guest",
   initialTrackers = [],
   initialTimezone = "Asia/Riyadh",
 }) {
+  const effectiveUserId = userId || "guest";
+  const isGuest = effectiveUserId === "guest";
   const [trackers, setTrackers] = useState(initialTrackers);
   const [selectedTrackerId, setSelectedTrackerId] = useState(
     initialTrackers[0]?.id || ""
   );
-  const [timezone] = useState(initialTimezone);
+  const [timezone] = useState(() =>
+    isGuest ? getDefaultTimezone() : initialTimezone || "Asia/Riyadh"
+  );
 
   // Modals state
   const [createModalOpen, setCreateModalOpen] = useState(false);
@@ -46,33 +54,71 @@ export default function AbstinenceHub({
   const selectedTracker =
     trackers.find((t) => t.id === selectedTrackerId) || trackers[0] || null;
 
+  const loadLocalTrackers = useCallback(async () => {
+    const localAbs = await localAbstinenceRepo.getAllTrackers(effectiveUserId);
+    const enriched = await Promise.all(
+      localAbs.map(async (t) => {
+        const sessions = await localAbstinenceRepo.getSessionsForTracker(effectiveUserId, t.id);
+        // Backwards compat for earlier guest trackers that embedded activeSession
+        if (sessions.length === 0 && t.activeSession) {
+          sessions.push({
+            id: t.activeSession.id || crypto.randomUUID(),
+            abstinenceTrackerId: t.id,
+            trackerId: t.id,
+            userId: effectiveUserId,
+            startedAt: t.activeSession.startedAt,
+            endedAt: null,
+          });
+        }
+        return enrichLocalAbstinenceTracker(t, sessions);
+      })
+    );
+    setTrackers(enriched);
+    setSelectedTrackerId((prev) =>
+      prev && enriched.some((t) => t.id === prev) ? prev : enriched[0]?.id || ""
+    );
+  }, [effectiveUserId]);
+
   const refreshData = useCallback(async () => {
+    if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+      await loadLocalTrackers().catch(() => {});
+      return;
+    }
+
     try {
       const res = await getAbstinenceTrackers();
-      if (res.success && res.data && res.data.length > 0) {
-        setTrackers(res.data);
-        if (!selectedTrackerId && res.data.length > 0) {
-          setSelectedTrackerId(res.data[0].id);
+      if (res.success && Array.isArray(res.data)) {
+        const pendingMutations = await localOutboxRepo
+          .getPending(effectiveUserId)
+          .catch(() => []);
+        const pendingIds = new Set(pendingMutations.map((m) => m.entityId));
+
+        if (pendingIds.size > 0) {
+          await loadLocalTrackers().catch(() => setTrackers(res.data));
+          return;
         }
+
+        // Cache server records into IDB for offline access
+        for (const t of res.data) {
+          await localAbstinenceRepo.saveTracker({ ...t, userId: effectiveUserId }).catch(() => {});
+          for (const s of t.sessions || []) {
+            await localAbstinenceRepo
+              .saveSession({ ...s, trackerId: t.id, userId: effectiveUserId })
+              .catch(() => {});
+          }
+        }
+        setTrackers(res.data);
+        setSelectedTrackerId((prev) =>
+          prev && res.data.some((t) => t.id === prev) ? prev : res.data[0]?.id || ""
+        );
         return;
       }
     } catch {
-      // Offline / unauthenticated fallback
+      // Offline / network fallback
     }
 
-    // Load guest/local cached abstinence trackers
-    try {
-      const { getLocalDB } = await import("@/lib/local-db");
-      const db = await getLocalDB();
-      const localAbs = await db.getAllFromIndex("abstinence_trackers", "by-user", "guest");
-      if (localAbs.length > 0) {
-        setTrackers(localAbs);
-        if (!selectedTrackerId) {
-          setSelectedTrackerId(localAbs[0].id);
-        }
-      }
-    } catch {}
-  }, [selectedTrackerId]);
+    await loadLocalTrackers().catch(() => {});
+  }, [isGuest, effectiveUserId, loadLocalTrackers]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -90,11 +136,33 @@ export default function AbstinenceHub({
     if (!selectedTracker) return;
     setIsDeleting(true);
     try {
-      const res = await deleteAbstinenceTracker(selectedTracker.id);
-      if (res.success) {
-        const next = trackers.filter((t) => t.id !== selectedTracker.id);
-        setTrackers(next);
-        setSelectedTrackerId(next[0]?.id || "");
+      const targetId = selectedTracker.id;
+
+      await localAbstinenceRepo.deleteTracker(targetId).catch(() => {});
+      await localAbstinenceRepo.deleteSessionsForTracker(effectiveUserId, targetId).catch(() => {});
+
+      const next = trackers.filter((t) => t.id !== targetId);
+      setTrackers(next);
+      setSelectedTrackerId(next[0]?.id || "");
+
+      if (!isGuest) {
+        if (typeof navigator !== "undefined" && navigator.onLine) {
+          const res = await deleteAbstinenceTracker(targetId).catch(() => null);
+          if (res?.success) return;
+        }
+        await localOutboxRepo.add({
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "abstinence",
+          entityId: targetId,
+          action: "delete",
+          payload: {},
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        });
+        syncEngine.scheduleSync(5000);
       }
     } finally {
       setIsDeleting(false);
@@ -123,14 +191,19 @@ export default function AbstinenceHub({
       {/* 1. Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800/80 pb-6">
         <div className="space-y-1">
-      
           <h1 className="text-2xl sm:text-3xl font-black tracking-wider text-zinc-100 ">
             سجل الامتناع وإدارة الانتكاسات
           </h1>
-     
         </div>
 
-   
+        <button
+          type="button"
+          onClick={() => setCreateModalOpen(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all active:scale-95 cursor-pointer self-start sm:self-auto"
+        >
+          <Plus className="w-4 h-4" />
+          <span>هدف امتناع جديد</span>
+        </button>
       </div>
 
       {/* Zero State if user has no goals */}
@@ -270,6 +343,7 @@ export default function AbstinenceHub({
       <CreateAbstinenceModal
         isOpen={createModalOpen}
         onClose={() => setCreateModalOpen(false)}
+        userId={effectiveUserId}
         onCreated={handleCreated}
         timezone={timezone}
       />
@@ -277,6 +351,7 @@ export default function AbstinenceHub({
       <LogRelapseModal
         isOpen={relapseModalOpen}
         onClose={() => setRelapseModalOpen(false)}
+        userId={effectiveUserId}
         tracker={selectedTracker}
         timezone={timezone}
         onRelapseLogged={refreshData}
@@ -285,6 +360,7 @@ export default function AbstinenceHub({
       <EditStartTimeModal
         isOpen={editStartModalOpen}
         onClose={() => setEditStartModalOpen(false)}
+        userId={effectiveUserId}
         tracker={selectedTracker}
         timezone={timezone}
         onUpdated={refreshData}

@@ -1,13 +1,26 @@
 import { LocalMutation } from "../local-db/index";
 
-/**
- * Coalesces an array of pending mutations safely, preserving semantic order
- * while eliminating redundant intermediate updates and cancel-pairs.
- */
-export function coalesceMutations(mutations: LocalMutation[]): LocalMutation[] {
-  if (mutations.length <= 1) return [...mutations];
+export interface CoalescedMutation extends LocalMutation {
+  /** All original mutationIds merged into this single coalesced operation */
+  coalescedIds: string[];
+}
 
-  // Group mutations by entityType + entityId
+export interface CoalesceResult {
+  coalesced: CoalescedMutation[];
+  /** Mutation IDs from cancel-pairs (e.g. local create then delete) that never need syncing */
+  cancelledIds: string[];
+}
+
+/**
+ * Coalesces pending mutations safely, preserving semantic order while tracking
+ * every merged and cancelled mutationId so the outbox never leaves stale rows behind.
+ */
+export function coalesceMutationsWithDropped(mutations: LocalMutation[]): CoalesceResult {
+  if (mutations.length === 0) {
+    return { coalesced: [], cancelledIds: [] };
+  }
+
+  // Group mutations chronologically by entityType + entityId
   const entityGroups = new Map<string, LocalMutation[]>();
 
   for (const mut of mutations) {
@@ -17,25 +30,28 @@ export function coalesceMutations(mutations: LocalMutation[]): LocalMutation[] {
     entityGroups.set(key, group);
   }
 
-  const result: LocalMutation[] = [];
+  const coalesced: CoalescedMutation[] = [];
+  const cancelledIds: string[] = [];
 
   for (const [, group] of entityGroups.entries()) {
+    group.sort((a, b) => a.clientTimestamp - b.clientTimestamp);
+    const allIds = group.map((g) => g.mutationId);
+
     if (group.length === 1) {
-      result.push(group[0]);
+      coalesced.push({ ...group[0], coalescedIds: allIds });
       continue;
     }
 
-    // Inspect lifecycle of operations on this specific entity
     const firstOp = group[0];
     const lastOp = group[group.length - 1];
 
-    // Case 1: Created locally and then Deleted locally before syncing -> cancel both
+    // Case 1: Created locally and then Deleted locally before syncing -> cancel all ops
     if (firstOp.action === "create" && lastOp.action === "delete") {
-      // Nothing needs to be sent to server for an entity that never existed remotely!
+      cancelledIds.push(...allIds);
       continue;
     }
 
-    // Case 2: Created locally and followed by updates -> single Create with merged latest payload
+    // Case 2: Created locally followed by updates -> single Create with merged payload
     if (firstOp.action === "create") {
       let mergedPayload = { ...firstOp.payload };
       for (let i = 1; i < group.length; i++) {
@@ -43,18 +59,22 @@ export function coalesceMutations(mutations: LocalMutation[]): LocalMutation[] {
           mergedPayload = { ...mergedPayload, ...group[i].payload };
         }
       }
-      result.push({
+      coalesced.push({
         ...firstOp,
         payload: mergedPayload,
         clientTimestamp: lastOp.clientTimestamp,
         version: lastOp.version,
+        coalescedIds: allIds,
       });
       continue;
     }
 
     // Case 3: Existing entity updated then deleted -> only send the Delete
     if (lastOp.action === "delete") {
-      result.push(lastOp);
+      coalesced.push({
+        ...lastOp,
+        coalescedIds: allIds,
+      });
       continue;
     }
 
@@ -65,14 +85,22 @@ export function coalesceMutations(mutations: LocalMutation[]): LocalMutation[] {
         mergedPayload = { ...mergedPayload, ...op.payload };
       }
     }
-    result.push({
+    coalesced.push({
       ...lastOp,
       action: "update",
       payload: mergedPayload,
+      coalescedIds: allIds,
     });
   }
 
   // Preserve chronological ordering by clientTimestamp
-  return result.sort((a, b) => a.clientTimestamp - b.clientTimestamp);
+  coalesced.sort((a, b) => a.clientTimestamp - b.clientTimestamp);
+  return { coalesced, cancelledIds };
 }
 
+/**
+ * Legacy-compatible wrapper returning only the coalesced mutation array.
+ */
+export function coalesceMutations(mutations: LocalMutation[]): LocalMutation[] {
+  return coalesceMutationsWithDropped(mutations).coalesced;
+}

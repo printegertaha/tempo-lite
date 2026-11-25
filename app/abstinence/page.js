@@ -1,21 +1,23 @@
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { getServerSession } from "@/lib/auth-session";
+import { getServerUserTemporalContext } from "@/lib/server-user";
 import AbstinenceHub from "@/components/abstinence/AbstinenceHub";
 import { getAbstinenceTrackers } from "@/actions/abstinence";
-import Link from "next/link";
-import { ShieldCheck, LogIn, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 
 async function AbstinenceServer() {
   await connection();
   const session = await getServerSession();
+  const { timezone } = await getServerUserTemporalContext(session?.user?.id);
 
   // Guest Mode: Allow immediate full offline abstinence & relapse tracking
   if (!session?.user) {
     return (
       <AbstinenceHub
+        userId="guest"
         initialTrackers={[]}
-        initialTimezone="Asia/Riyadh"
+        initialTimezone={timezone}
       />
     );
   }
@@ -24,8 +26,9 @@ async function AbstinenceServer() {
 
   return (
     <AbstinenceHub
+      userId={session.user.id}
       initialTrackers={res.success ? res.data : []}
-      initialTimezone={res.timezone || "Asia/Riyadh"}
+      initialTimezone={res.timezone || timezone}
     />
   );
 }
@@ -43,4 +46,3 @@ export default function AbstinencePage() {
     </Suspense>
   );
 }
-

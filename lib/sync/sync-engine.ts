@@ -1,12 +1,13 @@
-import { localOutboxRepo, LocalMutation } from "../local-db";
-import { coalesceMutations } from "./coalesce";
-import { SyncBatchResponse } from "./server-handler";
+import { localOutboxRepo, MAX_OUTBOX_RETRIES } from "../local-db";
+import { coalesceMutationsWithDropped } from "./coalesce";
+import type { SyncBatchResponse } from "./server-handler";
 
 export type SyncState = "idle" | "syncing" | "offline" | "error";
 
 type SyncListener = (state: {
   status: SyncState;
   pendingCount: number;
+  failedCount: number;
   lastSyncedAt: number | null;
   error?: string;
 }) => void;
@@ -16,6 +17,7 @@ class SyncEngine {
   private debounceTimer: any = null;
   private maxIntervalTimer: any = null;
   private isSyncing = false;
+  private pendingResync = false;
   private status: SyncState = "idle";
   private lastSyncedAt: number | null = null;
   private lastError: string | undefined;
@@ -55,6 +57,7 @@ class SyncEngine {
   }
 
   public init(userId: string) {
+    if (!userId || userId === "guest") return;
     if (this.userId !== userId) {
       this.userId = userId;
       this.scheduleSync(1000);
@@ -74,13 +77,23 @@ class SyncEngine {
   }
 
   private async notifySingle(listener: SyncListener) {
-    const pendingCount = this.userId
-      ? await localOutboxRepo.countPending(this.userId)
-      : 0;
+    const [pendingCount, failedCount] = this.userId
+      ? await Promise.all([
+          localOutboxRepo.countPending(this.userId),
+          localOutboxRepo.countFailed(this.userId),
+        ])
+      : [0, 0];
+
+    const effectiveStatus: SyncState = !navigator.onLine
+      ? "offline"
+      : failedCount > 0 && this.status === "idle"
+      ? "error"
+      : this.status;
 
     listener({
-      status: !navigator.onLine ? "offline" : this.status,
+      status: effectiveStatus,
       pendingCount,
+      failedCount,
       lastSyncedAt: this.lastSyncedAt,
       error: this.lastError,
     });
@@ -93,17 +106,20 @@ class SyncEngine {
   public scheduleSync(delayMs = 5000) {
     if (!this.userId || !navigator.onLine) return;
 
+    if (this.isSyncing) {
+      this.pendingResync = true;
+      return;
+    }
+
     const now = Date.now();
     if (!this.lastMutationTime) {
       this.lastMutationTime = now;
     }
 
-    // Clear existing debounce
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
     }
 
-    // Ensure max 15-second interval during continuous operations
     const timeSinceFirst = now - this.lastMutationTime;
     if (timeSinceFirst >= 15000) {
       this.flushNow();
@@ -122,6 +138,17 @@ class SyncEngine {
   }
 
   /**
+   * Reset permanently/max-retried failed items and try flushing again.
+   */
+  public async retryFailed(): Promise<boolean> {
+    if (!this.userId || !navigator.onLine) return false;
+    await localOutboxRepo.resetFailedForRetry(this.userId);
+    this.lastError = undefined;
+    this.status = "idle";
+    return this.flushNow();
+  }
+
+  /**
    * Immediately flush pending outbox mutations to server.
    */
   public async flushNow(): Promise<boolean> {
@@ -131,32 +158,57 @@ class SyncEngine {
     this.maxIntervalTimer = null;
     this.lastMutationTime = 0;
 
-    if (!this.userId || this.isSyncing || !navigator.onLine) {
+    if (!this.userId || !navigator.onLine) {
+      return false;
+    }
+
+    if (this.isSyncing) {
+      this.pendingResync = true;
       return false;
     }
 
     try {
       this.isSyncing = true;
+      this.pendingResync = false;
       this.status = "syncing";
       this.notify();
 
       const rawPending = await localOutboxRepo.getPending(this.userId);
       if (rawPending.length === 0) {
-        this.status = "idle";
+        const failedCount = await localOutboxRepo.countFailed(this.userId);
+        this.status = failedCount > 0 ? "error" : "idle";
         this.notify();
         return true;
       }
 
-      // Coalesce redundant mutations safely
-      const coalesced = coalesceMutations(rawPending);
+      // Coalesce redundant mutations safely and track cancelled/merged IDs
+      const { coalesced, cancelledIds } = coalesceMutationsWithDropped(rawPending);
+
+      // Remove cancel-pair mutations (local create followed by local delete) immediately
+      if (cancelledIds.length > 0) {
+        await localOutboxRepo.removeBatch(cancelledIds);
+      }
+
+      if (coalesced.length === 0) {
+        this.status = "idle";
+        this.lastError = undefined;
+        this.notify();
+        return true;
+      }
 
       // Process in batches of up to 50
-      const batch = coalesced.slice(0, 50);
+      const batchWithMeta = coalesced.slice(0, 50);
+      const coalescedMap = new Map<string, string[]>();
+      const batchPayload = batchWithMeta.map((item) => {
+        coalescedMap.set(item.mutationId, item.coalescedIds);
+        const { coalescedIds: _omit, ...wireMut } = item;
+        return wireMut;
+      });
 
       const res = await fetch("/api/sync/batch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mutations: batch }),
+        body: JSON.stringify({ mutations: batchPayload }),
       });
 
       if (!res.ok) {
@@ -168,60 +220,95 @@ class SyncEngine {
         throw new Error("Server rejected batch sync payload");
       }
 
-      // Collect acknowledged mutation IDs
+      // Collect acknowledged mutation IDs (including all coalesced ancestor IDs)
       const acknowledgedIds: string[] = [];
+      let transientErrorCount = 0;
+      let permanentErrorCount = 0;
+      let latestErrorMsg: string | undefined;
+
       for (const item of data.results) {
+        const allIdsForItem = coalescedMap.get(item.mutationId) || [item.mutationId];
+
         if (item.status === "applied" || item.status === "duplicate") {
-          acknowledgedIds.push(item.mutationId);
+          acknowledgedIds.push(...allIdsForItem);
         } else if (item.status === "error") {
+          latestErrorMsg = item.error || "SYNC_MUTATION_ERROR";
           console.error(`Mutation ${item.mutationId} error:`, item.error);
-          await localOutboxRepo.updateStatus(item.mutationId, "failed", item.error);
+          if (item.permanent) {
+            permanentErrorCount++;
+            // Mark permanent failures so they do not trigger infinite retry loops
+            for (const id of allIdsForItem) {
+              await localOutboxRepo.updateStatus(id, "permanent_error", item.error);
+            }
+          } else {
+            transientErrorCount++;
+            for (const id of allIdsForItem) {
+              await localOutboxRepo.updateStatus(id, "failed", item.error);
+            }
+          }
         }
       }
 
-      // Remove acknowledged mutations from local outbox
       if (acknowledgedIds.length > 0) {
         await localOutboxRepo.removeBatch(acknowledgedIds);
       }
 
-      this.lastSyncedAt = Date.now();
-      this.status = "idle";
-      this.lastError = undefined;
-      this.retryDelayMs = 2000; // Reset backoff
+      if (acknowledgedIds.length > 0) {
+        this.lastSyncedAt = Date.now();
+        this.retryDelayMs = 2000;
+        this.channel?.postMessage({
+          type: "SYNC_COMPLETED",
+          timestamp: this.lastSyncedAt,
+        });
+      }
 
-      // Broadcast to other tabs
-      this.channel?.postMessage({
-        type: "SYNC_COMPLETED",
-        timestamp: this.lastSyncedAt,
-      });
+      if (transientErrorCount > 0 || permanentErrorCount > 0) {
+        this.status = "error";
+        this.lastError = latestErrorMsg;
+      } else {
+        this.status = "idle";
+        this.lastError = undefined;
+      }
 
       this.notify();
 
-      // Check if more remaining in outbox
+      // Only reschedule automatically if there are retryable pending mutations
       const remainingCount = await localOutboxRepo.countPending(this.userId);
       if (remainingCount > 0) {
-        this.scheduleSync(1000);
+        if (transientErrorCount > 0) {
+          const jitter = Math.floor(Math.random() * 1000);
+          const nextDelay = Math.min(30000, this.retryDelayMs + jitter);
+          this.retryDelayMs = Math.min(30000, this.retryDelayMs * 1.5);
+          this.scheduleSync(nextDelay);
+        } else {
+          this.scheduleSync(1000);
+        }
       }
 
-      return true;
+      return transientErrorCount === 0 && permanentErrorCount === 0;
     } catch (err: any) {
       console.warn("Background sync attempt failed:", err?.message || err);
       this.status = "error";
       this.lastError = err?.message || "Sync connection error";
       this.notify();
 
-      // Exponential backoff with jitter
-      const jitter = Math.floor(Math.random() * 1000);
-      const nextDelay = Math.min(30000, this.retryDelayMs + jitter);
-      this.retryDelayMs = Math.min(30000, this.retryDelayMs * 1.5);
-      this.scheduleSync(nextDelay);
+      const remaining = this.userId ? await localOutboxRepo.countPending(this.userId) : 0;
+      if (remaining > 0 && MAX_OUTBOX_RETRIES > 0) {
+        const jitter = Math.floor(Math.random() * 1000);
+        const nextDelay = Math.min(30000, this.retryDelayMs + jitter);
+        this.retryDelayMs = Math.min(30000, this.retryDelayMs * 1.5);
+        this.scheduleSync(nextDelay);
+      }
 
       return false;
     } finally {
       this.isSyncing = false;
+      if (this.pendingResync) {
+        this.pendingResync = false;
+        this.scheduleSync(500);
+      }
     }
   }
 }
 
 export const syncEngine = new SyncEngine();
-

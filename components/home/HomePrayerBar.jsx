@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { togglePrayer } from "@/actions/prayers";
 import { PRAYER_NAMES_ARABIC } from "@/lib/validations/prayer";
-import { localPrayerRepo } from "@/lib/local-db";
+import { localPrayerRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 const ORDERED_PRAYERS = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
 
@@ -53,48 +54,137 @@ export default function HomePrayerBar({
   const [detailModalPrayer, setDetailModalPrayer] = useState(null);
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
-  // Load guest records from IndexedDB if in guest mode
+  // Load local records from IndexedDB on mount / date change (for guest AND offline auth reconciliation)
   useEffect(() => {
-    if (isGuest) {
-      localPrayerRepo.getByDate("guest", dateStr).then((records) => {
-        if (records && records.length > 0) {
-          const recMap = new Map(records.map((r) => [r.prayerKey, r]));
-          setPrayers((prev) =>
-            prev.map((p) => {
-              const r = recMap.get(p.prayerKey);
-              if (r) {
-                return {
-                  ...p,
-                  id: r.id,
-                  isCompleted: r.isCompleted,
-                  location: r.location || null,
-                  withSunnah: Boolean(r.withSunnah),
-                  notes: r.notes || null,
-                };
-              }
-              return p;
-            })
-          );
-        }
-      });
-    }
-  }, [isGuest, dateStr]);
+    const effectiveUserId = isGuest ? "guest" : userId;
+    localPrayerRepo.getByDate(effectiveUserId, dateStr).then(async (records) => {
+      if (!records || records.length === 0) return;
+
+      if (!isGuest) {
+        // Only override server initialPrayers if there are unsynced prayer mutations pending in outbox
+        const pending = await localOutboxRepo.getPending(effectiveUserId).catch(() => []);
+        const pendingPrayerIds = new Set(
+          pending.filter((m) => m.entityType === "prayer_record").map((m) => m.entityId)
+        );
+        if (pendingPrayerIds.size === 0) return;
+        const recMap = new Map(records.map((r) => [r.prayerKey, r]));
+        setPrayers((prev) =>
+          prev.map((p) => {
+            const r = recMap.get(p.prayerKey);
+            if (r && pendingPrayerIds.has(r.id)) {
+              return {
+                ...p,
+                id: r.id,
+                isCompleted: r.isCompleted,
+                completedAt: r.completedAt || null,
+                location: r.location || null,
+                withSunnah: Boolean(r.withSunnah),
+                notes: r.notes || null,
+              };
+            }
+            return p;
+          })
+        );
+        return;
+      }
+
+      const recMap = new Map(records.map((r) => [r.prayerKey, r]));
+      setPrayers((prev) =>
+        prev.map((p) => {
+          const r = recMap.get(p.prayerKey);
+          if (r) {
+            return {
+              ...p,
+              id: r.id,
+              isCompleted: r.isCompleted,
+              completedAt: r.completedAt || null,
+              location: r.location || null,
+              withSunnah: Boolean(r.withSunnah),
+              notes: r.notes || null,
+            };
+          }
+          return p;
+        })
+      );
+    }).catch(() => {});
+  }, [isGuest, userId, dateStr]);
 
   const completedCount = prayers.filter((p) => p.isCompleted).length;
+
+  const persistPrayerLocalFirst = useCallback(
+    async (record) => {
+      const effectiveUserId = isGuest ? "guest" : userId;
+      const localRec = {
+        id: record.id || `${dateStr}_${record.prayerKey}`,
+        userId: effectiveUserId,
+        date: dateStr,
+        prayerKey: record.prayerKey,
+        isCompleted: Boolean(record.isCompleted),
+        completedAt: record.completedAt || null,
+        location: record.location || null,
+        withSunnah: Boolean(record.withSunnah),
+        notes: record.notes || null,
+        clientUpdatedAt: Date.now(),
+      };
+      await localPrayerRepo.save(localRec);
+
+      if (isGuest) return;
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        try {
+          const res = await togglePrayer({
+            date: dateStr,
+            prayerKey: localRec.prayerKey,
+            isCompleted: localRec.isCompleted,
+            location: localRec.location,
+            withSunnah: localRec.withSunnah,
+            notes: localRec.notes || undefined,
+          });
+          if (res?.success) return;
+        } catch (err) {
+          console.warn("Online prayer save failed, queuing offline:", err);
+        }
+      }
+
+      // Offline or failed server action: queue to outbox so it syncs reliably when online
+      await localOutboxRepo.add({
+        mutationId: crypto.randomUUID(),
+        userId: effectiveUserId,
+        entityType: "prayer_record",
+        entityId: localRec.id,
+        action: "update",
+        payload: {
+          date: dateStr,
+          prayerKey: localRec.prayerKey,
+          isCompleted: localRec.isCompleted,
+          completedAt: localRec.completedAt,
+          location: localRec.location,
+          withSunnah: localRec.withSunnah,
+          notes: localRec.notes,
+        },
+        clientTimestamp: Date.now(),
+        version: 1,
+        status: "pending",
+        retryCount: 0,
+      });
+      syncEngine.scheduleSync(5000);
+    },
+    [isGuest, userId, dateStr]
+  );
 
   const handleToggle = useCallback(
     async (prayer, e) => {
       e?.stopPropagation();
       const newStatus = !prayer.isCompleted;
+      const completedAt = newStatus ? new Date().toISOString() : null;
 
-      // Optimistic UI update
       setPrayers((prev) =>
         prev.map((p) =>
           p.prayerKey === prayer.prayerKey
             ? {
                 ...p,
                 isCompleted: newStatus,
-                completedAt: newStatus ? new Date().toISOString() : null,
+                completedAt,
               }
             : p
         )
@@ -106,38 +196,13 @@ export default function HomePrayerBar({
         soundManager.playClick();
       }
 
-      if (isGuest) {
-        const localRec = {
-          id: prayer.id,
-          userId: "guest",
-          date: dateStr,
-          prayerKey: prayer.prayerKey,
-          isCompleted: newStatus,
-          completedAt: newStatus ? new Date().toISOString() : null,
-          location: prayer.location,
-          withSunnah: prayer.withSunnah,
-          notes: prayer.notes,
-          clientUpdatedAt: Date.now(),
-        };
-        await localPrayerRepo.save(localRec);
-        return;
-      }
-
-      // Server Action for authenticated user
-      try {
-        await togglePrayer({
-          date: dateStr,
-          prayerKey: prayer.prayerKey,
-          isCompleted: newStatus,
-          location: prayer.location,
-          withSunnah: prayer.withSunnah,
-          notes: prayer.notes || undefined,
-        });
-      } catch (err) {
-        console.warn("Failed to update prayer state:", err);
-      }
+      await persistPrayerLocalFirst({
+        ...prayer,
+        isCompleted: newStatus,
+        completedAt,
+      });
     },
-    [isGuest, dateStr]
+    [persistPrayerLocalFirst]
   );
 
   const handleSaveDetails = useCallback(
@@ -156,33 +221,9 @@ export default function HomePrayerBar({
       );
 
       setDetailModalPrayer(null);
-
-      if (isGuest) {
-        const localRec = {
-          id: updatedItem.id,
-          userId: "guest",
-          date: dateStr,
-          prayerKey: updatedItem.prayerKey,
-          isCompleted: updatedItem.isCompleted,
-          completedAt: updatedItem.completedAt,
-          location,
-          withSunnah,
-          notes: notes || null,
-          clientUpdatedAt: Date.now(),
-        };
-        await localPrayerRepo.save(localRec);
-      } else {
-        await togglePrayer({
-          date: dateStr,
-          prayerKey: updatedItem.prayerKey,
-          isCompleted: updatedItem.isCompleted,
-          location,
-          withSunnah,
-          notes: notes || undefined,
-        });
-      }
+      await persistPrayerLocalFirst(updatedItem);
     },
-    [detailModalPrayer, isGuest, dateStr]
+    [detailModalPrayer, persistPrayerLocalFirst]
   );
 
   return (

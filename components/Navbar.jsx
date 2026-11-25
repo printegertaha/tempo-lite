@@ -7,7 +7,6 @@ import {
   Flame,
   LayoutDashboard,
   Calendar as CalendarIcon,
-  CalendarRange,
   BarChart3,
   Settings,
   Plus,
@@ -25,10 +24,10 @@ import {
   ArrowRight,
   ShieldCheck,
   Compass,
+  BookOpen,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
-import GoogleSignInButton from "./auth/GoogleSignInButton";
 
 const SyncStatusBadge = dynamic(
   () => import("@/components/sync/SyncStatusBadge"),
@@ -115,7 +114,6 @@ export default function Navbar() {
 
   const primaryLinks = [
     { href: "/", label: "الرئيسية", icon: LayoutDashboard },
-    // { href: "/planner", label: "المخطط", icon: CalendarRange },
     { href: "/tasks", label: "المهام", icon: CheckSquare },
     { href: "/habits", label: "العادات", icon: Flame },
     { href: "/journal", label: "اليوميات", icon: BookMarked },
@@ -151,6 +149,13 @@ export default function Navbar() {
       desc: "ضبط الإنفاق ومتابعة الالتزامات",
       icon: Wallet,
       accent: "text-emerald-400 group-hover:bg-emerald-500/10",
+    },
+    {
+      href: "/quran",
+      label: "قلب القرآن",
+      desc: "متابعة حفظ القرآن الكريم وتلوين السور",
+      icon: BookOpen,
+      accent: "text-rose-400 group-hover:bg-rose-500/10",
     },
     {
       href: "/landing",

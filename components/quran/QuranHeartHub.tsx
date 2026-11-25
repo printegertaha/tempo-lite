@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import Image from "next/image";
 import { QURAN_SURAHS, TOTAL_QURAN_AYAHS, TOTAL_QURAN_SURAHS, Surah } from "@/lib/quranData";
 import QuranHeartVisualizer from "./QuranHeartVisualizer";
 import { soundManager } from "@/lib/audio";
@@ -35,18 +36,25 @@ export default function QuranHeartHub() {
 
   // Load from localStorage on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed)) {
-          setMemorizedIds(parsed);
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed)) {
+            setMemorizedIds(parsed);
+          }
         }
+      } catch (e) {
+        console.error("Failed to load Quran memorization state", e);
       }
-    } catch (e) {
-      console.error("Failed to load Quran memorization state", e);
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    });
+    return () => {
+      active = false;
+    };
   }, []);
 
   // Save to localStorage whenever memorizedIds changes
@@ -328,9 +336,11 @@ export default function QuranHeartHub() {
                   اللوحة الفنية الأصلية لحفظ القرآن — انقر على أي سورة من القائمة الجانبية لتحديدها.
                 </div>
                 <div className="relative inline-block rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl max-w-full">
-                  <img
+                  <Image
                     src="/trackers/quran_heart.jpg"
                     alt="مخطط حفظ القرآن على شكل قلب"
+                    width={500}
+                    height={700}
                     className="w-full max-w-[500px] h-auto object-contain mx-auto"
                   />
                   {/* Glowing Overlay for Memorized Surahs */}

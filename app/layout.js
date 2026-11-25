@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
+import GlobalTaskTimerBar from "@/components/timer/GlobalTaskTimerBar";
 import { AtharProvider } from "@/components/context/AtharContext";
 import Toast from "@/components/Toast";
 import PwaRegister from "@/components/pwa/PwaRegister";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }) {
             <Suspense fallback={<div className="h-16 sm:h-20 w-full bg-[#090b11]" />}>
               <Navbar />
             </Suspense>
+            <GlobalTaskTimerBar />
             <main className="flex-1 pb-24 md:pb-16">
               {children}
             </main>

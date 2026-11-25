@@ -49,19 +49,41 @@ export async function saveMealEntry(data: {
 
     let meal;
     if (data.id) {
-      meal = await prisma.mealEntry.update({
-        where: { id: data.id, userId },
-        data: {
-          date: data.date,
-          mealType: data.mealType,
-          title: data.title,
-          calories: data.calories || 0,
-          protein: data.protein || 0,
-          carbs: data.carbs || 0,
-          fat: data.fat || 0,
-          notes: data.notes || null,
-        },
+      const existing = await prisma.mealEntry.findUnique({
+        where: { id: data.id },
+        select: { id: true, userId: true },
       });
+      if (existing && existing.userId !== userId) {
+        return { success: false, error: "غير مصرح بتعديل هذه الوجبة" };
+      }
+      meal = existing
+        ? await prisma.mealEntry.update({
+            where: { id: data.id },
+            data: {
+              date: data.date,
+              mealType: data.mealType,
+              title: data.title,
+              calories: data.calories || 0,
+              protein: data.protein || 0,
+              carbs: data.carbs || 0,
+              fat: data.fat || 0,
+              notes: data.notes || null,
+            },
+          })
+        : await prisma.mealEntry.create({
+            data: {
+              id: data.id,
+              userId,
+              date: data.date,
+              mealType: data.mealType,
+              title: data.title,
+              calories: data.calories || 0,
+              protein: data.protein || 0,
+              carbs: data.carbs || 0,
+              fat: data.fat || 0,
+              notes: data.notes || null,
+            },
+          });
     } else {
       meal = await prisma.mealEntry.create({
         data: {

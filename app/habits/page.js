@@ -5,13 +5,13 @@ import HabitsClient from "@/components/trackers/HabitsClient";
 import { getTrackers } from "@/actions/trackers";
 import { getLifeAreas } from "@/actions/life-areas";
 import { getDailyEntries } from "@/actions/entries";
-import { getLocalDateString } from "@/lib/dates";
+import { getServerUserTemporalContext } from "@/lib/server-user";
 import { Loader2 } from "lucide-react";
 
 async function HabitsServer() {
   await connection();
   const session = await getServerSession();
-  const todayStr = getLocalDateString();
+  const { timezone, todayStr } = await getServerUserTemporalContext(session?.user?.id);
 
   let initialTrackers = [];
   let initialLifeAreas = [];
@@ -34,6 +34,7 @@ async function HabitsServer() {
     <HabitsClient
       user={session?.user || null}
       initialDate={todayStr}
+      timezone={timezone}
       initialTrackers={initialTrackers}
       initialLifeAreas={initialLifeAreas}
       initialDailyEntries={initialDailyEntries}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Plus,
   Search,
@@ -21,21 +21,26 @@ import {
 } from "lucide-react";
 import TaskCard from "./TaskCard";
 import TaskModal from "./TaskModal";
-import ZenFocusModal from "@/components/planner/ZenFocusModal";
+import { activeTimerEngine } from "@/lib/timer/active-timer";
 import SyncStatusBadge from "@/components/sync/SyncStatusBadge";
 import { useLocalTasks } from "@/hooks/useLocalTasks";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { soundManager } from "@/lib/audio";
-import { getLocalDateString } from "@/lib/dates";
+import { getLocalDateString, getDefaultTimezone } from "@/lib/dates";
 
 export default function TasksView({
   userId,
   initialLocalDate,
+  timezone,
   initialTasks = [],
   initialStats = null,
   initialLifeAreas = [],
   initialTrackers = [],
 }) {
+  const isGuest = !userId || userId === "guest";
+  const effectiveTimezone =
+    timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+
   const {
     tasks,
     isLoaded,
@@ -45,7 +50,11 @@ export default function TasksView({
     deleteTask,
     deleteAllTasks,
     postponeTask,
-  } = useLocalTasks(userId, initialTasks);
+  } = useLocalTasks(userId, initialTasks, {
+    scope: "full",
+    includeArchived: true,
+    timezone: effectiveTimezone,
+  });
 
   const [lifeAreas] = useState(initialLifeAreas);
   const [trackers] = useState(initialTrackers);
@@ -55,12 +64,23 @@ export default function TasksView({
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [selectedTrackerId, setSelectedTrackerId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [localDate] = useState(initialLocalDate || getLocalDateString());
+  const [localDate, setLocalDate] = useState(
+    () => initialLocalDate || getLocalDateString(new Date(), effectiveTimezone)
+  );
+
+  useEffect(() => {
+    const syncDate = () => {
+      const currentLocal = getLocalDateString(new Date(), effectiveTimezone);
+      setLocalDate((prev) => (prev !== currentLocal ? currentLocal : prev));
+    };
+    syncDate();
+    const timer = setInterval(syncDate, 60000);
+    return () => clearInterval(timer);
+  }, [effectiveTimezone]);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [selectedTaskForZen, setSelectedTaskForZen] = useState(null);
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
@@ -80,7 +100,6 @@ export default function TasksView({
       setModalOpen(true);
     },
     onEscape: () => {
-      setSelectedTaskForZen(null);
       setModalOpen(false);
     },
   });
@@ -462,8 +481,8 @@ export default function TasksView({
           </div>
         </div>
       ) : (
-        /* Responsive Card Grid with unique keys */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5">
+        /* Responsive Card Grid with generous card sizing */
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {filteredTasks.map((task) => (
             <TaskCard
               key={task.id}
@@ -479,7 +498,12 @@ export default function TasksView({
               onArchive={async (id, archived) => {
                 await updateTask(id, { isArchived: archived });
               }}
-              onOpenZen={(t) => setSelectedTaskForZen(t)}
+              onOpenZen={(t) =>
+                activeTimerEngine.requestStart(t, "zen_pomodoro", userId || "guest")
+              }
+              onStartTimer={(t) =>
+                activeTimerEngine.requestStart(t, "stopwatch", userId || "guest")
+              }
               onToggleSubtask={handleToggleSubtask}
             />
           ))}
@@ -499,19 +523,6 @@ export default function TasksView({
         todayStr={todayStr}
         onSave={handleModalSave}
       />
-
-      {/* Zen Focus Mode Overlay */}
-      {selectedTaskForZen && (
-        <ZenFocusModal
-          isOpen={!!selectedTaskForZen}
-          onClose={() => setSelectedTaskForZen(null)}
-          task={selectedTaskForZen}
-          onTaskCompleted={(id) => {
-            toggleTaskStatus(id);
-            setSelectedTaskForZen(null);
-          }}
-        />
-      )}
     </div>
   );
 }

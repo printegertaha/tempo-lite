@@ -12,7 +12,9 @@ import {
   Sparkles,
 } from "lucide-react";
 import { createAbstinenceTracker } from "@/actions/abstinence";
-import { getLocalDateString } from "@/lib/dates";
+import { getLocalDateString, parseLocalDateTimeToUtc } from "@/lib/dates";
+import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 const POPULAR_BEHAVIORS = [
   "مشاهدة الإباحية والمحتوى المثير",
@@ -34,6 +36,7 @@ const TARGET_PRESETS = [
 export default function CreateAbstinenceModal({
   isOpen,
   onClose,
+  userId = "guest",
   onCreated,
   timezone = "Asia/Riyadh",
 }) {
@@ -65,7 +68,67 @@ export default function CreateAbstinenceModal({
     setIsSubmitting(true);
     setErrorMsg("");
 
+    const effectiveUserId = userId || "guest";
+    const isGuest = effectiveUserId === "guest";
+    const exactStartIso = parseLocalDateTimeToUtc(startDate, startTime, timezone).toISOString();
+
+    const saveLocalTracker = async () => {
+      const trackerId = crypto.randomUUID();
+      const sessionId = crypto.randomUUID();
+      const localTracker = {
+        id: trackerId,
+        userId: effectiveUserId,
+        name: name.trim(),
+        description: description.trim() || null,
+        targetDays: targetDays ? parseInt(targetDays, 10) : 30,
+        color: "rose",
+        icon: "ShieldCheck",
+        isArchived: false,
+        createdAt: new Date().toISOString(),
+      };
+      const localSession = {
+        id: sessionId,
+        abstinenceTrackerId: trackerId,
+        trackerId,
+        userId: effectiveUserId,
+        startedAt: exactStartIso,
+        endedAt: null,
+        durationSeconds: null,
+      };
+      await localAbstinenceRepo.saveTracker(localTracker);
+      await localAbstinenceRepo.saveSession(localSession);
+
+      if (!isGuest) {
+        await localOutboxRepo.add({
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "abstinence",
+          entityId: trackerId,
+          action: "create",
+          payload: {
+            ...localTracker,
+            startedAt: exactStartIso,
+          },
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        });
+        syncEngine.scheduleSync(5000);
+      }
+      return { ...localTracker, activeSession: localSession, sessions: [localSession] };
+    };
+
     try {
+      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
+        const createdLocal = await saveLocalTracker();
+        setName("");
+        setDescription("");
+        onCreated?.(createdLocal);
+        onClose();
+        return;
+      }
+
       const res = await createAbstinenceTracker({
         name: name.trim(),
         description: description.trim() || null,
@@ -81,36 +144,22 @@ export default function CreateAbstinenceModal({
         onCreated?.(res.data);
         onClose();
       } else {
-        // Local-first guest fallback: persist into IndexedDB
-        try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          const guestTracker = {
-            id: `guest_abs_${Date.now()}`,
-            userId: "guest",
-            name: name.trim(),
-            description: description.trim() || null,
-            targetDays: targetDays ? parseInt(targetDays, 10) : 30,
-            color: "rose",
-            icon: "ShieldCheck",
-            activeSession: {
-              id: `guest_sess_${Date.now()}`,
-              startedAt: new Date().toISOString(),
-            },
-            longestStreakSeconds: 0,
-            totalAbstinentSeconds: 0,
-          };
-          await db.put("abstinence_trackers", guestTracker);
-          setName("");
-          setDescription("");
-          onCreated?.(guestTracker);
-          onClose();
-        } catch {
-          setErrorMsg(res.error || "تعذر إنشاء هدف الامتناع");
-        }
+        const createdLocal = await saveLocalTracker();
+        setName("");
+        setDescription("");
+        onCreated?.(createdLocal);
+        onClose();
       }
     } catch (err) {
-      setErrorMsg(err?.message || "حدث خطأ غير متوقع");
+      try {
+        const createdLocal = await saveLocalTracker();
+        setName("");
+        setDescription("");
+        onCreated?.(createdLocal);
+        onClose();
+      } catch {
+        setErrorMsg(err?.message || "حدث خطأ غير متوقع");
+      }
     } finally {
       setIsSubmitting(false);
     }

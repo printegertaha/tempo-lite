@@ -6,6 +6,20 @@
  */
 
 /**
+ * Return the client's detected IANA timezone when running in a browser,
+ * falling back to "Asia/Riyadh" on SSR or unsupported environments.
+ */
+export function getDefaultTimezone(): string {
+  if (typeof Intl !== "undefined") {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) return tz;
+    } catch {}
+  }
+  return "Asia/Riyadh";
+}
+
+/**
  * Format a Date object into "YYYY-MM-DD" local calendar date string
  * based on the user's specified IANA timezone.
  */
@@ -21,8 +35,7 @@ export function getLocalDateString(
       day: "2-digit",
     });
     return formatter.format(date);
-  } catch (err) {
-    // Fallback to UTC if timezone string is invalid
+  } catch {
     return date.toISOString().split("T")[0];
   }
 }
@@ -45,6 +58,79 @@ export function calculateDurationSeconds(start: Date, end: Date): number {
   return Math.max(0, Math.round(diffMs / 1000));
 }
 
+function getTimezoneOffsetAt(instant: Date, timezone: string): number {
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(instant);
+  const tzMap: Record<string, number> = {};
+  for (const part of parts) {
+    if (part.type !== "literal") {
+      tzMap[part.type] = Number(part.value);
+    }
+  }
+
+  const hour = tzMap.hour === 24 ? 0 : (tzMap.hour ?? 0);
+  const tzAsUtc = Date.UTC(
+    tzMap.year ?? instant.getUTCFullYear(),
+    (tzMap.month ?? instant.getUTCMonth() + 1) - 1,
+    tzMap.day ?? instant.getUTCDate(),
+    hour,
+    tzMap.minute ?? 0,
+    tzMap.second ?? 0
+  );
+
+  return tzAsUtc - instant.getTime();
+}
+
+/**
+ * Convert a local calendar date string ("YYYY-MM-DD") and local time ("HH:MM")
+ * in a given IANA timezone into an exact UTC Date timestamp (two-pass DST safe).
+ */
+export function parseLocalDateTimeToUtc(
+  dateStr: string,
+  timeStr: string,
+  timezone: string = "Asia/Riyadh"
+): Date {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const [hours, minutes] = timeStr.split(":").map(Number);
+
+  if (!timezone) {
+    return new Date(year, month - 1, day, hours, minutes, 0, 0);
+  }
+
+  const naiveUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
+
+  try {
+    // Pass 1: estimate offset at naiveUtc
+    const offset1 = getTimezoneOffsetAt(naiveUtc, timezone);
+    const guess1 = new Date(naiveUtc.getTime() - offset1);
+    // Pass 2: refine offset at the resulting instant for DST boundary accuracy
+    const offset2 = getTimezoneOffsetAt(guess1, timezone);
+    return new Date(naiveUtc.getTime() - offset2);
+  } catch {
+    return naiveUtc;
+  }
+}
+
+/**
+ * Return the exact UTC Date corresponding to 00:00 of a local calendar date in timezone.
+ */
+export function getUtcStartOfLocalDate(
+  localDate: string,
+  timezone: string = "Asia/Riyadh"
+): Date {
+  return parseLocalDateTimeToUtc(localDate, "00:00", timezone);
+}
+
 /**
  * Build UTC DateTime from a local date string "YYYY-MM-DD" and time "HH:MM",
  * correctly adjusting for the user's timezone and handling midnight crossing.
@@ -52,16 +138,11 @@ export function calculateDurationSeconds(start: Date, end: Date): number {
 export function parseLocalTimeWithCrossing(
   localDate: string,
   timeStr: string,
-  isNextDay = false
+  isNextDay = false,
+  timezone: string = "Asia/Riyadh"
 ): Date {
-  const [year, month, day] = localDate.split("-").map(Number);
-  const [hours, minutes] = timeStr.split(":").map(Number);
-
-  const targetDate = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
-  if (isNextDay) {
-    targetDate.setUTCDate(targetDate.getUTCDate() + 1);
-  }
-  return targetDate;
+  const effectiveDate = isNextDay ? addDaysToDateString(localDate, 1) : localDate;
+  return parseLocalDateTimeToUtc(effectiveDate, timeStr, timezone);
 }
 
 /**
@@ -71,7 +152,8 @@ export function parseLocalTimeWithCrossing(
 export function computeTimeRange(
   localDate: string,
   timeStart: string,
-  timeEnd: string
+  timeEnd: string,
+  timezone: string = "Asia/Riyadh"
 ): {
   startTime: Date;
   endTime: Date;
@@ -81,9 +163,9 @@ export function computeTimeRange(
   const [startH, startM] = timeStart.split(":").map(Number);
   const [endH, endM] = timeEnd.split(":").map(Number);
 
-  const startTime = parseLocalTimeWithCrossing(localDate, timeStart, false);
-  const crossesMidnight = endH < startH || (endH === startH && endM < startM);
-  const endTime = parseLocalTimeWithCrossing(localDate, timeEnd, crossesMidnight);
+  const startTime = parseLocalTimeWithCrossing(localDate, timeStart, false, timezone);
+  const crossesMidnight = endH < startH || (endH === startH && endM <= startM);
+  const endTime = parseLocalTimeWithCrossing(localDate, timeEnd, crossesMidnight, timezone);
   const durationSeconds = calculateDurationSeconds(startTime, endTime);
 
   return { startTime, endTime, durationSeconds, crossesMidnight };
@@ -131,65 +213,6 @@ export function formatArabicDueDate(
     return { label: `متأخرة (${dueDate})`, isOverdue: true, isToday: false, isTomorrow: false };
   }
   return { label: dueDate, isOverdue: false, isToday: false, isTomorrow: false };
-}
-
-/**
- * Convert a local calendar date string ("YYYY-MM-DD") and local time ("HH:MM")
- * in a given IANA timezone into an exact UTC Date timestamp.
- */
-export function parseLocalDateTimeToUtc(
-  dateStr: string,
-  timeStr: string,
-  timezone: string = "Asia/Riyadh"
-): Date {
-  const [year, month, day] = dateStr.split("-").map(Number);
-  const [hours, minutes] = timeStr.split(":").map(Number);
-
-  if (!timezone) {
-    return new Date(year, month - 1, day, hours, minutes, 0, 0);
-  }
-
-  // 1. Create a reference UTC date with the literal numbers
-  const naiveUtc = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0, 0));
-
-  try {
-    // 2. Format that reference date in the specified timezone
-    const formatter = new Intl.DateTimeFormat("en-US", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "numeric",
-      day: "numeric",
-      hour: "numeric",
-      minute: "numeric",
-      second: "numeric",
-      hour12: false,
-    });
-
-    const parts = formatter.formatToParts(naiveUtc);
-    const tzMap: Record<string, number> = {};
-    for (const part of parts) {
-      if (part.type !== "literal") {
-        tzMap[part.type] = Number(part.value);
-      }
-    }
-
-    const tzDate = new Date(
-      Date.UTC(
-        tzMap.year || year,
-        (tzMap.month || month) - 1,
-        tzMap.day || day,
-        tzMap.hour === 24 ? 0 : tzMap.hour || hours,
-        tzMap.minute || minutes,
-        tzMap.second || 0
-      )
-    );
-
-    const offsetMs = tzDate.getTime() - naiveUtc.getTime();
-    return new Date(naiveUtc.getTime() - offsetMs);
-  } catch {
-    // Fallback if timezone string is invalid
-    return naiveUtc;
-  }
 }
 
 /**
@@ -248,40 +271,71 @@ export function calculateAbstinenceDuration(
   const totalSeconds = Math.max(0, Math.floor((end - start) / 1000));
 
   const days = Math.floor(totalSeconds / 86400);
-  const remainingAfterDays = totalSeconds % 86400;
-  const hours = Math.floor(remainingAfterDays / 3600);
-  const remainingAfterHours = remainingAfterDays % 3600;
-  const minutes = Math.floor(remainingAfterHours / 60);
-  const seconds = remainingAfterHours % 60;
+  const hours = Math.floor((totalSeconds % 86400) / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
 
-  let formattedArabic = "";
+  const parts: string[] = [];
   if (days > 0) {
-    formattedArabic =
-      days === 1 ? "يوم" : days === 2 ? "يومان" : `${days} ${days <= 10 ? "أيام" : "يوم"}`;
-    if (hours > 0) {
-      formattedArabic += ` و ${
-        hours === 1 ? "ساعة" : hours === 2 ? "ساعتان" : `${hours} ${hours <= 10 ? "ساعات" : "ساعة"}`
-      }`;
-    }
-  } else if (hours > 0) {
-    formattedArabic =
-      hours === 1 ? "ساعة" : hours === 2 ? "ساعتان" : `${hours} ${hours <= 10 ? "ساعات" : "ساعة"}`;
-    if (minutes > 0) {
-      formattedArabic += ` و ${
-        minutes === 1 ? "دقيقة" : minutes === 2 ? "دقيقتان" : `${minutes} ${minutes <= 10 ? "دقائق" : "دقيقة"}`
-      }`;
-    }
-  } else if (minutes > 0) {
-    formattedArabic =
-      minutes === 1 ? "دقيقة" : minutes === 2 ? "دقيقتان" : `${minutes} ${minutes <= 10 ? "دقائق" : "دقيقة"}`;
-    if (seconds > 0) {
-      formattedArabic += ` و ${seconds} ثانية`;
-    }
-  } else {
-    formattedArabic = `${seconds} ثانية`;
+    if (days === 1) parts.push("يوم واحد");
+    else if (days === 2) parts.push("يومان");
+    else if (days <= 10) parts.push(`${days} أيام`);
+    else parts.push(`${days} يوماً`);
+  }
+  if (hours > 0) {
+    if (hours === 1) parts.push("ساعة");
+    else if (hours === 2) parts.push("ساعتان");
+    else if (hours <= 10) parts.push(`${hours} ساعات`);
+    else parts.push(`${hours} ساعة`);
+  }
+  if (minutes > 0 && days === 0) {
+    if (minutes === 1) parts.push("دقيقة");
+    else if (minutes === 2) parts.push("دقيقتان");
+    else if (minutes <= 10) parts.push(`${minutes} دقائق`);
+    else parts.push(`${minutes} دقيقة`);
+  }
+  if (parts.length === 0) {
+    parts.push(`${seconds} ثانية`);
   }
 
-  return { totalSeconds, days, hours, minutes, seconds, formattedArabic };
+  return {
+    totalSeconds,
+    days,
+    hours,
+    minutes,
+    seconds,
+    formattedArabic: parts.join(" و"),
+  };
+}
+
+/**
+ * Format total seconds into human-readable Arabic duration string (e.g. "2 س 30 د")
+ */
+export function formatDurationArabic(totalSeconds: number): string {
+  if (!totalSeconds || totalSeconds <= 0) return "0 د";
+  const hours = Math.floor(totalSeconds / 3600);
+  const mins = Math.floor((totalSeconds % 3600) / 60);
+
+  if (hours > 0 && mins > 0) {
+    return `${hours} س ${mins} د`;
+  }
+  if (hours > 0) {
+    return `${hours} س`;
+  }
+  return `${mins} د`;
+}
+
+/**
+ * Format hours & minutes in HH:MM digital string
+ */
+export function formatSecondsDigital(totalSeconds: number): string {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  if (h > 0) {
+    return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 /**
@@ -316,10 +370,8 @@ export function formatArabicDateTime(
   } catch {
     return {
       dateStr: d.toISOString().split("T")[0],
-      timeStr: d.toISOString().split("T")[1].slice(0, 5),
+      timeStr: d.toISOString().split("T")[1]?.slice(0, 5) || "00:00",
       fullStr: d.toISOString(),
     };
   }
 }
-
-

@@ -1,5 +1,5 @@
 // Athar (أثـر) — Offline-First Service Worker
-const CACHE_VERSION = 'athar-v1.0.1';
+const CACHE_VERSION = 'athar-v1.0.2';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
@@ -15,7 +15,6 @@ const PRECACHE_URLS = [
 const CORE_ROUTES = [
   '/',
   '/tasks',
-  '/planner',
   '/habits',
   '/journal',
   '/abstinence',
@@ -72,8 +71,16 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // 2. Security: Never cache authentication endpoints or secret sessions
-  if (url.pathname.startsWith('/api/auth')) {
+  // 2. Never cache authentication endpoints, API routes, Next.js RSC Flight requests, or login/register
+  if (
+    url.pathname.startsWith('/api/') ||
+    url.pathname === '/login' ||
+    url.pathname === '/register' ||
+    url.searchParams.has('_rsc') ||
+    request.headers.get('RSC') === '1' ||
+    request.headers.has('Next-Router-Prefetch') ||
+    request.headers.has('Next-Router-Segment-Prefetch')
+  ) {
     return;
   }
 

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { useSession } from "@/lib/auth-client";
-import { Cloud, CloudOff, RefreshCw, CheckCircle2 } from "lucide-react";
+import { Cloud, CloudOff, RefreshCw, CheckCircle2, AlertTriangle } from "lucide-react";
 
 const emptySubscribe = () => () => {};
 
@@ -13,7 +13,7 @@ export default function SyncStatusBadge() {
     () => true,
     () => false
   );
-  const { status, pendingCount, flushNow } = useSyncStatus();
+  const { status, pendingCount, failedCount, error, flushNow, retryFailed } = useSyncStatus();
   const { data: sessionData, isPending } = useSession();
 
   if (!mounted) {
@@ -36,7 +36,7 @@ export default function SyncStatusBadge() {
         title="أنت تتصفح في وضع الضيف المحلي. جميع المهام والعادات والتدوينات محفوظة محلياً بالكامل على هذا الجهاز في متصفحك."
       >
         <span className="w-1.5 h-1.5 rounded-full bg-violet-400 animate-pulse" />
-        <span>البيانات محلياََ</span>
+        <span>محفوظ محلياً (ضيف)</span>
       </div>
     );
   }
@@ -74,7 +74,28 @@ export default function SyncStatusBadge() {
     );
   }
 
-  // 4. Pending mutations state
+  // 4. Error / Failed mutations state (never report synced when errors exist!)
+  if (status === "error" || failedCount > 0) {
+    const totalAffected = failedCount + pendingCount;
+    return (
+      <button
+        type="button"
+        onClick={() => (failedCount > 0 ? retryFailed() : flushNow())}
+        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/30 text-rose-300 text-[11px] font-medium transition-colors cursor-pointer"
+        title={error ? `تعذر مزامنة بعض التعديلات (${error}). انقر لإعادة المحاولة.` : "تعذر مزامنة بعض التعديلات. انقر لإعادة المحاولة."}
+      >
+        <AlertTriangle className="w-3.5 h-3.5 text-rose-400" />
+        <span>تعذر المزامنة</span>
+        {totalAffected > 0 && (
+          <span className="px-1.5 py-0.5 rounded-full bg-rose-500/20 text-rose-200 text-[10px] font-mono font-bold">
+            {totalAffected}
+          </span>
+        )}
+      </button>
+    );
+  }
+
+  // 5. Pending mutations state
   if (pendingCount > 0) {
     return (
       <button
@@ -92,7 +113,7 @@ export default function SyncStatusBadge() {
     );
   }
 
-  // 5. Fully synced state
+  // 6. Fully synced state
   return (
     <div
       className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-medium"
@@ -103,4 +124,3 @@ export default function SyncStatusBadge() {
     </div>
   );
 }
-

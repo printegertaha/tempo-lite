@@ -1,29 +1,28 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Check,
   Plus,
   Minus,
   Timer,
-  Clock,
   CheckCircle2,
   Circle,
   ShieldCheck,
   ShieldAlert,
   Loader2,
-  Calendar,
 } from "lucide-react";
 import {
-  toggleBooleanDaily,
-  incrementCounterDaily,
-  logDurationSession,
-  toggleChecklistItem,
-  logAvoidanceDay,
-} from "@/actions/entries";
+  toggleBooleanEntryLocalFirst,
+  incrementCounterLocalFirst,
+  logDurationLocalFirst,
+  toggleChecklistItemLocalFirst,
+  logAvoidanceLocalFirst,
+} from "@/lib/local-db/habit-ops";
 
 export default function QuickLogControls({
+  userId = "guest",
   tracker,
   localDate,
   dailySummary,
@@ -31,10 +30,11 @@ export default function QuickLogControls({
   onToast,
   onOpenDetailedModal,
 }) {
-  // 1. BOOLEAN TRACKER (Safe Optimistic Toggle + Rollback)
+  // 1. BOOLEAN TRACKER
   if (tracker.metricType === "BOOLEAN") {
     return (
       <BooleanControls
+        userId={userId}
         tracker={tracker}
         localDate={localDate}
         serverCompleted={Boolean(dailySummary?.isCompleted)}
@@ -44,10 +44,11 @@ export default function QuickLogControls({
     );
   }
 
-  // 2. COUNTER TRACKER (Safe Optimistic Increment + Rollback)
+  // 2. COUNTER TRACKER
   if (tracker.metricType === "COUNTER") {
     return (
       <CounterControls
+        userId={userId}
         tracker={tracker}
         localDate={localDate}
         serverCount={dailySummary?.totalNumeric || 0}
@@ -57,10 +58,11 @@ export default function QuickLogControls({
     );
   }
 
-  // 3. DURATION TRACKER (Safe Optimistic Duration + Rollback)
+  // 3. DURATION TRACKER
   if (tracker.metricType === "DURATION") {
     return (
       <DurationControls
+        userId={userId}
         tracker={tracker}
         localDate={localDate}
         serverSeconds={dailySummary?.totalDurationSeconds || 0}
@@ -71,10 +73,11 @@ export default function QuickLogControls({
     );
   }
 
-  // 4. CHECKLIST TRACKER (Safe Optimistic Item Toggle + Rollback)
+  // 4. CHECKLIST TRACKER
   if (tracker.metricType === "CHECKLIST") {
     return (
       <ChecklistControls
+        userId={userId}
         tracker={tracker}
         localDate={localDate}
         serverCompletedIds={dailySummary?.checklistCompletedIds || []}
@@ -84,22 +87,30 @@ export default function QuickLogControls({
     );
   }
 
-  // 5. AVOIDANCE TRACKER (Live Abstinence Tracking & Relapse Hub)
+  // 5. AVOIDANCE TRACKER
   if (tracker.metricType === "AVOIDANCE") {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <AvoidanceControls
+          userId={userId}
+          tracker={tracker}
+          localDate={localDate}
+          serverClean={dailySummary?.avoidanceState?.isClean ?? null}
+          onLogged={onLogged}
+          onToast={onToast}
+        />
         <Link
           href="/abstinence"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-bold transition-colors cursor-pointer"
         >
           <ShieldCheck className="w-3.5 h-3.5 text-rose-400" />
-          <span>سجل الامتناع والانتكاسات</span>
+          <span>مركز التعافي</span>
         </Link>
       </div>
     );
   }
 
-  // 6. NUMBER / TIME_RANGE / DEFAULT: Detailed Entry Modal Button
+  // 6. NUMBER / TIME_RANGE / DEFAULT
   return (
     <button
       type="button"
@@ -113,10 +124,10 @@ export default function QuickLogControls({
 }
 
 // -----------------------------------------------------------------------------
-// Subcomponents with Local Optimistic State & Rollback Handlers
+// Subcomponents with Local Optimistic State & Local-First Persistence
 // -----------------------------------------------------------------------------
 
-function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToast }) {
+function BooleanControls({ userId, tracker, localDate, serverCompleted, onLogged, onToast }) {
   const [optimisticCompleted, setOptimisticCompleted] = useState(serverCompleted);
   const [isSyncing, setIsSyncing] = useState(false);
   const [prevServerCompleted, setPrevServerCompleted] = useState(serverCompleted);
@@ -131,12 +142,11 @@ function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToas
     const previous = optimisticCompleted;
     const nextState = !previous;
 
-    // 1. Optimistic immediate update (<16ms response)
     setOptimisticCompleted(nextState);
     setIsSyncing(true);
 
     try {
-      const res = await toggleBooleanDaily(tracker.id, localDate);
+      const res = await toggleBooleanEntryLocalFirst(userId, tracker, localDate);
       if (res.success) {
         onLogged?.();
         onToast?.(
@@ -144,12 +154,10 @@ function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToas
           "success"
         );
       } else {
-        // Rollback on failure
         setOptimisticCompleted(previous);
         onToast?.(res.error || "تعذر حفظ الإنجاز", "error");
       }
     } catch {
-      // Rollback on network/execution exception
       setOptimisticCompleted(previous);
       onToast?.("حدث خطأ في الاتصال، تم التراجع", "error");
     } finally {
@@ -161,91 +169,114 @@ function BooleanControls({ tracker, localDate, serverCompleted, onLogged, onToas
     <button
       type="button"
       onClick={handleToggle}
-      className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+      disabled={isSyncing}
+      className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer ${
         optimisticCompleted
-          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm"
-          : "bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-emerald-500/40 hover:text-emerald-300"
+          ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/10"
+          : "bg-zinc-800/80 hover:bg-zinc-800 text-zinc-300 border-zinc-700 hover:border-violet-500/40"
       }`}
     >
       {isSyncing ? (
-        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+        <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-400" />
       ) : optimisticCompleted ? (
-        <Check className="w-3.5 h-3.5 text-emerald-400" />
+        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
       ) : (
-        <Circle className="w-3.5 h-3.5 text-zinc-400" />
+        <Circle className="w-4 h-4 text-zinc-400" />
       )}
-      <span>{optimisticCompleted ? "مُكتمل اليوم" : "تسجيل إنجاز"}</span>
+      <span>
+        {optimisticCompleted
+          ? tracker.trackerConfig?.trueLabel || "تم الإنجاز"
+          : tracker.trackerConfig?.falseLabel || "إنجاز اليوم"}
+      </span>
     </button>
   );
 }
 
-function CounterControls({ tracker, localDate, serverCount, onLogged, onToast }) {
+function CounterControls({ userId, tracker, localDate, serverCount, onLogged, onToast }) {
   const [optimisticCount, setOptimisticCount] = useState(serverCount);
   const [isSyncing, setIsSyncing] = useState(false);
   const [prevServerCount, setPrevServerCount] = useState(serverCount);
-  const step = tracker.trackerConfig?.step || 1;
 
   if (prevServerCount !== serverCount) {
     setPrevServerCount(serverCount);
     setOptimisticCount(serverCount);
   }
 
-  const handleIncrement = async (amount) => {
-    if (isSyncing) return;
-    const previous = optimisticCount;
-    const nextCount = previous + amount;
+  const step = tracker.trackerConfig?.step || 1;
+  const target = tracker.targetValue || 1;
 
-    // 1. Optimistic immediate update
-    setOptimisticCount(nextCount);
+  const handleAdjust = async (delta) => {
+    if (isSyncing) return;
+    if (optimisticCount + delta < 0 && !tracker.trackerConfig?.allowNegative) return;
+
+    const previous = optimisticCount;
+    const nextVal = Math.max(0, previous + delta);
+
+    setOptimisticCount(nextVal);
     setIsSyncing(true);
 
     try {
-      const res = await incrementCounterDaily({
-        trackerId: tracker.id,
-        amount,
-        localDate,
-      });
-
+      const res = await incrementCounterLocalFirst(userId, tracker, delta, localDate);
       if (res.success) {
         onLogged?.();
-        onToast?.(`تمت الإضافة: +${amount} ${tracker.unit || ""}`, "success");
       } else {
-        // Rollback
         setOptimisticCount(previous);
-        onToast?.(res.error || "تعذر زيادة العداد", "error");
+        onToast?.(res.error || "تعذر تحديث العداد", "error");
       }
     } catch {
-      // Rollback
       setOptimisticCount(previous);
-      onToast?.("حدث خطأ، تم التراجع", "error");
+      onToast?.("تعذر حفظ العداد، تم التراجع", "error");
     } finally {
       setIsSyncing(false);
     }
   };
 
+  const progress = Math.min(100, Math.round((optimisticCount / target) * 100));
+
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs font-bold text-zinc-200 px-2 py-1 rounded-lg bg-zinc-800 border border-zinc-700">
-        {optimisticCount} {tracker.unit || ""}
-      </span>
-      <button
-        type="button"
-        onClick={() => handleIncrement(step)}
-        className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold transition-colors cursor-pointer shadow-sm active:scale-95"
-        title={`إضافة ${step}`}
-      >
-        {isSyncing ? (
-          <Loader2 className="w-3 h-3 animate-spin" />
-        ) : (
-          <Plus className="w-3 h-3" />
-        )}
-        <span>+{step}</span>
-      </button>
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 bg-zinc-900/90 border border-zinc-800 rounded-xl p-1">
+        <button
+          type="button"
+          onClick={() => handleAdjust(-step)}
+          disabled={optimisticCount <= 0 || isSyncing}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 disabled:opacity-30 transition-colors cursor-pointer"
+          title="إنقاص"
+        >
+          <Minus className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="px-2.5 text-center min-w-[60px]">
+          <span className="font-mono text-xs font-bold text-zinc-100">
+            {optimisticCount}
+          </span>
+          <span className="text-[10px] text-zinc-500 mr-1">
+            / {target} {tracker.unit || ""}
+          </span>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => handleAdjust(step)}
+          disabled={isSyncing}
+          className="p-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 transition-colors cursor-pointer"
+          title={`إضافة +${step}`}
+        >
+          <Plus className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {progress >= 100 && (
+        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+          اكتمل الهدف ✓
+        </span>
+      )}
     </div>
   );
 }
 
 function DurationControls({
+  userId,
   tracker,
   localDate,
   serverSeconds,
@@ -262,74 +293,72 @@ function DurationControls({
     setOptimisticSeconds(serverSeconds);
   }
 
-  const totalMinutes = Math.round(optimisticSeconds / 60);
-
-  const handleQuickMinutes = async (mins) => {
+  const handleQuickDuration = async (minutes) => {
     if (isSyncing) return;
+    const secs = minutes * 60;
     const previous = optimisticSeconds;
-    const addedSeconds = mins * 60;
-    const nextSeconds = previous + addedSeconds;
 
-    // 1. Optimistic update
-    setOptimisticSeconds(nextSeconds);
+    setOptimisticSeconds(previous + secs);
     setIsSyncing(true);
 
     try {
-      const res = await logDurationSession({
-        trackerId: tracker.id,
-        durationSeconds: addedSeconds,
-        localDate,
-      });
-
+      const res = await logDurationLocalFirst(userId, tracker, secs, localDate);
       if (res.success) {
         onLogged?.();
-        onToast?.(`تم تسجيل جلسة ${mins} دقيقة بنجاح ⏱️`, "success");
+        onToast?.(`تم تسجيل +${minutes} دقيقة بنجاح ⏱️`, "success");
       } else {
         setOptimisticSeconds(previous);
-        onToast?.(res.error || "تعذر تسجيل الجلسة", "error");
+        onToast?.(res.error || "تعذر تسجيل الوقت", "error");
       }
     } catch {
       setOptimisticSeconds(previous);
-      onToast?.("حدث خطأ، تم التراجع", "error");
+      onToast?.("خطأ في الاتصال، تم التراجع", "error");
     } finally {
       setIsSyncing(false);
     }
   };
 
+  const totalMins = Math.round(optimisticSeconds / 60);
+
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-mono text-xs font-bold text-cyan-300 px-2 py-1 rounded-lg bg-cyan-950/40 border border-cyan-800/40">
-        {totalMinutes} دقيقة
-      </span>
+    <div className="flex flex-wrap items-center gap-1.5">
+      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-zinc-900 border border-zinc-800 text-xs font-mono text-zinc-300">
+        <Timer className="w-3.5 h-3.5 text-cyan-400" />
+        <span>{totalMins} دقيقة</span>
+      </div>
+
       <button
         type="button"
-        onClick={() => handleQuickMinutes(15)}
+        onClick={() => handleQuickDuration(15)}
         disabled={isSyncing}
-        className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-bold transition-colors cursor-pointer active:scale-95"
+        className="px-2.5 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-200 border border-zinc-700 text-[11px] font-bold transition-colors cursor-pointer"
       >
         +15د
       </button>
+
       <button
         type="button"
-        onClick={() => handleQuickMinutes(30)}
+        onClick={() => handleQuickDuration(30)}
         disabled={isSyncing}
-        className="px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-bold transition-colors cursor-pointer active:scale-95"
+        className="px-2.5 py-1.5 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-300 border border-cyan-500/30 text-[11px] font-bold transition-colors cursor-pointer"
       >
         +30د
       </button>
+
       <button
         type="button"
         onClick={() => onOpenDetailedModal?.(tracker)}
-        className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-        title="تسجيل مخصص مع موضوع وملاحظات"
+        className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 text-[11px] transition-colors cursor-pointer"
+        title="تسجيل مدة مخصصة وملاحظات"
       >
-        <Timer className="w-3.5 h-3.5" />
+        مخصص...
       </button>
     </div>
   );
 }
 
 function ChecklistControls({
+  userId,
   tracker,
   localDate,
   serverCompletedIds,
@@ -352,25 +381,17 @@ function ChecklistControls({
       ? previous.filter((id) => id !== itemId)
       : [...previous, itemId];
 
-    // 1. Optimistic immediate state update
     setOptimisticIds(nextIds);
 
     try {
-      const res = await toggleChecklistItem({
-        trackerId: tracker.id,
-        itemId,
-        localDate,
-      });
-
+      const res = await toggleChecklistItemLocalFirst(userId, tracker, itemId, localDate);
       if (res.success) {
         onLogged?.();
       } else {
-        // Rollback
         setOptimisticIds(previous);
         onToast?.(res.error || "تعذر تحديث البند", "error");
       }
     } catch {
-      // Rollback
       setOptimisticIds(previous);
       onToast?.("حدث خطأ في الاتصال، تم التراجع", "error");
     }
@@ -405,6 +426,7 @@ function ChecklistControls({
 }
 
 function AvoidanceControls({
+  userId,
   tracker,
   localDate,
   serverClean,
@@ -424,17 +446,11 @@ function AvoidanceControls({
     if (isSyncing) return;
     const previous = optimisticClean;
 
-    // 1. Optimistic update
     setOptimisticClean(clean);
     setIsSyncing(true);
 
     try {
-      const res = await logAvoidanceDay({
-        trackerId: tracker.id,
-        isClean: clean,
-        localDate,
-      });
-
+      const res = await logAvoidanceLocalFirst(userId, tracker, clean, localDate);
       if (res.success) {
         onLogged?.();
         onToast?.(
@@ -444,12 +460,10 @@ function AvoidanceControls({
           clean ? "success" : "info"
         );
       } else {
-        // Rollback
         setOptimisticClean(previous);
         onToast?.(res.error || "تعذر التسجيل", "error");
       }
     } catch {
-      // Rollback
       setOptimisticClean(previous);
       onToast?.("حدث خطأ، تم التراجع", "error");
     } finally {

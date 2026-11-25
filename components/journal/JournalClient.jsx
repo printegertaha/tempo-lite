@@ -6,9 +6,26 @@ import {
   saveDailyNote,
   deleteDailyNote,
 } from "@/actions/history";
-import { deleteTrackerEntry } from "@/actions/entries";
 import { toggleTaskStatus } from "@/actions/tasks";
-import { addDaysToDateString, getLocalDateString } from "@/lib/dates";
+import {
+  addDaysToDateString,
+  getLocalDateString,
+  getDefaultTimezone,
+  splitUtcToLocalDateTime,
+} from "@/lib/dates";
+import {
+  localTaskRepo,
+  localNoteRepo,
+  localTrackerRepo,
+  localEntryRepo,
+  localPrayerRepo,
+  localOutboxRepo,
+} from "@/lib/local-db";
+import {
+  deleteTrackerEntryLocalFirst,
+  toggleTaskCompletionLocalFirst,
+} from "@/lib/local-db/habit-ops";
+import { syncEngine } from "@/lib/sync/sync-engine";
 
 import Link from "next/link";
 import {
@@ -42,7 +59,12 @@ const MOODS = [
   { id: "stressed", label: "مضغوط", icon: Frown, color: "text-red-400 bg-red-500/10 border-red-500/30" },
 ];
 
-export default function JournalClient({ user, initialDate, initialData }) {
+export default function JournalClient({ user, initialDate, timezone, initialData }) {
+  const effectiveUserId = user?.id || "guest";
+  const isGuest = !user || user.isGuest || effectiveUserId === "guest";
+  const effectiveTimezone =
+    timezone && !isGuest ? timezone : isGuest ? getDefaultTimezone() : "Asia/Riyadh";
+
   const [selectedDate, setSelectedDate] = useState(initialDate);
   const [data, setData] = useState(initialData);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,102 +83,179 @@ export default function JournalClient({ user, initialDate, initialData }) {
     setTimeout(() => setToastMessage(""), 3500);
   };
 
+  const buildLocalDayOverview = useCallback(
+    async (dateToLoad) => {
+      const [matchingNote, userTasks, allTrackers, dayEntries, dayPrayers] =
+        await Promise.all([
+          localNoteRepo.getByDate(effectiveUserId, dateToLoad).catch(() => null),
+          localTaskRepo.getAllForUser(effectiveUserId, false).catch(() => []),
+          localTrackerRepo.getAllForUser(effectiveUserId, false).catch(() => []),
+          localEntryRepo.getByDate(effectiveUserId, dateToLoad).catch(() => []),
+          localPrayerRepo.getByDate(effectiveUserId, dateToLoad).catch(() => []),
+        ]);
+
+      const activeTrackers = allTrackers.filter((t) => !t.isPaused);
+      const trackerMap = new Map(activeTrackers.map((t) => [t.id, t]));
+
+      const enrichedEntries = dayEntries.map((e) => ({
+        ...e,
+        tracker: e.tracker || trackerMap.get(e.trackerId) || { name: "عادة" },
+      }));
+
+      const sessions = enrichedEntries
+        .filter((e) => e.valueDuration && e.valueDuration > 0)
+        .map((e) => ({
+          id: e.id,
+          trackerName: e.tracker?.name || "جلسة تركيز",
+          trackerIcon: e.tracker?.icon || "Timer",
+          durationSeconds: e.valueDuration || 0,
+          subject: e.entryPayload?.subject || null,
+          notes: e.notes,
+          occurredAt: e.occurredAt,
+        }));
+
+      const totalDurationSeconds = sessions.reduce((acc, s) => acc + s.durationSeconds, 0);
+
+      const tasksDue = userTasks.filter(
+        (t) => t.dueDate === dateToLoad && t.status !== "COMPLETED"
+      );
+      const tasksCompleted = userTasks.filter((t) => {
+        if (t.status !== "COMPLETED") return false;
+        const completedLocal = t.completedAt
+          ? splitUtcToLocalDateTime(t.completedAt, effectiveTimezone).localDate
+          : "";
+        return t.dueDate === dateToLoad || completedLocal === dateToLoad;
+      });
+
+      const trackersWithProgress = activeTrackers.map((t) => {
+        const tEntries = enrichedEntries.filter((e) => e.trackerId === t.id);
+        let isCompleted = false;
+        if (t.metricType === "BOOLEAN") {
+          isCompleted = Boolean(tEntries[tEntries.length - 1]?.valueBoolean);
+        } else if (t.metricType === "COUNTER" || t.metricType === "NUMBER") {
+          const sum = tEntries.reduce((s, e) => s + (e.valueNumeric || 0), 0);
+          isCompleted = t.targetValue ? sum >= t.targetValue : sum > 0;
+        } else if (t.metricType === "DURATION" || t.metricType === "TIME_RANGE") {
+          const secs = tEntries.reduce((s, e) => s + (e.valueDuration || 0), 0);
+          isCompleted = t.targetValue ? secs >= t.targetValue * 60 : secs > 0;
+        } else if (t.metricType === "CHECKLIST") {
+          const latest = tEntries[tEntries.length - 1];
+          const ids = latest?.entryPayload?.completedItemIds || [];
+          const totalItems = t.trackerConfig?.items?.length || 1;
+          isCompleted = ids.length >= totalItems;
+        } else if (t.metricType === "AVOIDANCE") {
+          const latest = tEntries[tEntries.length - 1];
+          isCompleted = Boolean(latest?.valueBoolean ?? true);
+        }
+        return { ...t, isCompleted, entries: tEntries };
+      });
+
+      return {
+        date: dateToLoad,
+        trackers: trackersWithProgress,
+        entries: enrichedEntries,
+        sessions,
+        totalDurationSeconds,
+        tasks: {
+          due: tasksDue,
+          completed: tasksCompleted,
+        },
+        dailyNote: matchingNote || null,
+        prayers: dayPrayers,
+        summary: {
+          totalTrackers: activeTrackers.length,
+          completedTrackers: trackersWithProgress.filter((t) => t.isCompleted).length,
+          completedTasksCount: tasksCompleted.length,
+          completedPrayersCount: dayPrayers.filter((p) => p.isCompleted).length,
+          totalDurationMinutes: Math.round(totalDurationSeconds / 60),
+          hasNote: Boolean(matchingNote?.content),
+        },
+      };
+    },
+    [effectiveUserId, effectiveTimezone]
+  );
+
   // Load day overview on date change
-  const loadDayData = useCallback(async (targetDate) => {
-    const dateToLoad = targetDate || selectedDate;
-    if (!dateToLoad) return;
+  const loadDayData = useCallback(
+    async (targetDate) => {
+      const dateToLoad = targetDate || selectedDate;
+      if (!dateToLoad) return;
 
-    setIsLoading(true);
+      setIsLoading(true);
 
-    // Guest Mode: load directly from IndexedDB without server requests
-    if (!user || user.isGuest || user.id === "guest") {
-      try {
-        const { getLocalDB } = await import("@/lib/local-db");
-        const db = await getLocalDB();
-        const allNotes = await db.getAll("daily_notes");
-        const matchingNote = allNotes.find(
-          (n) => n.localDate === dateToLoad && (n.userId === "guest" || !n.userId)
-        );
-        const guestTasks = await db.getAllFromIndex("tasks", "by-user", "guest");
-        const dayTasks = guestTasks.filter((t) => t.dueDate === dateToLoad);
-
-        setData({
-          date: dateToLoad,
-          dailyNote: matchingNote || null,
-          tasksSummary: {
-            total: dayTasks.length,
-            completed: dayTasks.filter((t) => t.status === "COMPLETED").length,
-            tasks: dayTasks,
-          },
-          trackersSummary: [],
-        });
-
-        if (matchingNote) {
-          setNoteTitle(matchingNote.title || "");
-          setNoteContent(matchingNote.content || "");
-          setNoteMood(matchingNote.mood || "good");
-        } else {
-          setNoteTitle("");
-          setNoteContent("");
-          setNoteMood("good");
-        }
-      } catch (err) {
-        console.error("Error loading guest day data from IndexedDB:", err);
-      } finally {
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    try {
-      const res = await getDailyOverview(dateToLoad);
-      if (res.success && res.data) {
-        setData(res.data);
-        if (res.data.dailyNote) {
-          setNoteTitle(res.data.dailyNote.title || "");
-          setNoteContent(res.data.dailyNote.content || "");
-          setNoteMood(res.data.dailyNote.mood || "good");
-        } else {
-          setNoteTitle("");
-          setNoteContent("");
-          setNoteMood("good");
-        }
-      } else {
-        // Fallback for offline / network issues: load local note from IndexedDB
+      // Guest Mode or Offline: load directly from IndexedDB
+      if (isGuest || (typeof navigator !== "undefined" && !navigator.onLine)) {
         try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          const allNotes = await db.getAll("daily_notes");
-          const matchingNote = allNotes.find((n) => n.localDate === dateToLoad);
-          if (matchingNote) {
-            setData((prev) => ({
-              ...prev,
-              dailyNote: matchingNote,
-            }));
-            setNoteTitle(matchingNote.title || "");
-            setNoteContent(matchingNote.content || "");
-            setNoteMood(matchingNote.mood || "good");
+          const overview = await buildLocalDayOverview(dateToLoad);
+          setData(overview);
+          if (overview.dailyNote) {
+            setNoteTitle(overview.dailyNote.title || "");
+            setNoteContent(overview.dailyNote.content || "");
+            setNoteMood(overview.dailyNote.mood || "good");
           } else {
             setNoteTitle("");
             setNoteContent("");
             setNoteMood("good");
           }
-        } catch {}
+        } catch (err) {
+          console.error("Error loading local day data from IndexedDB:", err);
+        } finally {
+          setIsLoading(false);
+        }
+        return;
       }
-    } catch (err) {
-      console.error("Error loading daily overview:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user, selectedDate]);
+
+      try {
+        const res = await getDailyOverview(dateToLoad);
+        if (res.success && res.data) {
+          setData(res.data);
+          if (res.data.dailyNote) {
+            await localNoteRepo
+              .save({
+                ...res.data.dailyNote,
+                id: res.data.dailyNote.id || `${effectiveUserId}_note_${dateToLoad}`,
+                userId: effectiveUserId,
+              })
+              .catch(() => {});
+            setNoteTitle(res.data.dailyNote.title || "");
+            setNoteContent(res.data.dailyNote.content || "");
+            setNoteMood(res.data.dailyNote.mood || "good");
+          } else {
+            setNoteTitle("");
+            setNoteContent("");
+            setNoteMood("good");
+          }
+        } else {
+          const overview = await buildLocalDayOverview(dateToLoad);
+          setData(overview);
+          if (overview.dailyNote) {
+            setNoteTitle(overview.dailyNote.title || "");
+            setNoteContent(overview.dailyNote.content || "");
+            setNoteMood(overview.dailyNote.mood || "good");
+          } else {
+            setNoteTitle("");
+            setNoteContent("");
+            setNoteMood("good");
+          }
+        }
+      } catch (err) {
+        console.error("Error loading daily overview:", err);
+        const overview = await buildLocalDayOverview(dateToLoad).catch(() => null);
+        if (overview) setData(overview);
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [isGuest, effectiveUserId, selectedDate, buildLocalDayOverview]
+  );
 
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
-      return;
+      if (!isGuest) return;
     }
     loadDayData(selectedDate);
-  }, [selectedDate, loadDayData]);
+  }, [selectedDate, loadDayData, isGuest]);
 
   // Date Navigation Handlers
   const handlePrevDay = () => {
@@ -172,11 +271,11 @@ export default function JournalClient({ user, initialDate, initialData }) {
   };
 
   const handleGoToday = () => {
-    const today = getLocalDateString();
+    const today = getLocalDateString(new Date(), effectiveTimezone);
     setSelectedDate(today);
   };
 
-  // Note Actions
+  // Note Actions (Local-first + Outbox offline fallback)
   const handleSaveNote = async (e) => {
     e.preventDefault();
     if (!noteContent.trim()) {
@@ -185,40 +284,63 @@ export default function JournalClient({ user, initialDate, initialData }) {
     }
 
     setIsSavingNote(true);
+    const noteId = `${effectiveUserId}_note_${selectedDate}`;
+    const noteObj = {
+      id: noteId,
+      userId: effectiveUserId,
+      localDate: selectedDate,
+      title: noteTitle.trim() || undefined,
+      content: noteContent.trim(),
+      mood: noteMood,
+      updatedAt: Date.now(),
+    };
+
     try {
-      const res = await saveDailyNote({
-        localDate: selectedDate,
-        title: noteTitle.trim() || undefined,
-        content: noteContent.trim(),
-        mood: noteMood,
-      });
-      if (res.success) {
-        showToast("تم حفظ اليومية والملاحظات بنجاح");
-        loadDayData(selectedDate);
-      } else {
-        // Guest / offline local persistence fallback
+      await localNoteRepo.save(noteObj);
+
+      if (isGuest) {
+        showToast("تم حفظ اليومية محلياً بنجاح ✍️");
+        setData((prev) => ({ ...(prev || {}), dailyNote: noteObj }));
+        return;
+      }
+
+      if (typeof navigator !== "undefined" && navigator.onLine) {
         try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          const noteObj = {
-            id: `guest_note_${selectedDate}`,
-            userId: "guest",
+          const res = await saveDailyNote({
             localDate: selectedDate,
             title: noteTitle.trim() || undefined,
             content: noteContent.trim(),
             mood: noteMood,
-            updatedAt: Date.now(),
-          };
-          await db.put("daily_notes", noteObj);
-          showToast("تم حفظ اليومية محلياً بنجاح (وضع الضيف) ✍️");
-          setData((prev) => ({
-            ...prev,
-            dailyNote: noteObj,
-          }));
-        } catch {
-          showToast(res.error || "فشل حفظ اليومية");
-        }
+          });
+          if (res.success) {
+            showToast("تم حفظ اليومية والملاحظات بنجاح");
+            loadDayData(selectedDate);
+            return;
+          }
+        } catch {}
       }
+
+      // Offline / network fallback: queue to outbox so nothing is lost
+      await localOutboxRepo.add({
+        mutationId: crypto.randomUUID(),
+        userId: effectiveUserId,
+        entityType: "daily_note",
+        entityId: noteId,
+        action: "update",
+        payload: {
+          localDate: selectedDate,
+          title: noteTitle.trim() || null,
+          content: noteContent.trim(),
+          mood: noteMood,
+        },
+        clientTimestamp: Date.now(),
+        version: 1,
+        status: "pending",
+        retryCount: 0,
+      });
+      syncEngine.scheduleSync(5000);
+      setData((prev) => ({ ...(prev || {}), dailyNote: noteObj }));
+      showToast("تم حفظ اليومية محلياً وستتم مزامنتها تلقائياً ✍️");
     } catch {
       showToast("حدث خطأ أثناء حفظ اليومية");
     } finally {
@@ -229,48 +351,70 @@ export default function JournalClient({ user, initialDate, initialData }) {
   const handleDeleteNote = async () => {
     if (!confirm("هل أنت متأكد من حذف هذه اليومية؟")) return;
     setIsSavingNote(true);
+    const noteId = `${effectiveUserId}_note_${selectedDate}`;
     try {
-      if (!user || user.isGuest || user.id === "guest") {
-        try {
-          const { getLocalDB } = await import("@/lib/local-db");
-          const db = await getLocalDB();
-          await db.delete("daily_notes", `guest_note_${selectedDate}`);
-          setNoteTitle("");
-          setNoteContent("");
-          setData((prev) => ({ ...prev, dailyNote: null }));
-          showToast("تم حذف اليومية محلياً");
-        } catch (err) {
-          console.error("Failed to delete local note:", err);
-        }
+      await localNoteRepo.delete(noteId).catch(() => {});
+      await localNoteRepo.delete(`guest_note_${selectedDate}`).catch(() => {});
+
+      if (isGuest) {
+        setNoteTitle("");
+        setNoteContent("");
+        setData((prev) => ({ ...(prev || {}), dailyNote: null }));
+        showToast("تم حذف اليومية محلياً");
         return;
       }
 
-      const res = await deleteDailyNote(selectedDate);
-      if (res.success) {
-        setNoteTitle("");
-        setNoteContent("");
-        showToast("تم حذف اليومية");
-        loadDayData(selectedDate);
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        try {
+          const res = await deleteDailyNote(selectedDate);
+          if (res.success) {
+            setNoteTitle("");
+            setNoteContent("");
+            showToast("تم حذف اليومية");
+            loadDayData(selectedDate);
+            return;
+          }
+        } catch {}
       }
+
+      await localOutboxRepo.add({
+        mutationId: crypto.randomUUID(),
+        userId: effectiveUserId,
+        entityType: "daily_note",
+        entityId: noteId,
+        action: "delete",
+        payload: { localDate: selectedDate },
+        clientTimestamp: Date.now(),
+        version: 1,
+        status: "pending",
+        retryCount: 0,
+      });
+      syncEngine.scheduleSync(5000);
+      setNoteTitle("");
+      setNoteContent("");
+      setData((prev) => ({ ...(prev || {}), dailyNote: null }));
+      showToast("تم حذف اليومية محلياً وستتم مزامنة الحذف");
     } finally {
       setIsSavingNote(false);
     }
   };
 
-  // Task Toggle
+  // Task Toggle (Local-first + Cross-page sync via BroadcastChannel)
   const handleToggleTask = async (taskId) => {
-    await toggleTaskStatus(taskId);
+    const allDisplayed = [...(data?.tasks?.due || []), ...(data?.tasks?.completed || [])];
+    const target = allDisplayed.find((t) => t.id === taskId);
+    await toggleTaskCompletionLocalFirst(effectiveUserId, taskId, target);
     loadDayData(selectedDate);
   };
 
-  // Entry Delete
+  // Entry Delete (Local-first)
   const handleDeleteEntry = async (entryId) => {
     if (!confirm("هل أنت متأكد من حذف هذا السجل؟")) return;
-    await deleteTrackerEntry(entryId);
+    await deleteTrackerEntryLocalFirst(effectiveUserId, entryId);
     loadDayData(selectedDate);
   };
 
-  const todayStr = getLocalDateString();
+  const todayStr = getLocalDateString(new Date(), effectiveTimezone);
   const isToday = selectedDate === todayStr;
 
   // Format date header
