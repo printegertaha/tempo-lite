@@ -670,6 +670,14 @@ class ActiveTimerEngine {
       this.finalizingSessionIds.delete(active.sessionId);
     }
   }
+
+  public resetLocalState() {
+    this.session = null;
+    this.completedSession = null;
+    this.finalizingSessionIds.clear();
+    this.persistSession();
+    this.notify();
+  }
 }
 
 export function formatTimerDuration(totalSeconds: number): string {

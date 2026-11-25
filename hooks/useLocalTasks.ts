@@ -18,6 +18,11 @@ const SCOPE_RANK: Record<TaskCacheScope, number> = {
 const memoryTaskCache = new Map<string, LocalTask[]>();
 const memoryTaskScopeCache = new Map<string, TaskCacheScope>();
 
+export function clearMemoryTaskCache(): void {
+  memoryTaskCache.clear();
+  memoryTaskScopeCache.clear();
+}
+
 function deduplicateTasks(taskList: LocalTask[]): LocalTask[] {
   const map = new Map<string, LocalTask>();
   for (const t of taskList) {

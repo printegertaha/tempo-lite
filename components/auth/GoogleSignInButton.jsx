@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { getSafeErrorCallbackUrl } from "@/lib/auth-redirect";
+import { getGoogleOAuthMode } from "@/lib/device-detection";
 import { Loader2, ExternalLink, X } from "lucide-react";
 import AuthErrorBanner from "./AuthErrorBanner";
 
@@ -14,15 +15,33 @@ export default function GoogleSignInButton({
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
+  const [activeMode, setActiveMode] = useState(null);
   const pathname = usePathname();
   const router = useRouter();
   const cancelledRef = useRef(false);
   const mountedRef = useRef(true);
+  const inFlightRef = useRef(false);
 
   useEffect(() => {
     mountedRef.current = true;
+
+    const handlePageShow = (event) => {
+      // Reset loading state if restored from browser bfcache (e.g. Back from Google OAuth on mobile/tablet)
+      if (event.persisted || inFlightRef.current) {
+        inFlightRef.current = false;
+        cancelledRef.current = false;
+        if (mountedRef.current) {
+          setLoading(false);
+          setActiveMode(null);
+        }
+      }
+    };
+
+    window.addEventListener("pageshow", handlePageShow);
     return () => {
       mountedRef.current = false;
+      inFlightRef.current = false;
+      window.removeEventListener("pageshow", handlePageShow);
     };
   }, []);
 
@@ -31,16 +50,20 @@ export default function GoogleSignInButton({
 
   const handleCancelInTab = () => {
     cancelledRef.current = true;
+    inFlightRef.current = false;
     setLoading(false);
+    setActiveMode(null);
     setPopupBlocked(false);
     setErrorState(null);
   };
 
-  const startRedirectFallback = async () => {
-    if (loading) return;
+  const startRedirectFlow = async () => {
+    if (inFlightRef.current || loading) return;
     try {
+      inFlightRef.current = true;
       cancelledRef.current = false;
       setLoading(true);
+      setActiveMode("redirect");
       setPopupBlocked(false);
       setErrorState(null);
 
@@ -51,10 +74,15 @@ export default function GoogleSignInButton({
         errorCallbackURL: safeErrorCallback,
       });
 
-      if (!mountedRef.current || cancelledRef.current) return;
+      if (!mountedRef.current || cancelledRef.current) {
+        inFlightRef.current = false;
+        return;
+      }
 
       if (res?.error) {
+        inFlightRef.current = false;
         setLoading(false);
+        setActiveMode(null);
         const errObj = res.error;
         const nestedErr =
           typeof errObj === "object" && errObj !== null && "error" in errObj
@@ -78,9 +106,11 @@ export default function GoogleSignInButton({
       }
 
       if (res?.data?.url) {
-        window.location.href = res.data.url;
+        window.location.assign(res.data.url);
       } else {
+        inFlightRef.current = false;
         setLoading(false);
+        setActiveMode(null);
         setErrorState({
           code: "no_redirect_url",
           message:
@@ -88,8 +118,10 @@ export default function GoogleSignInButton({
         });
       }
     } catch {
+      inFlightRef.current = false;
       if (!mountedRef.current) return;
       setLoading(false);
+      setActiveMode(null);
       setErrorState({
         code: "unexpected_client_error",
         message:
@@ -98,11 +130,13 @@ export default function GoogleSignInButton({
     }
   };
 
-  const handleSignIn = async () => {
-    if (loading) return;
+  const startPopupFlow = async () => {
+    if (inFlightRef.current || loading) return;
     try {
+      inFlightRef.current = true;
       cancelledRef.current = false;
       setLoading(true);
+      setActiveMode("popup");
       setPopupBlocked(false);
       setErrorState(null);
 
@@ -115,11 +149,14 @@ export default function GoogleSignInButton({
       });
 
       if (!mountedRef.current || cancelledRef.current) {
+        inFlightRef.current = false;
         return;
       }
 
       if (res?.error) {
+        inFlightRef.current = false;
         setLoading(false);
+        setActiveMode(null);
 
         if (res.error.code === "POPUP_BLOCKED") {
           setPopupBlocked(true);
@@ -157,16 +194,22 @@ export default function GoogleSignInButton({
           .getSession({ query: { disableCookieCache: true } })
           .catch(() => null);
 
-        if (!mountedRef.current || cancelledRef.current) return;
+        if (!mountedRef.current || cancelledRef.current) {
+          inFlightRef.current = false;
+          return;
+        }
 
         if (sessionRes?.data?.user) {
+          inFlightRef.current = false;
           router.replace("/");
           router.refresh();
           return;
         }
       }
 
+      inFlightRef.current = false;
       setLoading(false);
+      setActiveMode(null);
       setErrorState({
         code: "google_sign_in_failed",
         message: "تعذر التحقق من الجلسة بعد تسجيل الدخول. يرجى المحاولة مرة أخرى.",
@@ -175,13 +218,25 @@ export default function GoogleSignInButton({
       if (process.env.NODE_ENV === "development") {
         console.error("Google popup sign in unexpected error:", error);
       }
+      inFlightRef.current = false;
       if (!mountedRef.current) return;
       setLoading(false);
+      setActiveMode(null);
       setErrorState({
         code: "unexpected_client_error",
         message:
           "حدث خطأ في الشبكة أو أثناء المصادقة عبر Google. يمكنك المحاولة مرة أخرى.",
       });
+    }
+  };
+
+  const handleSignIn = () => {
+    if (inFlightRef.current || loading) return;
+    const mode = getGoogleOAuthMode();
+    if (mode === "redirect") {
+      void startRedirectFlow();
+    } else {
+      void startPopupFlow();
     }
   };
 
@@ -197,7 +252,11 @@ export default function GoogleSignInButton({
         {loading ? (
           <>
             <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-            <span>جارٍ المصادقة عبر Google...</span>
+            <span>
+              {activeMode === "redirect"
+                ? "جارٍ التوجيه إلى Google..."
+                : "جارٍ المصادقة عبر Google..."}
+            </span>
           </>
         ) : (
           <>
@@ -250,7 +309,7 @@ export default function GoogleSignInButton({
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={startRedirectFallback}
+              onClick={startRedirectFlow}
               className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-bold transition-colors cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />

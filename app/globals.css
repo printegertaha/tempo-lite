@@ -58,6 +58,23 @@ body {
   height: 0 !important;
 }
 
+/* Subtle visible horizontal scrollbar indicator for mobile stats strip */
+.horizontal-scroll-indicator {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(244, 63, 94, 0.55) rgba(39, 39, 42, 0.55);
+}
+.horizontal-scroll-indicator::-webkit-scrollbar {
+  height: 4px;
+}
+.horizontal-scroll-indicator::-webkit-scrollbar-track {
+  background: rgba(39, 39, 42, 0.55);
+  border-radius: 9999px;
+}
+.horizontal-scroll-indicator::-webkit-scrollbar-thumb {
+  background: rgba(244, 63, 94, 0.55);
+  border-radius: 9999px;
+}
+
 /* Safe area padding for mobile navigation & toolbars (iOS Safari, Brave) */
 .safe-area-bottom,
 .pb-safe {

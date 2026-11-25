@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
+import { clearBrowserCacheOnSignOut } from "@/lib/auth-cleanup";
 import { getSafeReturnUrl } from "@/lib/auth-redirect";
 import { useAthar } from "@/components/context/AtharContext";
 import SignOutConfirmDialog from "@/components/auth/SignOutConfirmDialog";
@@ -237,13 +238,12 @@ export default function Navbar() {
     setIsSigningOut(true);
     try {
       await authClient.signOut();
+      await clearBrowserCacheOnSignOut();
       setSignOutConfirmOpen(false);
       setUserDropdownOpen(false);
-      router.push("/");
-      router.refresh();
+      window.location.replace("/");
     } catch (err) {
       console.error("Sign out error:", err);
-    } finally {
       setIsSigningOut(false);
     }
   };

@@ -29,11 +29,11 @@ export default function QuranHeartVisualizer({
   };
 
   return (
-    <div className="relative w-full max-w-[680px] mx-auto select-none">
+    <div className="relative w-full max-w-[500px] lg:max-w-[440px] xl:max-w-[490px] mx-auto select-none">
       {/* SVG Container */}
       <svg
-        viewBox="0 0 600 930"
-        className="w-full h-auto drop-shadow-2xl overflow-visible"
+        viewBox="25 170 550 745"
+        className="w-full h-auto max-h-[68vh] lg:max-h-[70vh] drop-shadow-2xl overflow-visible"
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
@@ -50,12 +50,6 @@ export default function QuranHeartVisualizer({
             <stop offset="100%" stopColor="rgba(225, 29, 72, 0)" />
           </radialGradient>
 
-          {/* Golden Flower Center Gradient */}
-          <radialGradient id="flowerGold" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="#fef08a" />
-            <stop offset="100%" stopColor="#eab308" />
-          </radialGradient>
-
           {/* Cell Shadow Filter */}
           <filter id="cellShadow" x="-15%" y="-15%" width="130%" height="130%">
             <feDropShadow dx="0" dy="2" stdDeviation="2" floodOpacity="0.4" />
@@ -69,59 +63,6 @@ export default function QuranHeartVisualizer({
 
         {/* Background Heart Soft Ambient Glow */}
         <ellipse cx="300" cy="520" rx="240" ry="320" fill="url(#heartGlow)" />
-
-        {/* ------------------------------------------------------------- */}
-        {/* FLORAL CROWN AT TOP OF THE HEART (Matching Image 1 flowers) */}
-        {/* ------------------------------------------------------------- */}
-        <g id="floral-crown" className="pointer-events-none opacity-90 transition-opacity hover:opacity-100">
-          {/* Foliage / Greenery */}
-          <path
-            d="M 120 130 C 140 90, 220 80, 280 110 C 230 115, 170 125, 120 130 Z"
-            fill="#10b981"
-            fillOpacity="0.5"
-          />
-          <path
-            d="M 480 130 C 460 90, 380 80, 320 110 C 370 115, 430 125, 480 130 Z"
-            fill="#10b981"
-            fillOpacity="0.5"
-          />
-          <path
-            d="M 230 70 C 260 40, 340 40, 370 70 C 330 65, 270 65, 230 70 Z"
-            fill="#059669"
-            fillOpacity="0.6"
-          />
-
-          {/* Soft Pink & Blue Blossoms */}
-          {/* Flower 1 - Left */}
-          <circle cx="150" cy="110" r="14" fill="#f472b6" fillOpacity="0.85" />
-          <circle cx="150" cy="110" r="5" fill="url(#flowerGold)" />
-          <circle cx="135" cy="100" r="10" fill="#fb7185" fillOpacity="0.75" />
-          <circle cx="165" cy="100" r="10" fill="#38bdf8" fillOpacity="0.7" />
-
-          {/* Flower 2 - Center Left */}
-          <circle cx="220" cy="80" r="16" fill="#f43f5e" fillOpacity="0.85" />
-          <circle cx="220" cy="80" r="6" fill="url(#flowerGold)" />
-          <circle cx="205" cy="70" r="11" fill="#f9a8d4" fillOpacity="0.8" />
-          <circle cx="235" cy="70" r="11" fill="#38bdf8" fillOpacity="0.75" />
-
-          {/* Flower 3 - Center Top */}
-          <circle cx="300" cy="60" r="18" fill="#ec4899" fillOpacity="0.9" />
-          <circle cx="300" cy="60" r="7" fill="url(#flowerGold)" />
-          <circle cx="282" cy="50" r="12" fill="#f472b6" fillOpacity="0.8" />
-          <circle cx="318" cy="50" r="12" fill="#60a5fa" fillOpacity="0.8" />
-
-          {/* Flower 4 - Center Right */}
-          <circle cx="380" cy="80" r="16" fill="#fb7185" fillOpacity="0.85" />
-          <circle cx="380" cy="80" r="6" fill="url(#flowerGold)" />
-          <circle cx="365" cy="70" r="11" fill="#f472b6" fillOpacity="0.8" />
-          <circle cx="395" cy="70" r="11" fill="#38bdf8" fillOpacity="0.75" />
-
-          {/* Flower 5 - Right */}
-          <circle cx="450" cy="110" r="14" fill="#f472b6" fillOpacity="0.85" />
-          <circle cx="450" cy="110" r="5" fill="url(#flowerGold)" />
-          <circle cx="435" cy="100" r="10" fill="#60a5fa" fillOpacity="0.7" />
-          <circle cx="465" cy="100" r="10" fill="#fb7185" fillOpacity="0.75" />
-        </g>
 
         {/* ------------------------------------------------------------- */}
         {/* ANATOMICAL HEART OUTLINE & VESSEL CONTOURS */}
