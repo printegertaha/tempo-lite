@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Flame,
   LayoutDashboard,
@@ -28,7 +28,9 @@ import {
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
+import { getSafeReturnUrl } from "@/lib/auth-redirect";
 import { useAthar } from "@/components/context/AtharContext";
+import SignOutConfirmDialog from "@/components/auth/SignOutConfirmDialog";
 
 const SyncStatusBadge = dynamic(
   () => import("@/components/sync/SyncStatusBadge"),
@@ -48,6 +50,7 @@ const SyncStatusBadge = dynamic(
 
 export default function Navbar() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const { data: sessionData, isPending } = useSession();
   const { userPreferences } = useAthar();
@@ -63,6 +66,8 @@ export default function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [signOutConfirmOpen, setSignOutConfirmOpen] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const headerRef = useRef(null);
   const toggleBtnRef = useRef(null);
@@ -158,6 +163,14 @@ export default function Navbar() {
   const isAuthPage = pathname === "/login" || pathname === "/register";
   const isAuthenticated = !!sessionData?.user;
 
+  const currentSearch = searchParams?.toString();
+  const currentFullPath = currentSearch ? `${pathname}?${currentSearch}` : pathname;
+  const safeReturnTo = getSafeReturnUrl(currentFullPath, "/");
+  const loginHref =
+    safeReturnTo && safeReturnTo !== "/"
+      ? `/login?returnTo=${encodeURIComponent(safeReturnTo)}`
+      : "/login";
+
   const primaryLinks = [
     { href: "/", label: "الرئيسية", icon: LayoutDashboard },
     { href: "/tasks", label: "المهام", icon: CheckSquare },
@@ -215,14 +228,23 @@ export default function Navbar() {
   const isActive = (href) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  const requestSignOut = () => {
+    setUserDropdownOpen(false);
+    setSignOutConfirmOpen(true);
+  };
+
   const handleSignOut = async () => {
+    setIsSigningOut(true);
     try {
       await authClient.signOut();
+      setSignOutConfirmOpen(false);
       setUserDropdownOpen(false);
       router.push("/");
       router.refresh();
     } catch (err) {
       console.error("Sign out error:", err);
+    } finally {
+      setIsSigningOut(false);
     }
   };
 
@@ -388,12 +410,105 @@ export default function Navbar() {
               </div>
             </nav>
 
-            {/* 3. Left side (Sync Status, Mobile Menu) */}
-            <div className="flex items-center gap-2.5">
+            {/* 3. Left side (Sync Status, User / Login, Mobile Menu) */}
+            <div className="flex items-center gap-2 sm:gap-2.5">
               {/* Live Local-First Sync / Guest Status */}
               <div className="hidden sm:flex items-center">
                 <SyncStatusBadge />
               </div>
+
+              {/* User Profile / Login / Skeleton Loading */}
+              {isPending ? (
+                <div
+                  aria-label="جاري التحقق من الحساب"
+                  role="status"
+                  className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-zinc-900/70 border border-zinc-800/80 animate-pulse shrink-0"
+                >
+                  <div className="w-7 h-7 rounded-lg bg-zinc-800 shrink-0" />
+                  <div className="w-12 sm:w-16 h-3 rounded-md bg-zinc-800" />
+                </div>
+              ) : isAuthenticated ? (
+                <div className="relative shrink-0" ref={userDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setUserDropdownOpen((prev) => !prev)}
+                    aria-expanded={userDropdownOpen}
+                    aria-haspopup="menu"
+                    className="flex items-center gap-2 px-2 py-1 rounded-xl bg-zinc-900/80 hover:bg-zinc-800/90 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer"
+                  >
+                    {displayImage ? (
+                      /* eslint-disable-next-line @next/next/no-img-element */
+                      <img
+                        src={displayImage}
+                        alt={displayName}
+                        referrerPolicy="no-referrer"
+                        className="w-7 h-7 rounded-lg object-cover border border-violet-500/30 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-7 h-7 rounded-lg bg-violet-600 text-white flex items-center justify-center text-xs font-bold shrink-0">
+                        {displayName?.[0]?.toUpperCase() || "أ"}
+                      </div>
+                    )}
+                    <span className="text-xs font-bold text-zinc-100 max-w-[80px] sm:max-w-[120px] truncate">
+                      {displayName}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-200 hidden sm:block ${
+                        userDropdownOpen ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+
+                  {userDropdownOpen && (
+                    <div
+                      role="menu"
+                      className="absolute left-0 top-full mt-2 w-56 p-1.5 rounded-2xl bg-[#0c0e17]/98 border border-zinc-800/90 shadow-2xl backdrop-blur-2xl z-50 space-y-1 animate-in fade-in slide-in-from-top-2 duration-150"
+                    >
+                      <div className="px-3 py-2 border-b border-zinc-800/80">
+                        <p className="text-xs font-bold text-zinc-100 truncate">
+                          {displayName}
+                        </p>
+                        {sessionData?.user?.email && (
+                          <p
+                            dir="ltr"
+                            className="text-[11px] text-zinc-400 font-mono truncate text-right"
+                          >
+                            {sessionData.user.email}
+                          </p>
+                        )}
+                      </div>
+
+                      <Link
+                        href="/settings"
+                        role="menuitem"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-zinc-200 hover:bg-zinc-800/80 hover:text-white transition-colors"
+                      >
+                        <Settings className="w-4 h-4 text-violet-400 shrink-0" />
+                        <span>الإعدادات والملف الشخصي</span>
+                      </Link>
+
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={requestSignOut}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-500/15 transition-colors cursor-pointer"
+                      >
+                        <LogOut className="w-4 h-4 text-rose-400 shrink-0" />
+                        <span>تسجيل الخروج</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Link
+                  href={loginHref}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0"
+                >
+                  <UserIcon className="w-3.5 h-3.5 hidden sm:inline" />
+                  <span>تسجيل الدخول</span>
+                </Link>
+              )}
 
               {/* Mobile menu toggle button */}
               <button
@@ -578,7 +693,7 @@ export default function Navbar() {
                         type="button"
                         onClick={() => {
                           closeMobileMenu();
-                          handleSignOut();
+                          requestSignOut();
                         }}
                         className="p-2 rounded-xl text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors shrink-0 cursor-pointer"
                         title="تسجيل الخروج"
@@ -598,7 +713,7 @@ export default function Navbar() {
                         </span>
                       </div>
                       <Link
-                        href="/login"
+                        href={loginHref}
                         onClick={closeMobileMenu}
                         className="px-3 py-1.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0"
                       >
@@ -612,6 +727,13 @@ export default function Navbar() {
           </div>
         </>
       )}
+
+      <SignOutConfirmDialog
+        isOpen={signOutConfirmOpen}
+        isSigningOut={isSigningOut}
+        onCancel={() => setSignOutConfirmOpen(false)}
+        onConfirm={handleSignOut}
+      />
     </>
   );
 }

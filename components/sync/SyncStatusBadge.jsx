@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useSyncExternalStore } from "react";
+import { useState, useEffect, useSyncExternalStore } from "react";
 import { useSyncStatus } from "@/hooks/useSyncStatus";
 import { useLocalSession } from "@/hooks/useLocalSession";
 import {
@@ -34,6 +34,43 @@ export default function SyncStatusBadge() {
   } = useSyncStatus();
   const { user, isGuest, isPending } = useLocalSession();
   const [conflictModalOpen, setConflictModalOpen] = useState(false);
+  const [prevBadgeKey, setPrevBadgeKey] = useState(null);
+  const [isVisible, setIsVisible] = useState(false);
+
+  const isSyncing = status === "syncing";
+  const isGuestView = !isPending && (isGuest || !user);
+
+  let badgeKey = null;
+  if (mounted) {
+    if (isGuestView) {
+      badgeKey = "guest";
+    } else if (status === "offline") {
+      badgeKey = `offline:${pendingCount > 0 ? pendingCount : 0}`;
+    } else if (conflictCount > 0) {
+      badgeKey = `conflict:${conflictCount}`;
+    } else if (isSyncing) {
+      badgeKey = "syncing";
+    } else if (status === "error" || failedCount > 0) {
+      badgeKey = `error:${failedCount + pendingCount}`;
+    } else if (pendingCount > 0) {
+      badgeKey = `pending:${pendingCount}`;
+    } else {
+      badgeKey = "synced";
+    }
+  }
+
+  if (badgeKey !== prevBadgeKey) {
+    setPrevBadgeKey(badgeKey);
+    setIsVisible(Boolean(badgeKey));
+  }
+
+  useEffect(() => {
+    if (!isVisible || isSyncing || conflictModalOpen) return;
+    const timer = setTimeout(() => {
+      setIsVisible(false);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [isVisible, isSyncing, conflictModalOpen, badgeKey]);
 
   if (!mounted) {
     return (
@@ -45,6 +82,11 @@ export default function SyncStatusBadge() {
         <span>المزامنة</span>
       </div>
     );
+  }
+
+  // Hide badge after 2 seconds for all non-syncing states (unless conflict modal is open)
+  if (!isSyncing && !isVisible && !conflictModalOpen) {
+    return null;
   }
 
   // 1. Guest mode state (Unauthenticated user)

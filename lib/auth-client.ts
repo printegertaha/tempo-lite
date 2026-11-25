@@ -1,4 +1,5 @@
 import { createAuthClient } from "better-auth/react";
+import { oauthPopupClient } from "better-auth/client/plugins";
 
 function resolveClientBaseUrl(): string {
   if (typeof window !== "undefined") {
@@ -15,6 +16,7 @@ function resolveClientBaseUrl(): string {
 
 export const authClient = createAuthClient({
   baseURL: resolveClientBaseUrl(),
+  plugins: [oauthPopupClient()],
 });
 
 export const { signIn, signOut, useSession, getSession } = authClient;

@@ -13,6 +13,7 @@ import {
   type AuthRequestTraceContext,
 } from "@/lib/auth-diagnostics";
 import { resolveUserFacingAuthError } from "@/lib/auth-errors-ui";
+import { getSafeReturnUrl, getSafeErrorCallbackUrl } from "@/lib/auth-redirect";
 
 const handler = toNextJsHandler(auth);
 
@@ -46,8 +47,9 @@ function buildLoginErrorRedirectUrl(
   const url = new URL("/login", baseUrl);
   url.searchParams.set("error", errorCode);
   url.searchParams.set("ref", referenceId);
-  if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
-    url.searchParams.set("returnTo", returnTo);
+  const safeReturnTo = getSafeReturnUrl(returnTo, "");
+  if (safeReturnTo) {
+    url.searchParams.set("returnTo", safeReturnTo);
   }
   return url.toString();
 }
@@ -197,12 +199,14 @@ export async function GET(request: NextRequest) {
       if (isGoogleCallback) {
         let redirectError: string | null = null;
         let redirectErrorDesc: string | null = null;
+        let preservedReturnTo: string | null = null;
 
         if (location) {
           try {
             const parsedLoc = new URL(location, authConfig.baseUrl);
             redirectError = parsedLoc.searchParams.get("error");
             redirectErrorDesc = parsedLoc.searchParams.get("error_description");
+            preservedReturnTo = parsedLoc.searchParams.get("returnTo");
           } catch {
             // ignore unparseable relative locations
           }
@@ -263,7 +267,8 @@ export async function GET(request: NextRequest) {
             buildLoginErrorRedirectUrl(
               authConfig.baseUrl,
               classified.safeCode,
-              trace.referenceId
+              trace.referenceId,
+              preservedReturnTo
             )
           );
           headers.set("X-Auth-Request-Id", trace.requestId);
@@ -427,6 +432,32 @@ export async function POST(request: NextRequest) {
       const parsed = JSON.parse(rawBodyText);
       if (typeof parsed?.provider === "string") {
         requestedProvider = parsed.provider;
+      }
+      if (parsed && typeof parsed === "object") {
+        const sanitizedBody: Record<string, unknown> = { ...parsed };
+        if (requestedProvider === "google") {
+          sanitizedBody.callbackURL = "/";
+          sanitizedBody.newUserCallbackURL = "/";
+        } else {
+          if (typeof parsed.callbackURL === "string") {
+            sanitizedBody.callbackURL = getSafeReturnUrl(parsed.callbackURL, "/");
+          }
+          if (typeof parsed.newUserCallbackURL === "string") {
+            sanitizedBody.newUserCallbackURL = getSafeReturnUrl(
+              parsed.newUserCallbackURL,
+              typeof sanitizedBody.callbackURL === "string"
+                ? sanitizedBody.callbackURL
+                : "/"
+            );
+          }
+        }
+        if (typeof parsed.errorCallbackURL === "string") {
+          sanitizedBody.errorCallbackURL = getSafeErrorCallbackUrl(
+            parsed.errorCallbackURL,
+            "/login"
+          );
+        }
+        rawBodyText = JSON.stringify(sanitizedBody);
       }
     } catch {
       // ignore non-json bodies

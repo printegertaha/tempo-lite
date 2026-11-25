@@ -1,8 +1,7 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
-import Image from "next/image";
-import { QURAN_SURAHS, TOTAL_QURAN_AYAHS, TOTAL_QURAN_SURAHS, Surah } from "@/lib/quranData";
+import React, { useState, useEffect, useMemo, useRef, useId } from "react";
+import { QURAN_SURAHS, TOTAL_QURAN_AYAHS, TOTAL_QURAN_SURAHS } from "@/lib/quranData";
 import QuranHeartVisualizer from "./QuranHeartVisualizer";
 import { soundManager } from "@/lib/audio";
 import {
@@ -30,9 +29,56 @@ export default function QuranHeartHub() {
   const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeFilter, setActiveFilter] = useState<"all" | "memorized" | "remaining" | "amma" | "tabarak">("all");
-  const [viewMode, setViewMode] = useState<"vector" | "poster">("vector");
   const [isLoaded, setIsLoaded] = useState(false);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [resetConfirmOpen, setResetConfirmOpen] = useState(false);
+
+  const resetDialogRef = useRef<HTMLDialogElement | null>(null);
+  const resetTitleId = useId();
+  const resetDescId = useId();
+
+  useEffect(() => {
+    const dialog = resetDialogRef.current;
+    if (!dialog) return;
+    if (resetConfirmOpen && !dialog.open) {
+      dialog.showModal();
+    } else if (!resetConfirmOpen && dialog.open) {
+      dialog.close();
+    }
+  }, [resetConfirmOpen]);
+
+  // Fallback for browsers without native closedby="any" (e.g. Safari)
+  useEffect(() => {
+    const dialog = resetDialogRef.current;
+    if (!dialog || "closedBy" in HTMLDialogElement.prototype) return;
+
+    let pressedOutside = false;
+    const isOutside = (e: PointerEvent) => {
+      const r = dialog.getBoundingClientRect();
+      return (
+        e.clientX < r.left ||
+        e.clientX > r.right ||
+        e.clientY < r.top ||
+        e.clientY > r.bottom
+      );
+    };
+
+    const handlePointerDown = (e: PointerEvent) => {
+      pressedOutside = isOutside(e);
+    };
+    const handlePointerUp = (e: PointerEvent) => {
+      if (pressedOutside && isOutside(e)) {
+        dialog.close();
+      }
+      pressedOutside = false;
+    };
+
+    dialog.addEventListener("pointerdown", handlePointerDown);
+    dialog.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      dialog.removeEventListener("pointerdown", handlePointerDown);
+      dialog.removeEventListener("pointerup", handlePointerUp);
+    };
+  }, []);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -67,27 +113,12 @@ export default function QuranHeartHub() {
     }
   }, [memorizedIds, isLoaded]);
 
-  const showToast = (msg: string) => {
-    setToastMessage(msg);
-    setTimeout(() => {
-      setToastMessage((prev) => (prev === msg ? null : prev));
-    }, 3500);
-  };
-
   const memorizedSet = useMemo(() => new Set(memorizedIds), [memorizedIds]);
 
   const toggleSurah = (id: number) => {
-    setMemorizedIds((prev) => {
-      const isAlready = prev.includes(id);
-      const surah = QURAN_SURAHS.find((s) => s.id === id);
-      if (isAlready) {
-        showToast(`تم إزالة سورة ${surah?.name || ""} من المحفوظات`);
-        return prev.filter((item) => item !== id);
-      } else {
-        showToast(`مبارك! حفظت سورة ${surah?.name || ""} بنجاح ❤️`);
-        return [...prev, id];
-      }
-    });
+    setMemorizedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
   };
 
   const markBatch = (ids: number[], markAs: boolean) => {
@@ -100,14 +131,15 @@ export default function QuranHeartHub() {
       return Array.from(curSet);
     });
     soundManager.playTaskDone();
-    showToast(markAs ? "تم تحديد السور كمحفوظة بنجاح ✨" : "تم إلغاء تحديد السور");
   };
 
   const resetAll = () => {
-    if (confirm("هل أنت متأكد من رغبتك في إعادة ضبط جميع السور المحفوظة في القلب؟")) {
-      setMemorizedIds([]);
-      showToast("تمت إعادة ضبط القلب");
-    }
+    setResetConfirmOpen(true);
+  };
+
+  const confirmResetAll = () => {
+    setMemorizedIds([]);
+    setResetConfirmOpen(false);
   };
 
   // Calculations
@@ -151,14 +183,6 @@ export default function QuranHeartHub() {
 
   return (
     <div className="min-h-screen bg-[#08090d] text-zinc-100 pb-24 selection:bg-rose-500/30">
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 bg-gradient-to-r from-rose-600 to-red-700 text-white px-5 py-2.5 rounded-full shadow-2xl flex items-center gap-2.5 text-sm font-bold animate-bounce border border-rose-400/40">
-          <Heart className="w-4 h-4 fill-white" />
-          <span>{toastMessage}</span>
-        </div>
-      )}
-
       {/* Hero Header */}
       <div className="relative border-b border-zinc-800/80 bg-gradient-to-b from-rose-950/20 via-zinc-900/40 to-transparent py-10 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center space-y-3">
@@ -168,17 +192,18 @@ export default function QuranHeartHub() {
           </div>
 
           <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-white tracking-tight">
-            «أَلا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ»
+            « عالج روحك بالقرآن »
+
           </h1>
 
           <p className="max-w-2xl mx-auto text-zinc-400 text-sm sm:text-base leading-relaxed">
             اجعل كل سورة تحفظها تنبض بالحياة داخل قلبك. كلما أتممت حفظ سورة، تلوّنت خانتها بالأحمر القاني ليفيض قلبك بنور كتاب الله.
           </p>
 
-          {/* Quick Metrics Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-4xl mx-auto pt-6 text-right">
+          {/* Quick Metrics Bar (Horizontal scroll on mobile, 4-col grid on sm+) */}
+          <div className="flex sm:grid sm:grid-cols-4 gap-3 max-w-4xl mx-auto pt-6 text-right overflow-x-auto sm:overflow-visible no-scrollbar snap-x snap-proximity pb-1">
             {/* Metric 1 */}
-            <div className="bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="shrink-0 w-[165px] sm:w-auto snap-start bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
               <span className="text-xs text-zinc-400 font-medium">السور المحفوظة</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl sm:text-3xl font-black text-white">
@@ -195,7 +220,7 @@ export default function QuranHeartHub() {
             </div>
 
             {/* Metric 2 */}
-            <div className="bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="shrink-0 w-[165px] sm:w-auto snap-start bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
               <span className="text-xs text-zinc-400 font-medium">الآيات المحفوظة</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl sm:text-3xl font-black text-white">
@@ -212,7 +237,7 @@ export default function QuranHeartHub() {
             </div>
 
             {/* Metric 3 */}
-            <div className="bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="shrink-0 w-[165px] sm:w-auto snap-start bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
               <span className="text-xs text-zinc-400 font-medium">نسبة إحياء القلب</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl sm:text-3xl font-black text-rose-400">
@@ -229,7 +254,7 @@ export default function QuranHeartHub() {
             </div>
 
             {/* Metric 4 */}
-            <div className="bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
+            <div className="shrink-0 w-[165px] sm:w-auto snap-start bg-zinc-900/70 border border-zinc-800/90 rounded-2xl p-4 flex flex-col justify-between">
               <span className="text-xs text-zinc-400 font-medium">ما يعادله من الأجزاء</span>
               <div className="flex items-baseline gap-1 mt-1">
                 <span className="text-2xl sm:text-3xl font-black text-amber-400">
@@ -250,118 +275,77 @@ export default function QuranHeartHub() {
 
       {/* Main Content Layout */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
-        {/* Controls and View Switcher */}
-        <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
-          {/* View Mode Toggle */}
-          <div className="flex items-center gap-1.5 p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
-            <button
-              onClick={() => setViewMode("vector")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                viewMode === "vector"
-                  ? "bg-rose-600 text-white shadow-lg shadow-rose-600/30"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              القلب التفاعلي الذكي (SVG)
-            </button>
-            <button
-              onClick={() => setViewMode("poster")}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                viewMode === "poster"
-                  ? "bg-rose-600 text-white shadow-lg shadow-rose-600/30"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              اللوحة الأصلية المزخرفة
-            </button>
-          </div>
+        {/* Quick Shortcuts (Toggle Juz memorization) */}
+        {(() => {
+          const ammaIds = QURAN_SURAHS.filter((s) => s.id >= 78).map((s) => s.id);
+          const tabarakIds = QURAN_SURAHS.filter((s) => s.id >= 67 && s.id <= 77).map((s) => s.id);
+          const isAmmaDone = ammaIds.every((id) => memorizedSet.has(id));
+          const isTabarakDone = tabarakIds.every((id) => memorizedSet.has(id));
 
-          {/* Quick Shortcuts */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => {
-                const ammaIds = QURAN_SURAHS.filter((s) => s.id >= 78).map((s) => s.id);
-                markBatch(ammaIds, true);
-              }}
-              className="px-3 py-1.5 text-xs font-bold bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-xl transition-colors"
-            >
-              + حفظ جزء عمّ (37 سورة)
-            </button>
-            <button
-              onClick={() => {
-                const tabarakIds = QURAN_SURAHS.filter((s) => s.id >= 67 && s.id <= 77).map((s) => s.id);
-                markBatch(tabarakIds, true);
-              }}
-              className="px-3 py-1.5 text-xs font-bold bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 text-zinc-300 rounded-xl transition-colors"
-            >
-              + حفظ جزء تبارك (11 سورة)
-            </button>
-            <button
-              onClick={resetAll}
-              title="إعادة ضبط القلب"
-              className="p-2 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded-xl transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
+          return (
+            <div className="flex flex-wrap items-center justify-end gap-2 mb-6">
+              <button
+                type="button"
+                onClick={() => markBatch(ammaIds, !isAmmaDone)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-colors cursor-pointer ${
+                  isAmmaDone
+                    ? "bg-rose-600/20 border-rose-500/40 text-rose-200 hover:bg-rose-600/30"
+                    : "bg-zinc-900 hover:bg-zinc-800 border-zinc-800 hover:border-zinc-700 text-zinc-300"
+                }`}
+              >
+                {isAmmaDone && <Check className="w-3.5 h-3.5 text-rose-400" />}
+                <span>
+                  {isAmmaDone ? "تم حفظ جزء عمّ (37 سورة)" : "+ حفظ جزء عمّ (37 سورة)"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={() => markBatch(tabarakIds, !isTabarakDone)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border rounded-xl transition-colors cursor-pointer ${
+                  isTabarakDone
+                    ? "bg-rose-600/20 border-rose-500/40 text-rose-200 hover:bg-rose-600/30"
+                    : "bg-zinc-900 hover:bg-zinc-800 border-zinc-800 hover:border-zinc-700 text-zinc-300"
+                }`}
+              >
+                {isTabarakDone && <Check className="w-3.5 h-3.5 text-rose-400" />}
+                <span>
+                  {isTabarakDone ? "تم حفظ جزء تبارك (11 سورة)" : "+ حفظ جزء تبارك (11 سورة)"}
+                </span>
+              </button>
+              <button
+                type="button"
+                onClick={resetAll}
+                title="إعادة ضبط القلب"
+                className="p-2 text-zinc-500 hover:text-rose-400 hover:bg-zinc-900 rounded-xl transition-colors cursor-pointer"
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Heart Display Area */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Heart Column (7 Cols on desktop) */}
           <div className="lg:col-span-7 bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-4 sm:p-6 backdrop-blur-sm">
-            {viewMode === "vector" ? (
-              <div>
-                <div className="flex items-center justify-between text-xs text-zinc-400 mb-4 px-2">
-                  <div className="flex items-center gap-2">
-                    <span className="w-3 h-3 rounded-md bg-rose-600 border border-rose-400" />
-                    <span>سورة محفوظة (أحمر)</span>
-                    <span className="w-3 h-3 rounded-md bg-zinc-800 border border-zinc-700 mr-2" />
-                    <span>سورة لم تُحفظ بعد</span>
-                  </div>
-                  <span className="text-[11px] text-zinc-500">انقر على أي سورة لتلوينها أو تفريغها</span>
+            <div>
+              <div className="flex items-center justify-between text-xs text-zinc-400 mb-4 px-2">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-md bg-rose-600 border border-rose-400" />
+                  <span>سورة محفوظة (أحمر)</span>
+                  <span className="w-3 h-3 rounded-md bg-zinc-800 border border-zinc-700 mr-2" />
+                  <span>سورة لم تُحفظ بعد</span>
                 </div>
+                <span className="text-[11px] text-zinc-500">انقر على أي سورة لتلوينها أو تفريغها</span>
+              </div>
 
-                <QuranHeartVisualizer
-                  memorizedIds={memorizedIds}
-                  onToggleSurah={toggleSurah}
-                  selectedSurahId={selectedSurahId}
-                  onSelectSurah={setSelectedSurahId}
-                />
-              </div>
-            ) : (
-              /* Original Poster View */
-              <div className="relative text-center">
-                <div className="text-xs text-zinc-400 mb-3 text-right">
-                  اللوحة الفنية الأصلية لحفظ القرآن — انقر على أي سورة من القائمة الجانبية لتحديدها.
-                </div>
-                <div className="relative inline-block rounded-2xl overflow-hidden border border-zinc-800 shadow-2xl max-w-full">
-                  <Image
-                    src="/trackers/quran_heart.jpg"
-                    alt="مخطط حفظ القرآن على شكل قلب"
-                    width={500}
-                    height={700}
-                    className="w-full max-w-[500px] h-auto object-contain mx-auto"
-                  />
-                  {/* Glowing Overlay for Memorized Surahs */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    {QURAN_SURAHS.map((s) => {
-                      if (!memorizedSet.has(s.id)) return null;
-                      return (
-                        <div
-                          key={s.id}
-                          className="absolute w-4 h-4 -ml-2 -mt-2 rounded-full bg-rose-500/80 shadow-lg shadow-rose-500 border border-white animate-pulse"
-                          style={{
-                            left: `${(s.pos.x / 600) * 100}%`,
-                            top: `${(s.pos.y / 930) * 100}%`,
-                          }}
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            )}
+              <QuranHeartVisualizer
+                memorizedIds={memorizedIds}
+                onToggleSurah={toggleSurah}
+                selectedSurahId={selectedSurahId}
+                onSelectSurah={setSelectedSurahId}
+              />
+            </div>
           </div>
 
           {/* Surah List & Details Column (5 Cols on desktop) */}
@@ -519,6 +503,65 @@ export default function QuranHeartHub() {
           </div>
         </div>
       </div>
+
+      {/* Custom Reset Confirmation Dialog */}
+      <dialog
+        ref={resetDialogRef}
+        aria-labelledby={resetTitleId}
+        aria-describedby={resetDescId}
+        {...({ closedby: "any" } as Record<string, string>)}
+        onClose={() => {
+          if (resetDialogRef.current) resetDialogRef.current.returnValue = "";
+          setResetConfirmOpen(false);
+        }}
+        className="m-auto w-[min(24rem,calc(100vw-2rem))] rounded-3xl bg-[#0c0e17] border border-rose-500/30 text-zinc-100 shadow-2xl shadow-black/80 p-6 backdrop:bg-black/75 backdrop:backdrop-blur-sm"
+      >
+        <div className="space-y-4 text-right">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-rose-500/15 border border-rose-500/30 flex items-center justify-center text-rose-400 shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <h1 id={resetTitleId} className="text-base font-bold text-zinc-100">
+                إعادة ضبط القلب
+              </h1>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => resetDialogRef.current?.close()}
+              aria-label="إغلاق"
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/70 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <p id={resetDescId} className="text-xs leading-relaxed text-zinc-400">
+            هل أنت متأكد من رغبتك في إعادة ضبط جميع السور المحفوظة في القلب؟ سيتم مسح تحديد جميع السور المحفوظة.
+          </p>
+
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-zinc-800/80">
+            <button
+              type="button"
+              autoFocus
+              onClick={() => resetDialogRef.current?.close()}
+              className="min-h-[40px] px-4 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700/80 border border-zinc-700/70 text-zinc-200 text-xs font-bold transition-colors cursor-pointer"
+            >
+              إلغاء
+            </button>
+
+            <button
+              type="button"
+              onClick={confirmResetAll}
+              className="min-h-[40px] flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-lg shadow-rose-600/25 transition-all cursor-pointer"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>تأكيد إعادة الضبط</span>
+            </button>
+          </div>
+        </div>
+      </dialog>
     </div>
   );
 }

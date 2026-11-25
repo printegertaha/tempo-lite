@@ -112,7 +112,6 @@ function RegisterContent() {
 
           {/* Google OAuth Sign-Up */}
           <GoogleSignInButton
-            returnTo={returnTo}
             label="التسجيل السريع باستخدام Google"
           />
 
@@ -242,7 +241,11 @@ function RegisterContent() {
           <div className="flex items-center justify-center gap-1 pt-3 text-center text-xs text-zinc-400 border-t border-zinc-800/80">
             <span>لديك حساب بالفعل؟ </span>
             <Link
-              href="/login"
+              href={
+                returnTo !== "/"
+                  ? `/login?returnTo=${encodeURIComponent(returnTo)}`
+                  : "/login"
+              }
               className="text-violet-400 hover:text-violet-300 font-bold transition-colors"
             >
               تسجيل الدخول

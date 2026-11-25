@@ -141,3 +141,13 @@ body {
     }
   }
 }
+
+/* Prevent underlying page scrolling when a native modal <dialog> is open */
+dialog:modal {
+  overscroll-behavior: contain;
+}
+
+dialog::backdrop {
+  overflow: hidden;
+  overscroll-behavior: contain;
+}

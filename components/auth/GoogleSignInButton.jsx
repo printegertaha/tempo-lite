@@ -1,67 +1,65 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
-import { getSafeReturnUrl } from "@/lib/auth-redirect";
-import { Loader2 } from "lucide-react";
+import { getSafeErrorCallbackUrl } from "@/lib/auth-redirect";
+import { Loader2, ExternalLink, X } from "lucide-react";
 import AuthErrorBanner from "./AuthErrorBanner";
 
 export default function GoogleSignInButton({
-  returnTo,
   className = "",
   label = "المتابعة باستخدام Google",
 }) {
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState(null);
-  const searchParams = useSearchParams();
+  const [popupBlocked, setPopupBlocked] = useState(false);
   const pathname = usePathname();
-  const timeoutRef = useRef(null);
+  const router = useRouter();
+  const cancelledRef = useRef(false);
+  const mountedRef = useRef(true);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
+      mountedRef.current = false;
     };
   }, []);
 
-  const handleSignIn = async () => {
+  const baseAuthPath = pathname === "/register" ? "/register" : "/login";
+  const safeErrorCallback = getSafeErrorCallbackUrl(baseAuthPath, "/login");
+
+  const handleCancelInTab = () => {
+    cancelledRef.current = true;
+    setLoading(false);
+    setPopupBlocked(false);
+    setErrorState(null);
+  };
+
+  const startRedirectFallback = async () => {
+    if (loading) return;
     try {
+      cancelledRef.current = false;
       setLoading(true);
+      setPopupBlocked(false);
       setErrorState(null);
-
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      timeoutRef.current = setTimeout(() => {
-        setLoading(false);
-        setErrorState({
-          code: "oauth_timeout",
-          message:
-            "استغرقت الاستجابة وقتاً أطول من المتوقع. يرجى التحقق من اتصال الإنترنت وإعدادات الخادم والمحاولة ثانية.",
-        });
-      }, 15000);
-
-      const destination = returnTo || searchParams?.get("returnTo");
-      const safeCallback = getSafeReturnUrl(destination, "/");
-      const safeErrorCallback =
-        pathname === "/register" ? "/register" : "/login";
 
       const res = await authClient.signIn.social({
         provider: "google",
-        callbackURL: safeCallback,
+        callbackURL: "/",
+        newUserCallbackURL: "/",
         errorCallbackURL: safeErrorCallback,
       });
 
-      if (res?.error) {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
-        setLoading(false);
+      if (!mountedRef.current || cancelledRef.current) return;
 
+      if (res?.error) {
+        setLoading(false);
         const errObj = res.error;
         const nestedErr =
           typeof errObj === "object" && errObj !== null && "error" in errObj
             ? errObj.error
             : errObj;
-
         const errCode =
           nestedErr?.code ||
           errObj?.code ||
@@ -70,12 +68,9 @@ export default function GoogleSignInButton({
             : errObj?.status === 403
               ? "invalid_origin"
               : "google_sign_in_failed");
-
-        const referenceId = nestedErr?.referenceId || errObj?.referenceId || null;
-
         setErrorState({
           code: String(errCode),
-          referenceId,
+          referenceId: nestedErr?.referenceId || errObj?.referenceId || null,
           message:
             typeof nestedErr?.message === "string" ? nestedErr.message : null,
         });
@@ -85,7 +80,6 @@ export default function GoogleSignInButton({
       if (res?.data?.url) {
         window.location.href = res.data.url;
       } else {
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
         setLoading(false);
         setErrorState({
           code: "no_redirect_url",
@@ -93,16 +87,100 @@ export default function GoogleSignInButton({
             "لم يرجع الخادم رابط التوجيه إلى Google. يرجى المحاولة مرة أخرى.",
         });
       }
-    } catch (error) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      if (process.env.NODE_ENV === "development") {
-        console.error("Google sign in unexpected error:", error);
-      }
+    } catch {
+      if (!mountedRef.current) return;
       setLoading(false);
       setErrorState({
         code: "unexpected_client_error",
         message:
-          "حدث خطأ غير متوقع أثناء محاولة التحويل إلى Google. يرجى المحاولة مرة أخرى.",
+          "تعذر الاتصال بالخادم. يرجى التحقق من الإنترنت والمحاولة مرة أخرى.",
+      });
+    }
+  };
+
+  const handleSignIn = async () => {
+    if (loading) return;
+    try {
+      cancelledRef.current = false;
+      setLoading(true);
+      setPopupBlocked(false);
+      setErrorState(null);
+
+      // Must call synchronously from click handler so popup blockers permit window.open()
+      const res = await authClient.signIn.popup({
+        provider: "google",
+        callbackURL: "/",
+        newUserCallbackURL: "/",
+        errorCallbackURL: safeErrorCallback,
+      });
+
+      if (!mountedRef.current || cancelledRef.current) {
+        return;
+      }
+
+      if (res?.error) {
+        setLoading(false);
+
+        if (res.error.code === "POPUP_BLOCKED") {
+          setPopupBlocked(true);
+          return;
+        }
+
+        if (res.error.code === "POPUP_CLOSED") {
+          setErrorState({
+            code: "access_denied",
+            message:
+              "تم إغلاق نافذة تسجيل الدخول قبل إتمام العملية. يمكنك المحاولة مرة أخرى متى شئت.",
+          });
+          return;
+        }
+
+        if (res.error.code === "POPUP_TIMEOUT") {
+          setErrorState({
+            code: "oauth_timeout",
+            message:
+              "انتهت مهلة نافذة تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+          });
+          return;
+        }
+
+        setErrorState({
+          code: String(res.error.code || "google_sign_in_failed"),
+          message:
+            typeof res.error.message === "string" ? res.error.message : null,
+        });
+        return;
+      }
+
+      if (res?.data?.success) {
+        const sessionRes = await authClient
+          .getSession({ query: { disableCookieCache: true } })
+          .catch(() => null);
+
+        if (!mountedRef.current || cancelledRef.current) return;
+
+        if (sessionRes?.data?.user) {
+          router.replace("/");
+          router.refresh();
+          return;
+        }
+      }
+
+      setLoading(false);
+      setErrorState({
+        code: "google_sign_in_failed",
+        message: "تعذر التحقق من الجلسة بعد تسجيل الدخول. يرجى المحاولة مرة أخرى.",
+      });
+    } catch (error) {
+      if (process.env.NODE_ENV === "development") {
+        console.error("Google popup sign in unexpected error:", error);
+      }
+      if (!mountedRef.current) return;
+      setLoading(false);
+      setErrorState({
+        code: "unexpected_client_error",
+        message:
+          "حدث خطأ في الشبكة أو أثناء المصادقة عبر Google. يمكنك المحاولة مرة أخرى.",
       });
     }
   };
@@ -114,12 +192,12 @@ export default function GoogleSignInButton({
         onClick={handleSignIn}
         disabled={loading}
         aria-busy={loading}
-        className={`w-full flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-700/80 hover:border-zinc-500 text-zinc-100 text-xs sm:text-sm font-bold shadow-xl hover:shadow-violet-600/10 transition-all duration-200 cursor-pointer active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed group ${className}`}
+        className={`w-full min-h-[48px] touch-manipulation flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-700/80 hover:border-zinc-500 text-zinc-100 text-xs sm:text-sm font-bold shadow-xl hover:shadow-violet-600/10 transition-all duration-200 cursor-pointer active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed group ${className}`}
       >
         {loading ? (
           <>
             <Loader2 className="w-4 h-4 text-violet-400 animate-spin" />
-            <span>جارٍ التحويل إلى Google...</span>
+            <span>جارٍ المصادقة عبر Google...</span>
           </>
         ) : (
           <>
@@ -149,6 +227,45 @@ export default function GoogleSignInButton({
           </>
         )}
       </button>
+
+      {loading && (
+        <button
+          type="button"
+          onClick={handleCancelInTab}
+          className="w-full min-h-[40px] flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-zinc-900/60 hover:bg-zinc-800/80 border border-zinc-800 text-zinc-400 hover:text-zinc-200 text-xs font-semibold transition-colors cursor-pointer"
+        >
+          <X className="w-3.5 h-3.5" />
+          <span>إلغاء تسجيل الدخول</span>
+        </button>
+      )}
+
+      {popupBlocked && (
+        <div
+          role="alert"
+          className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs space-y-2.5 text-right"
+        >
+          <p className="leading-relaxed">
+            قام المتصفح بحظر النافذة المنبثقة لتسجيل الدخول عبر Google. يمكنك المتابعة في هذه الصفحة بدلاً من ذلك أو إلغاء المحاولة.
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={startRedirectFallback}
+              className="flex-1 min-h-[40px] flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-bold transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>المتابعة في نفس الصفحة</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPopupBlocked(false)}
+              className="min-h-[40px] px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-300 font-semibold transition-colors cursor-pointer"
+            >
+              إلغاء
+            </button>
+          </div>
+        </div>
+      )}
 
       {errorState && (
         <AuthErrorBanner

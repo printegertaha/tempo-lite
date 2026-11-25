@@ -200,7 +200,11 @@ function LoginContent() {
           <div className="flex items-center gap-1 justify-center pt-3 text-center text-xs text-zinc-400 border-t border-zinc-800/80">
             <span>ليس لديك حساب بعد؟ </span>
             <Link
-              href="/register"
+              href={
+                returnTo !== "/"
+                  ? `/register?returnTo=${encodeURIComponent(returnTo)}`
+                  : "/register"
+              }
               className="text-violet-400 hover:text-violet-300 font-bold transition-colors"
             >
               إنشاء حساب جديد

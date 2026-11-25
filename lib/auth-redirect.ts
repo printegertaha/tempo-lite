@@ -43,12 +43,45 @@ export function getSafeReturnUrl(
       return fallback;
     }
 
-    // Disallow redirecting directly back to authentication pages
-    if (parsed.pathname === "/login" || parsed.pathname === "/register") {
+    // Disallow redirecting directly back to authentication pages or auth API routes
+    if (
+      parsed.pathname === "/login" ||
+      parsed.pathname === "/register" ||
+      parsed.pathname.startsWith("/api/auth")
+    ) {
       return fallback;
     }
 
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
+/**
+ * Validates an error callback URL (which is expected to stay on `/login` or `/register`).
+ */
+export function getSafeErrorCallbackUrl(
+  url?: string | null,
+  fallback: string = "/login"
+): string {
+  if (!url || typeof url !== "string") return fallback;
+  const trimmed = url.trim();
+  if (trimmed.includes("\\") || !trimmed.startsWith("/") || trimmed.startsWith("//") || /[\r\n\t\0]/.test(trimmed)) {
+    return fallback;
+  }
+  try {
+    const dummyOrigin = "http://athar.internal";
+    const parsed = new URL(trimmed, dummyOrigin);
+    if (parsed.origin !== dummyOrigin) return fallback;
+    if (parsed.pathname !== "/login" && parsed.pathname !== "/register") {
+      return fallback;
+    }
+    const safeReturnTo = getSafeReturnUrl(parsed.searchParams.get("returnTo"), "");
+    if (safeReturnTo) {
+      return `${parsed.pathname}?returnTo=${encodeURIComponent(safeReturnTo)}`;
+    }
+    return parsed.pathname;
   } catch {
     return fallback;
   }

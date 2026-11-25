@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
+import { bearer, oauthPopup } from "better-auth/plugins";
 import prisma from "./prisma";
 import { resolveAuthConfig, resolveRequestTrustedOrigins } from "./auth-env";
 import {
@@ -21,6 +22,7 @@ export const auth = betterAuth({
   basePath: authConfig.basePath,
   secret: authConfig.betterAuthSecret,
   trustedOrigins: (request) => resolveRequestTrustedOrigins(authConfig, request),
+  plugins: [bearer(), oauthPopup()],
   logger: {
     disabled: false,
     level: authConfig.isProduction ? "warn" : "debug",
