@@ -33,6 +33,44 @@ export function normalizeMealRecord(m: any) {
     (it: any) => typeof it === "string" || (it && typeof it === "object")
   );
   const title = String(m?.title || m?.name || "وجبة").trim();
+  const rawSnapshot =
+    m?.dailyTargetsSnapshot && typeof m.dailyTargetsSnapshot === "object"
+      ? m.dailyTargetsSnapshot
+      : null;
+  const meta =
+    rawSnapshot?._meta && typeof rawSnapshot._meta === "object"
+      ? rawSnapshot._meta
+      : null;
+
+  const sourcePlanId: string | null =
+    typeof m?.sourcePlanId === "string" && m.sourcePlanId
+      ? m.sourcePlanId
+      : typeof meta?.sourcePlanId === "string" && meta.sourcePlanId
+        ? meta.sourcePlanId
+        : null;
+
+  const entrySourceRaw = m?.entrySource || meta?.entrySource || null;
+  const isEstimated = Boolean(
+    m?.isEstimated ??
+      meta?.isEstimated ??
+      (items.length === 0 && Number(m?.calories || 0) > 0)
+  );
+  const entrySource: "verified" | "user_provided" | "estimated" | "restaurant" =
+    entrySourceRaw === "restaurant" ||
+    entrySourceRaw === "estimated" ||
+    entrySourceRaw === "user_provided" ||
+    entrySourceRaw === "verified"
+      ? entrySourceRaw
+      : isEstimated
+        ? "estimated"
+        : items.some(
+              (it) =>
+                typeof it === "object" &&
+                it?.source?.verificationStatus === "user_provided"
+            )
+          ? "user_provided"
+          : "verified";
+
   return {
     id: String(m?.id || ""),
     userId: m?.userId,
@@ -47,12 +85,62 @@ export function normalizeMealRecord(m: any) {
     fat: Number(m?.fat || 0),
     notes: m?.notes ? String(m.notes) : "",
     items,
-    dailyTargetsSnapshot:
-      m?.dailyTargetsSnapshot && typeof m.dailyTargetsSnapshot === "object"
-        ? m.dailyTargetsSnapshot
-        : null,
+    sourcePlanId,
+    isEstimated,
+    entrySource,
+    dailyTargetsSnapshot: rawSnapshot,
     createdAt: m?.createdAt || null,
     updatedAt: m?.updatedAt || null,
+  };
+}
+
+export function buildMealSnapshotWithMeta(params: {
+  targetsSnapshot: NutritionTargets | Record<string, any> | null;
+  sourcePlanId?: string | null;
+  isEstimated?: boolean;
+  entrySource?: string | null;
+}) {
+  const { targetsSnapshot, sourcePlanId, isEstimated, entrySource } = params;
+  const { _meta: _ignoredMeta, ...cleanBase } =
+    targetsSnapshot && typeof targetsSnapshot === "object"
+      ? (targetsSnapshot as Record<string, any>)
+      : ({} as Record<string, any>);
+  const hasTargets = Object.keys(cleanBase).length > 0;
+  const hasMeta = Boolean(sourcePlanId || isEstimated || entrySource);
+  if (!hasTargets && !hasMeta) return null;
+  if (!hasMeta) return cleanBase;
+
+  return {
+    ...cleanBase,
+    _meta: {
+      ...(sourcePlanId ? { sourcePlanId } : {}),
+      ...(isEstimated ? { isEstimated: true } : {}),
+      ...(entrySource ? { entrySource } : {}),
+    },
+  };
+}
+
+export interface NutritionDayStatus {
+  offPlan: boolean;
+  reason?: string;
+  updatedAt?: string | null;
+}
+
+export function getDayStatusForDate(
+  dayStatusMap: Record<string, NutritionDayStatus> | null | undefined,
+  dateStr: string
+): NutritionDayStatus {
+  if (!dayStatusMap || typeof dayStatusMap !== "object" || !dateStr) {
+    return { offPlan: false, reason: "" };
+  }
+  const entry = dayStatusMap[dateStr];
+  if (!entry || typeof entry !== "object") {
+    return { offPlan: false, reason: "" };
+  }
+  return {
+    offPlan: Boolean(entry.offPlan),
+    reason: typeof entry.reason === "string" ? entry.reason : "",
+    updatedAt: entry.updatedAt || null,
   };
 }
 

@@ -89,9 +89,10 @@ export const auth = betterAuth({
   session: {
     expiresIn: 60 * 60 * 24 * 30, // 30 days session persistence
     updateAge: 60 * 60 * 24, // Refresh session cookie daily
+    // Disabled: cookieCache serializes user.image (which can be a base64 data URL) into
+    // better-auth.session_data, exceeding Node's 16KB header limit and causing HTTP 431.
     cookieCache: {
-      enabled: true,
-      maxAge: 5 * 60, // 5 min cookie cache
+      enabled: false,
     },
   },
   databaseHooks: {

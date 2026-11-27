@@ -35,6 +35,22 @@ export const LIFE_AREA_ICONS = [
   "Users",
   "Globe",
   "Laptop",
+  "Home",
+  "Music",
+  "Camera",
+  "Palette",
+  "Plane",
+  "Coffee",
+  "Utensils",
+  "Award",
+  "Trophy",
+  "Zap",
+  "Leaf",
+  "Star",
+  "Lightbulb",
+  "Clock",
+  "Headphones",
+  "Gamepad2",
 ] as const;
 
 export const LifeAreaPrioritySchema = z.number().int().min(1).max(5).default(1);

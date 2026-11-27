@@ -31,7 +31,12 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="ar" dir="rtl" className="dark scroll-smooth">
+    <html
+      lang="ar"
+      dir="rtl"
+      data-scroll-behavior="smooth"
+      className="dark scroll-smooth"
+    >
       <body
         className="min-h-screen bg-[#08090d] text-zinc-100 antialiased selection:bg-violet-500/25 selection:text-violet-200 flex flex-col relative overflow-x-hidden"
         style={{

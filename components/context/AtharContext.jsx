@@ -20,16 +20,21 @@ import { getLocalDateString as getTzLocalDateString } from "@/lib/dates";
 import {
   calculateNutritionPlan,
   createEmptyNutritionProfile,
+  isNutritionProfileCompleted,
+  resolveNutritionExperienceMode,
 } from "@/lib/nutrition/calculations";
 import {
   DEMO_MEAL_IDS,
   EMPTY_NUTRITION_LOGGED,
+  buildMealSnapshotWithMeta,
   filterRealMealsOnly,
+  getDayStatusForDate,
   isDemoMealRecord,
   mergeBodyWeights,
   normalizeMealRecord,
   resolveTargetsForDate,
 } from "@/lib/nutrition/storage-helpers";
+import { isPlannedMealConfirmedForDate } from "@/lib/nutrition/meal-planner";
 import {
   buildDefaultLocalizationPreferences,
   formatCurrency,
@@ -273,11 +278,18 @@ export function AtharProvider({ children }) {
   const [userPreferences, setUserPreferences] = useState(() =>
     normalizeUserPreferences(null)
   );
+  const [domainsLoadedForUser, setDomainsLoadedForUser] = useState(null);
+  const [domainsLoadError, setDomainsLoadError] = useState(false);
   const loadedUserRef = useRef(null);
 
   const loadDomainsForUser = async (uid) => {
+    setDomainsLoadError(false);
     // 1. User-scoped settings (IDB -> scoped localStorage -> guest legacy fallback)
-    let resolvedSettings = await localSyncMetaRepo.getUserSettings(uid).catch(() => null);
+    let idbReadFailed = false;
+    let resolvedSettings = await localSyncMetaRepo.getUserSettings(uid).catch(() => {
+      idbReadFailed = true;
+      return null;
+    });
     if (!resolvedSettings && typeof window !== "undefined") {
       try {
         const scopedRaw =
@@ -285,6 +297,11 @@ export function AtharProvider({ children }) {
           (uid === "guest" ? localStorage.getItem("athar_user_settings") : null);
         if (scopedRaw) resolvedSettings = JSON.parse(scopedRaw);
       } catch {}
+    }
+    if (idbReadFailed && !resolvedSettings) {
+      setDomainsLoadError(true);
+      setDomainsLoadedForUser(uid);
+      return;
     }
     const activePrefs = normalizeUserPreferences(resolvedSettings);
     const activeTz = activePrefs.timezone || "Africa/Cairo";
@@ -513,6 +530,8 @@ export function AtharProvider({ children }) {
     }
     setAppState(baseAppState);
     loadedUserRef.current = uid;
+    setDomainsLoadError(false);
+    setDomainsLoadedForUser(uid);
   };
 
   // Mount effect & global listeners
@@ -631,6 +650,22 @@ export function AtharProvider({ children }) {
       customFoods: Array.isArray(userPreferences?.customFoods)
         ? userPreferences.customFoods
         : [],
+      nutritionDayStatus:
+        userPreferences?.nutritionDayStatus && typeof userPreferences.nutritionDayStatus === "object"
+          ? userPreferences.nutritionDayStatus
+          : {},
+      dayStatus: getDayStatusForDate(userPreferences?.nutritionDayStatus, activeNutritionDate),
+      nutritionReady: isMounted && domainsLoadedForUser === activeUserId,
+      nutritionLoadError: domainsLoadError,
+      isProfileCompleted: isNutritionProfileCompleted(userPreferences?.nutritionProfile),
+      experienceMode: resolveNutritionExperienceMode({
+        explicitMode: userPreferences?.nutritionExperienceMode,
+        hasExistingMeals: allMeals.length > 0,
+        hasExistingPlans:
+          Array.isArray(userPreferences?.nutritionPlans) &&
+          userPreferences.nutritionPlans.length > 0,
+      }),
+      nutritionDietDraft: userPreferences?.nutritionDietDraft || null,
     };
   }, [
     allMeals,
@@ -638,11 +673,11 @@ export function AtharProvider({ children }) {
     activeNutritionDate,
     todayLocalDate,
     nutritionBreakdown,
-    userPreferences?.nutritionProfile,
-    userPreferences?.nutritionTargetSnapshots,
-    userPreferences?.nutritionPlans,
-    userPreferences?.favoriteMeals,
-    userPreferences?.customFoods,
+    userPreferences,
+    isMounted,
+    domainsLoadedForUser,
+    domainsLoadError,
+    activeUserId,
   ]);
 
   useEffect(() => {
@@ -1631,14 +1666,44 @@ export function AtharProvider({ children }) {
     return addWaterMl(ml, dateStr, "nutrition");
   };
 
-  const saveNutritionProfile = async (profilePatch, options = {}) => {
+  const saveNutritionProfileDraft = async (profilePatch) => {
     const currentProfile = userPreferences?.nutritionProfile || createEmptyNutritionProfile();
     const nextProfile = {
       ...currentProfile,
       ...profilePatch,
+      setupCompleted: false,
+      setupInProgress: true,
+      setupVersion: 1,
       updatedAt: new Date().toISOString(),
     };
-    const nextPlan = calculateNutritionPlan(nextProfile);
+    await updatePreferences({
+      nutritionProfile: nextProfile,
+    });
+    return nextProfile;
+  };
+
+  const saveNutritionProfile = async (profilePatch, options = {}) => {
+    const currentProfile = userPreferences?.nutritionProfile || createEmptyNutritionProfile();
+    const nowIso = new Date().toISOString();
+    const candidateProfile = {
+      ...currentProfile,
+      ...profilePatch,
+      setupInProgress: false,
+      setupVersion: 1,
+      updatedAt: nowIso,
+    };
+    const nextPlan = calculateNutritionPlan(candidateProfile);
+    const completedFlag = isNutritionProfileCompleted({
+      ...candidateProfile,
+      setupCompleted: true,
+    });
+    const nextProfile = {
+      ...candidateProfile,
+      setupCompleted: completedFlag,
+      setupCompletedAt: completedFlag
+        ? profilePatch?.setupCompletedAt || currentProfile?.setupCompletedAt || nowIso
+        : null,
+    };
     const nextSnapshots = {
       ...(userPreferences?.nutritionTargetSnapshots || {}),
       ...(nextPlan.targets ? { [todayLocalDate]: nextPlan.targets } : {}),
@@ -1673,6 +1738,23 @@ export function AtharProvider({ children }) {
     return nextPlan;
   };
 
+  const saveNutritionExperienceMode = async (mode) => {
+    if (mode !== "calculator_only" && mode !== "diet_builder" && mode !== "full_tracking") return;
+    await updatePreferences({ nutritionExperienceMode: mode });
+    showToast(
+      mode === "calculator_only"
+        ? "تم التبديل لوضع حاسبة الاحتياجات فقط"
+        : mode === "diet_builder"
+          ? "تم فتح باني النظام الغذائي"
+          : "تم تفعيل نظام المتابعة الكامل",
+      "success"
+    );
+  };
+
+  const saveNutritionDietDraft = async (draft) => {
+    await updatePreferences({ nutritionDietDraft: draft || null });
+  };
+
   const saveNutritionPlans = async (nextPlans) => {
     await updatePreferences({ nutritionPlans: nextPlans });
     showToast("تم حفظ خطة الوجبات", "success");
@@ -1689,6 +1771,32 @@ export function AtharProvider({ children }) {
     showToast("تم حفظ الطعام المخصص (مُعرّف كمُدخل يدوي)", "success");
   };
 
+  const saveNutritionDayStatus = async (dateStr, statusPatch) => {
+    const targetDate = dateStr || activeNutritionDate || todayLocalDate;
+    const currentMap =
+      userPreferences?.nutritionDayStatus && typeof userPreferences.nutritionDayStatus === "object"
+        ? userPreferences.nutritionDayStatus
+        : {};
+    const nextEntry = {
+      offPlan: Boolean(statusPatch?.offPlan),
+      reason: typeof statusPatch?.reason === "string" ? statusPatch.reason.trim() : "",
+      updatedAt: new Date().toISOString(),
+    };
+    const nextMap = { ...currentMap };
+    if (!nextEntry.offPlan && !nextEntry.reason) {
+      delete nextMap[targetDate];
+    } else {
+      nextMap[targetDate] = nextEntry;
+    }
+    await updatePreferences({ nutritionDayStatus: nextMap });
+    showToast(
+      nextEntry.offPlan
+        ? "تم تسجيل اليوم كـ «خارج خطتي» — خطتك محفوظة كما هي"
+        : "تمت إعادة اليوم للوضع المعتاد",
+      "info"
+    );
+  };
+
   const addMeal = (meal) => {
     const mealId = crypto.randomUUID();
     const mealDate = meal.date || activeNutritionDate || todayLocalDate;
@@ -1698,6 +1806,13 @@ export function AtharProvider({ children }) {
       todayStr: todayLocalDate,
       currentTargets: nutritionBreakdown.targets,
       targetSnapshots: userPreferences?.nutritionTargetSnapshots,
+    });
+
+    const snapshotWithMeta = buildMealSnapshotWithMeta({
+      targetsSnapshot: meal.dailyTargetsSnapshot || activeSnapshot || null,
+      sourcePlanId: meal.sourcePlanId || null,
+      isEstimated: Boolean(meal.isEstimated),
+      entrySource: meal.entrySource || null,
     });
 
     const mealPayload = normalizeMealRecord({
@@ -1712,7 +1827,10 @@ export function AtharProvider({ children }) {
       carbs: Number(meal.carbs) || 0,
       fat: Number(meal.fat) || 0,
       items: Array.isArray(meal.items) ? meal.items : [],
-      dailyTargetsSnapshot: meal.dailyTargetsSnapshot || activeSnapshot || null,
+      sourcePlanId: meal.sourcePlanId || null,
+      isEstimated: Boolean(meal.isEstimated),
+      entrySource: meal.entrySource || null,
+      dailyTargetsSnapshot: snapshotWithMeta,
       notes: meal.notes || null,
       createdAt: nowIso,
       updatedAt: nowIso,
@@ -1750,6 +1868,9 @@ export function AtharProvider({ children }) {
     if (!existing) return null;
 
     const nowIso = new Date().toISOString();
+    const nextSourcePlanId = updates.sourcePlanId !== undefined ? updates.sourcePlanId : existing.sourcePlanId;
+    const nextIsEstimated = updates.isEstimated !== undefined ? Boolean(updates.isEstimated) : existing.isEstimated;
+    const nextEntrySource = updates.entrySource !== undefined ? updates.entrySource : existing.entrySource;
     const updatedMeal = normalizeMealRecord({
       ...existing,
       ...updates,
@@ -1761,6 +1882,15 @@ export function AtharProvider({ children }) {
       carbs: Number(updates.carbs ?? existing.carbs) || 0,
       fat: Number(updates.fat ?? existing.fat) || 0,
       items: Array.isArray(updates.items) ? updates.items : existing.items,
+      sourcePlanId: nextSourcePlanId,
+      isEstimated: nextIsEstimated,
+      entrySource: nextEntrySource,
+      dailyTargetsSnapshot: buildMealSnapshotWithMeta({
+        targetsSnapshot: existing.dailyTargetsSnapshot,
+        sourcePlanId: nextSourcePlanId,
+        isEstimated: nextIsEstimated,
+        entrySource: nextEntrySource,
+      }),
       updatedAt: nowIso,
     });
 
@@ -1820,6 +1950,26 @@ export function AtharProvider({ children }) {
       })
       .catch(() => {});
     showToast("تم حذف الوجبة", "info");
+  };
+
+  const confirmPlannedMeal = (plan, dateStr = activeNutritionDate) => {
+    if (!plan?.id) return null;
+    const targetDate = dateStr || activeNutritionDate || todayLocalDate;
+    const dateMeals = allMeals.filter((m) => m.date === targetDate);
+    if (isPlannedMealConfirmedForDate(plan.id, dateMeals)) {
+      showToast("تم تأكيد هذه الوجبة من خطتك بالفعل اليوم", "info");
+      return null;
+    }
+    const clonedItems = Array.isArray(plan.items)
+      ? plan.items.map((it) => (typeof it === "object" && it ? { ...it } : it))
+      : [];
+    return addMeal({
+      ...plan,
+      id: undefined,
+      date: targetDate,
+      items: clonedItems,
+      sourcePlanId: plan.id,
+    });
   };
 
   const toggleGymSet = (exerciseId, setNumber) => {
@@ -1998,10 +2148,16 @@ export function AtharProvider({ children }) {
         addMeal,
         updateMeal,
         deleteMeal,
+        confirmPlannedMeal,
         saveNutritionProfile,
+        saveNutritionProfileDraft,
+        saveNutritionExperienceMode,
+        saveNutritionDietDraft,
+        retryNutritionLoad: () => loadDomainsForUser(activeUserId),
         saveNutritionPlans,
         saveFavoriteMeals,
         saveCustomFoods,
+        saveNutritionDayStatus,
 
         // Journal Domain
         journalData,

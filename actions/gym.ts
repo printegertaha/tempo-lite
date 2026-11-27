@@ -94,6 +94,7 @@ export async function saveGymWorkout(data: {
     }
 
     revalidatePath("/gym");
+    revalidatePath("/health");
     return { success: true, data: workout };
   } catch (error: any) {
     return { success: false, error: error.message || "فشل حفظ التمرين" };
@@ -110,6 +111,7 @@ export async function deleteGymWorkout(id: string) {
     await recordDeletionTombstone(userId, "gym_workout", id);
 
     revalidatePath("/gym");
+    revalidatePath("/health");
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "فشل حذف التمرين" };

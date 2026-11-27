@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Compass,
   BookOpen,
+  HeartPulse,
 } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useSession, authClient } from "@/lib/auth-client";
@@ -198,18 +199,11 @@ export default function Navbar() {
       accent: "text-rose-400 group-hover:bg-rose-500/10",
     },
     {
-      href: "/gym",
-      label: "الجيم واللياقة",
-      desc: "تمارين المقاومة والأنشطة الرياضية",
-      icon: Dumbbell,
-      accent: "text-amber-400 group-hover:bg-amber-500/10",
-    },
-    {
-      href: "/nutrition",
-      label: "التغذية والماء",
-      desc: "استهلاك السوائل والوجبات اليومية",
-      icon: Droplets,
-      accent: "text-sky-400 group-hover:bg-sky-500/10",
+      href: "/health",
+      label: "الصحة واللياقة",
+      desc: "التغذية، التمارين، وشرب المياه",
+      icon: HeartPulse,
+      accent: "text-teal-400 group-hover:bg-teal-500/10",
     },
     {
       href: "/expenses",
@@ -238,8 +232,17 @@ export default function Navbar() {
     (link) => !link.islamicOnly || showIslamicFeatures,
   );
 
-  const isActive = (href) =>
-    href === "/" ? pathname === "/" : pathname.startsWith(href);
+  const isActive = (href) => {
+    if (href === "/") return pathname === "/";
+    if (href === "/health") {
+      return (
+        pathname.startsWith("/health") ||
+        pathname.startsWith("/nutrition") ||
+        pathname.startsWith("/gym")
+      );
+    }
+    return pathname.startsWith(href);
+  };
 
   const requestSignOut = () => {
     setUserDropdownOpen(false);

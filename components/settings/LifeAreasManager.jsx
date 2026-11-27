@@ -22,6 +22,22 @@ import {
   Users,
   Globe,
   Laptop,
+  Home,
+  Music,
+  Camera,
+  Palette,
+  Plane,
+  Coffee,
+  Utensils,
+  Award,
+  Trophy,
+  Zap,
+  Leaf,
+  Star,
+  Lightbulb,
+  Clock,
+  Headphones,
+  Gamepad2,
   Plus,
   Edit2,
   Trash2,
@@ -64,6 +80,22 @@ export const ICON_MAP = {
   Users,
   Globe,
   Laptop,
+  Home,
+  Music,
+  Camera,
+  Palette,
+  Plane,
+  Coffee,
+  Utensils,
+  Award,
+  Trophy,
+  Zap,
+  Leaf,
+  Star,
+  Lightbulb,
+  Clock,
+  Headphones,
+  Gamepad2,
 };
 
 export const COLOR_CONFIG = {
@@ -282,6 +314,8 @@ export default function LifeAreasManager({
   const [openMenuId, setOpenMenuId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [hasCustomIcon, setHasCustomIcon] = useState(false);
   const [editingArea, setEditingArea] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -301,6 +335,8 @@ export default function LifeAreasManager({
 
   const openCreateModal = () => {
     setEditingArea(null);
+    setHasCustomIcon(false);
+    setIconPickerOpen(false);
     setFormData({
       name: "",
       description: "",
@@ -313,6 +349,8 @@ export default function LifeAreasManager({
 
   const openEditModal = (area) => {
     setEditingArea(area);
+    setHasCustomIcon(Boolean(area.icon));
+    setIconPickerOpen(false);
     setFormData({
       name: area.name,
       description: area.description || "",
@@ -332,7 +370,10 @@ export default function LifeAreasManager({
 
     setIsSubmitting(true);
     const nowIso = new Date().toISOString();
-    const resolvedIcon = inferLifeAreaIcon(formData.name);
+    const resolvedIcon =
+      hasCustomIcon && formData.icon
+        ? formData.icon
+        : inferLifeAreaIcon(formData.name);
     try {
       if (editingArea) {
         const updatedArea = {
@@ -722,13 +763,21 @@ export default function LifeAreasManager({
             {/* Modal Header */}
             <div className="flex items-center justify-between pb-4 border-b border-zinc-800">
               <div className="flex items-center gap-2.5">
-                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-violet-600/20 text-violet-400 border border-violet-500/30">
-                  {editingArea ? (
-                    <Edit2 className="w-4 h-4" />
-                  ) : (
-                    <Plus className="w-4 h-4" />
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setIconPickerOpen(true)}
+                  title="اختيار أيقونة مخصصة للمجال"
+                  aria-label="اختيار أيقونة مخصصة للمجال"
+                  className="flex items-center justify-center w-9 h-9 rounded-xl bg-violet-600/20 hover:bg-violet-600/35 text-violet-400 border border-violet-500/30 hover:border-violet-400/50 transition-all cursor-pointer active:scale-95"
+                >
+                  {(() => {
+                    if (hasCustomIcon && ICON_MAP[formData.icon]) {
+                      const SelectedIcon = ICON_MAP[formData.icon];
+                      return <SelectedIcon className="w-4 h-4" />;
+                    }
+                    return <Plus className="w-4 h-4" />;
+                  })()}
+                </button>
                 <div>
                   <h3 className="text-base font-bold text-zinc-100">
                     {editingArea ? "تعديل مجال الحياة" : "إنشاء مجال حياة جديد"}
@@ -865,6 +914,65 @@ export default function LifeAreasManager({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 3b. Custom Icon Picker Popup */}
+      {modalOpen && iconPickerOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm animate-in fade-in duration-150"
+          onClick={() => setIconPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-md p-5 sm:p-6 rounded-3xl bg-[#0c0e17] border border-zinc-800 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div>
+                <h4 className="text-sm font-bold text-zinc-100">
+                  اختر أيقونة للمجال
+                </h4>
+                <p className="text-[11px] text-zinc-400 mt-0.5">
+                  {LIFE_AREA_ICONS.length} أيقونة متاحة
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIconPickerOpen(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800 transition-colors cursor-pointer"
+                aria-label="إغلاق"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-6 gap-2.5 max-h-[60vh] overflow-y-auto p-0.5">
+              {LIFE_AREA_ICONS.map((iconKey) => {
+                const IconComp = ICON_MAP[iconKey] || Sparkles;
+                const isSelected = hasCustomIcon && formData.icon === iconKey;
+                return (
+                  <button
+                    key={iconKey}
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, icon: iconKey }));
+                      setHasCustomIcon(true);
+                      setIconPickerOpen(false);
+                    }}
+                    className={`aspect-square rounded-2xl border flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+                      isSelected
+                        ? "bg-violet-600/25 border-violet-500 text-violet-300 ring-2 ring-violet-500/40"
+                        : "bg-zinc-900/70 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:text-white hover:border-zinc-700"
+                    }`}
+                    title={iconKey}
+                    aria-label={iconKey}
+                  >
+                    <IconComp className="w-5 h-5" />
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

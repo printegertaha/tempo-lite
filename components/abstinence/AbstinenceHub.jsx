@@ -156,6 +156,12 @@ export default function AbstinenceHub({
       )
     : null;
 
+  const hasPastRelapses = Boolean(
+    selectedTracker &&
+      ((selectedTracker.relapseCount || 0) > 0 ||
+        (selectedTracker.pastSessions?.length || 0) > 0)
+  );
+
   return (
     <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
       {/* 1. Page Header */}
@@ -192,14 +198,6 @@ export default function AbstinenceHub({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setCreateModalOpen(true)}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-rose-600 hover:bg-rose-500 text-white text-sm font-bold shadow-xl shadow-rose-600/30 transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>تأسيس هدفي الأول</span>
-          </button>
         </div>
       ) : (
         <>
@@ -234,8 +232,8 @@ export default function AbstinenceHub({
             />
           )}
 
-          {/* 3. Analytics & Progress Statistics Grid */}
-          {selectedTracker && (
+          {/* 3. Analytics & Progress Statistics Grid (shown only once there is at least one past relapse/session) */}
+          {selectedTracker && hasPastRelapses && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
               {/* Longest Streak Record */}
               <div className="p-5 rounded-2xl bg-zinc-900/50 border border-zinc-800/80 space-y-1">

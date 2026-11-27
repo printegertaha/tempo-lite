@@ -20,17 +20,7 @@ export default function AbstinenceHistoryList({
   const longestStreakSeconds = tracker?.longestStreakSeconds || 0;
 
   if (pastSessions.length === 0) {
-    return (
-      <div className="p-8 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 text-center space-y-2">
-        <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-zinc-800 flex items-center justify-center mx-auto text-zinc-500">
-          <History className="w-6 h-6" />
-        </div>
-        <h4 className="text-sm font-bold text-zinc-200">لا توجد انتكاسات أو جلسات سابقة مسجلة</h4>
-        <p className="text-xs text-zinc-500 max-w-sm mx-auto leading-relaxed">
-          أنت في جولتك الأولى! عندما يتم تسجيل انتكاسة، ستُحفظ الجلسة بتفاصيلها ومدتها ومحفزاتها هنا لدراسة مسار التعافي.
-        </p>
-      </div>
-    );
+    return null;
   }
 
   return (

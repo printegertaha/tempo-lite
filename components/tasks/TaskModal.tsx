@@ -17,6 +17,7 @@ import TimePickerField from "@/components/ui/TimePickerField";
 import DurationStepper from "@/components/tasks/DurationStepper";
 import PomodoroConfigPicker from "@/components/tasks/PomodoroConfigPicker";
 import HorizontalFormCarousel from "@/components/ui/HorizontalFormCarousel";
+import SubtasksEditor, { type SubtaskItem } from "@/components/tasks/SubtasksEditor";
 import YouTubePreviewCard, {
   isValidHttpUrl,
   normalizeYouTubeMetaList,
@@ -63,6 +64,7 @@ export default function TaskModal({
   const [isPomodoro, setIsPomodoro] = useState(false);
   const [workCycle, setWorkCycle] = useState(25);
   const [breakCycle, setBreakCycle] = useState(5);
+  const [subtasks, setSubtasks] = useState<SubtaskItem[]>([]);
 
   const [youtubeUrlInput, setYoutubeUrlInput] = useState("");
   const [youtubeVideos, setYoutubeVideos] = useState<YouTubeMeta[]>([]);
@@ -95,6 +97,7 @@ export default function TaskModal({
       setIsPomodoro(Boolean(task.isPomodoro));
       setWorkCycle(Number(task.workCycle || 25));
       setBreakCycle(Number(task.breakCycle || 5));
+      setSubtasks(Array.isArray(task.subtasks) ? task.subtasks : []);
       setYoutubeVideos(normalizeYouTubeMetaList(task.youtubeMeta));
       setYoutubeUrlInput("");
     } else {
@@ -107,6 +110,7 @@ export default function TaskModal({
       setIsPomodoro(false);
       setWorkCycle(25);
       setBreakCycle(5);
+      setSubtasks([]);
       setYoutubeVideos([]);
       setYoutubeUrlInput("");
     }
@@ -232,6 +236,7 @@ export default function TaskModal({
         isPomodoro,
         workCycle: Number(workCycle),
         breakCycle: Number(breakCycle),
+        subtasks,
         status: task?.id ? task.status || "TODO" : "TODO",
         youtubeMeta:
           youtubeVideos.length === 0
@@ -486,6 +491,8 @@ export default function TaskModal({
                 }}
                 durationMinutes={durationMinutes}
               />
+
+              <SubtasksEditor subtasks={subtasks} onChange={setSubtasks} />
             </div>
 
             {/* Slide 4: YouTube Links */}

@@ -55,6 +55,16 @@ function round1(val: number): number {
   return Math.round(val * 10) / 10;
 }
 
+export function formatShortFoodNameAr(nameAr: string): string {
+  const cleaned = String(nameAr || "")
+    .replace(/\([^)]*\)/g, "")
+    .replace(/\b(بدون جلد|طويل الحبة|قصير الحبة|بدون سمن\/زيت|بدون زيت|طازج|نيء|مسلوق|مشوي|مطبوخ)\b/g, "")
+    .replace(/صدر دجاج/g, "صدر فرخة")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned || String(nameAr || "").trim();
+}
+
 export function calculateIngredientMacros(
   food: Pick<FoodCatalogItem, "id" | "nameAr" | "nameEn" | "preparationState" | "per100g" | "source">,
   gramsInput: number,
@@ -114,6 +124,213 @@ export function sumMealIngredients(ingredients: MealIngredientSnapshot[]): Macro
     protein: round1(protein),
     carbs: round1(carbs),
     fat: round1(fat),
+  };
+}
+
+export function scaleMealIngredients(
+  ingredients: MealIngredientSnapshot[],
+  ratio: number
+): MealIngredientSnapshot[] {
+  if (!Array.isArray(ingredients) || !Number.isFinite(ratio) || ratio <= 0) {
+    return [];
+  }
+  return ingredients.map((ing) =>
+    calculateIngredientMacros(
+      {
+        id: ing.foodId,
+        nameAr: ing.nameAr,
+        nameEn: ing.nameEn,
+        preparationState: ing.preparationState,
+        per100g: ing.per100g,
+        source: ing.source,
+      },
+      Math.max(1, Math.round(Number(ing.grams || 0) * ratio * 10) / 10),
+      `ing_${ing.foodId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+    )
+  );
+}
+
+export function sumMacroRecords(
+  records: Array<Partial<MacroTotals>>
+): MacroTotals {
+  let calories = 0;
+  let protein = 0;
+  let carbs = 0;
+  let fat = 0;
+  for (const r of Array.isArray(records) ? records : []) {
+    calories += Number(r?.calories || 0);
+    protein += Number(r?.protein || 0);
+    carbs += Number(r?.carbs || 0);
+    fat += Number(r?.fat || 0);
+  }
+  return {
+    calories: Math.round(calories),
+    protein: round1(protein),
+    carbs: round1(carbs),
+    fat: round1(fat),
+  };
+}
+
+export function computeDailyNutritionSummary(params: {
+  dailyTargets: NutritionTargets | null;
+  plannedMeals: Array<Partial<MacroTotals> & { id?: string }>;
+  actualMeals: Array<Partial<MacroTotals> & { id?: string; sourcePlanId?: string | null }>;
+}) {
+  const { dailyTargets, plannedMeals, actualMeals } = params;
+  const planned = sumMacroRecords(plannedMeals);
+  const actual = sumMacroRecords(actualMeals);
+
+  const remaining = dailyTargets
+    ? {
+        calories: Math.round(dailyTargets.calories - actual.calories),
+        protein: round1(dailyTargets.protein - actual.protein),
+        carbs: round1(dailyTargets.carbs - actual.carbs),
+        fat: round1(dailyTargets.fat - actual.fat),
+      }
+    : null;
+
+  const planVsActualDiff = {
+    calories: Math.round(actual.calories - planned.calories),
+    protein: round1(actual.protein - planned.protein),
+    carbs: round1(actual.carbs - planned.carbs),
+    fat: round1(actual.fat - planned.fat),
+  };
+
+  const confirmedPlanIds = new Set<string>();
+  for (const m of Array.isArray(actualMeals) ? actualMeals : []) {
+    if (typeof m?.sourcePlanId === "string" && m.sourcePlanId) {
+      confirmedPlanIds.add(m.sourcePlanId);
+    }
+  }
+
+  return {
+    targets: dailyTargets,
+    planned,
+    actual,
+    remaining,
+    planVsActualDiff,
+    confirmedPlanIds,
+  };
+}
+
+export function isPlannedMealConfirmedForDate(
+  planId: string,
+  actualMealsForDate: Array<{ sourcePlanId?: string | null }>
+): boolean {
+  if (!planId || !Array.isArray(actualMealsForDate)) return false;
+  return actualMealsForDate.some((m) => m?.sourcePlanId === planId);
+}
+
+export interface PlannedMealFitResult {
+  planTotalsWithCurrent: MacroTotals;
+  remainingAfterMeal: MacroTotals | null;
+  fitsComfortably: boolean;
+  messagesAr: string[];
+  proteinBoostSuggestions: Array<{
+    food: FoodCatalogItem;
+    grams: number;
+    snapshot: MealIngredientSnapshot;
+  }>;
+}
+
+const PROTEIN_BOOST_FOOD_IDS = [
+  "usda_cottage_cheese_lowfat",
+  "usda_greek_yogurt_lowfat",
+  "usda_egg_boiled",
+  "usda_chicken_breast_roasted",
+];
+
+export function evaluatePlannedMealFit(params: {
+  dailyTargets: NutritionTargets | null;
+  existingPlannedMeals: Array<Partial<MacroTotals> & { id?: string }>;
+  currentMealTotals: MacroTotals;
+  editingPlanId?: string | null;
+  catalog?: FoodCatalogItem[];
+}): PlannedMealFitResult {
+  const {
+    dailyTargets,
+    existingPlannedMeals,
+    currentMealTotals,
+    editingPlanId = null,
+    catalog = [],
+  } = params;
+
+  const otherPlanned = (existingPlannedMeals || []).filter(
+    (m) => !editingPlanId || m.id !== editingPlanId
+  );
+  const otherTotals = sumMacroRecords(otherPlanned);
+
+  const planTotalsWithCurrent: MacroTotals = {
+    calories: Math.round(otherTotals.calories + Number(currentMealTotals.calories || 0)),
+    protein: round1(otherTotals.protein + Number(currentMealTotals.protein || 0)),
+    carbs: round1(otherTotals.carbs + Number(currentMealTotals.carbs || 0)),
+    fat: round1(otherTotals.fat + Number(currentMealTotals.fat || 0)),
+  };
+
+  if (!dailyTargets) {
+    return {
+      planTotalsWithCurrent,
+      remainingAfterMeal: null,
+      fitsComfortably: true,
+      messagesAr: [],
+      proteinBoostSuggestions: [],
+    };
+  }
+
+  const remainingAfterMeal: MacroTotals = {
+    calories: Math.round(dailyTargets.calories - planTotalsWithCurrent.calories),
+    protein: round1(dailyTargets.protein - planTotalsWithCurrent.protein),
+    carbs: round1(dailyTargets.carbs - planTotalsWithCurrent.carbs),
+    fat: round1(dailyTargets.fat - planTotalsWithCurrent.fat),
+  };
+
+  const remainingBeforeMealCals = dailyTargets.calories - otherTotals.calories;
+  const messagesAr: string[] = [];
+
+  if (remainingAfterMeal.calories < -100) {
+    messagesAr.push(
+      `الوجبة دي هتتجاوز السعرات اليومية بحوالي ${Math.abs(remainingAfterMeal.calories)} سعرة.`
+    );
+  } else if (
+    remainingBeforeMealCals > 0 &&
+    currentMealTotals.calories >= remainingBeforeMealCals * 0.7 &&
+    remainingAfterMeal.calories <= 250
+  ) {
+    messagesAr.push("الوجبة دي هتستهلك معظم السعرات المتبقية ليك.");
+  }
+
+  if (remainingAfterMeal.protein >= 15) {
+    messagesAr.push(`محتاج تزود البروتين حوالي ${Math.round(remainingAfterMeal.protein)} جم.`);
+  }
+
+  if (remainingAfterMeal.calories >= -100 && remainingAfterMeal.protein < 15) {
+    messagesAr.push("الوجبة مناسبة لهدفك.");
+  }
+
+  const proteinBoostSuggestions: PlannedMealFitResult["proteinBoostSuggestions"] = [];
+  if (remainingAfterMeal.protein >= 12 && remainingAfterMeal.calories >= 70 && catalog.length > 0) {
+    for (const foodId of PROTEIN_BOOST_FOOD_IDS) {
+      const food = catalog.find(
+        (f) => f.id === foodId && f.source?.verificationStatus === "verified" && f.per100g.protein > 0
+      );
+      if (!food) continue;
+      const targetPro = Math.min(remainingAfterMeal.protein, 25);
+      const rawGrams = (targetPro / food.per100g.protein) * 100;
+      const grams = Math.max(40, Math.min(200, Math.round(rawGrams / 10) * 10));
+      const snapshot = calculateIngredientMacros(food, grams);
+      if (snapshot.calories <= Math.max(120, remainingAfterMeal.calories + 50)) {
+        proteinBoostSuggestions.push({ food, grams, snapshot });
+      }
+      if (proteinBoostSuggestions.length >= 3) break;
+    }
+  }
+
+  return {
+    planTotalsWithCurrent,
+    remainingAfterMeal,
+    fitsComfortably: remainingAfterMeal.calories >= -100,
+    messagesAr,
+    proteinBoostSuggestions,
   };
 }
 
@@ -257,8 +474,8 @@ export function generateSmartMealSuggestions(params: {
         id: "sug_protein_gap",
         titleAr:
           ings.length > 1
-            ? `${proteinFood.nameAr} مع ${ings[1].nameAr}`
-            : `وجبة غنية بالبروتين: ${proteinFood.nameAr}`,
+            ? `${formatShortFoodNameAr(ings[1].nameAr)} و${formatShortFoodNameAr(proteinFood.nameAr)}`
+            : formatShortFoodNameAr(proteinFood.nameAr),
         mealType: "lunch",
         reasonAr: `اختيار مناسب لأنك تحتاج لزيادة البروتين (متبقي ${round1(remaining.protein)} جم) ولديك مساحة سعرات (${Math.round(remaining.calories)} سعرة)، مع بقاء الدهون منخفضة.`,
         ingredients: ings,

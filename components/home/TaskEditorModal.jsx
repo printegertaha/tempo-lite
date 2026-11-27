@@ -11,6 +11,7 @@ import YouTubePreviewCard, {
 import PomodoroConfigPicker from "@/components/tasks/PomodoroConfigPicker";
 import DurationStepper from "@/components/tasks/DurationStepper";
 import HorizontalFormCarousel from "@/components/ui/HorizontalFormCarousel";
+import SubtasksEditor from "@/components/tasks/SubtasksEditor";
 import {
   Calendar,
   Clock,
@@ -22,11 +23,6 @@ import {
   Moon,
   Video,
   Loader2,
-  Plus,
-  GripVertical,
-  ArrowUp,
-  ArrowDown,
-  X,
 } from "lucide-react";
 
 export default function TaskEditorModal({
@@ -52,7 +48,6 @@ export default function TaskEditorModal({
   const [breakCycle, setBreakCycle] = useState(5);
   const [isRecurring, setIsRecurring] = useState(false);
   const [subtasks, setSubtasks] = useState([]);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
 
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [isTimePickerOpen, setIsTimePickerOpen] = useState(false);
@@ -137,40 +132,6 @@ export default function TaskEditorModal({
     }, 350);
     return () => clearTimeout(timer);
   }, [youtubeUrlInput]);
-
-  const handleAddSubtask = () => {
-    if (!newSubtaskTitle.trim()) return;
-    setSubtasks((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        title: newSubtaskTitle.trim(),
-        completed: false,
-      },
-    ]);
-    setNewSubtaskTitle("");
-  };
-
-  const handleToggleSubtask = (id) => {
-    setSubtasks((prev) =>
-      prev.map((s) => (s.id === id ? { ...s, completed: !s.completed } : s))
-    );
-  };
-
-  const handleDeleteSubtask = (id) => {
-    setSubtasks((prev) => prev.filter((s) => s.id !== id));
-  };
-
-  const handleMoveSubtask = (index, direction) => {
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= subtasks.length) return;
-    setSubtasks((prev) => {
-      const next = [...prev];
-      const [moved] = next.splice(index, 1);
-      next.splice(targetIndex, 0, moved);
-      return next;
-    });
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -366,84 +327,7 @@ export default function TaskEditorModal({
                 durationMinutes={durationMinutes}
               />
 
-              <div className="p-3.5 rounded-2xl bg-zinc-900/50 border border-zinc-800/80 space-y-3">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="font-bold text-zinc-200">المهام الفرعية</span>
-                  <span className="font-mono text-zinc-400">{subtasks.length}</span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={newSubtaskTitle}
-                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSubtask())}
-                    placeholder="أضف خطوة صغيرة"
-                    className="flex-1 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-700/80 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddSubtask}
-                    disabled={!newSubtaskTitle.trim()}
-                    aria-label="إضافة خطوة فرعية"
-                    className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4 stroke-[2.5]" />
-                  </button>
-                </div>
-
-                {subtasks.length > 0 && (
-                  <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
-                    {subtasks.map((st, idx) => (
-                      <div
-                        key={st.id}
-                        className="flex items-center justify-between gap-2 py-1.5 px-1 text-xs"
-                      >
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <GripVertical className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-                          <span
-                            onClick={() => handleToggleSubtask(st.id)}
-                            className={`truncate cursor-pointer ${
-                              st.completed ? "line-through text-zinc-500" : "text-zinc-200"
-                            }`}
-                          >
-                            {st.title}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSubtask(idx, "up")}
-                            disabled={idx === 0}
-                            aria-label="تحريك لأعلى"
-                            className="p-1 text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSubtask(idx, "down")}
-                            disabled={idx === subtasks.length - 1}
-                            aria-label="تحريك لأسفل"
-                            className="p-1 text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteSubtask(st.id)}
-                            aria-label="حذف المهمة الفرعية"
-                            className="p-1 text-zinc-500 hover:text-red-400 cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <SubtasksEditor subtasks={subtasks} onChange={setSubtasks} />
             </div>
 
             {/* Slide 4: YouTube Links */}

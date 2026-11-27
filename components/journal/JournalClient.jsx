@@ -48,6 +48,8 @@ import { syncEngine } from "@/lib/sync/sync-engine";
 import Modal from "@/components/ui/Modal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import DatePickerField from "@/components/ui/DatePickerField";
+import AbstinenceAchievementCard from "@/components/journal/AbstinenceAchievementCard";
+import { computeAbstinenceAchievementsForDate } from "@/lib/abstinence/harvest";
 import {
   BookMarked,
   ChevronRight,
@@ -345,16 +347,12 @@ export default function JournalClient({
       const mealsToday = allMeals.filter((m) => m.date === selectedDate);
       const expensesToday = allExpenses.filter((e) => e.date === selectedDate);
 
-      const absMap = new Map(absTrackers.map((a) => [a.id, a]));
-      const absRecords = absSessions.filter((s) => {
-        if (s.endedAt) {
-          return getLocalDateString(new Date(s.endedAt), effectiveTimezone) === selectedDate;
-        }
-        return false;
-      }).map((s) => ({
-        ...s,
-        trackerName: absMap.get(s.abstinenceTrackerId || s.trackerId)?.name || "تعافٍ",
-      }));
+      const absRecords = computeAbstinenceAchievementsForDate({
+        trackers: absTrackers,
+        sessions: absSessions,
+        selectedDate,
+        timezone: effectiveTimezone,
+      });
 
       const noteRevs = dayNote
         ? revisionMap.get(`daily_note:${dayNote.id}`) || []
@@ -1167,15 +1165,7 @@ export default function JournalClient({
                 ))}
 
                 {dayPayload.abstinence.map((a) => (
-                  <div
-                    key={a.id}
-                    className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center gap-2"
-                  >
-                    <ShieldCheck className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                    <span className="text-zinc-200 font-semibold">
-                      {a.trackerName}: {a.relapseReason || a.notes || "سجل تعافٍ"}
-                    </span>
-                  </div>
+                  <AbstinenceAchievementCard key={a.id} item={a} />
                 ))}
               </div>
             </section>

@@ -34,7 +34,9 @@ export default function ProfileSection({
 }) {
   const savedName = profile.name || "";
   const savedImage =
-    profile.image !== undefined ? profile.image || null : sessionUser?.image || null;
+    profile.image !== undefined
+      ? profile.image || null
+      : sessionUser?.image || null;
   const savedSalutation = normalizeSalutation(profile.salutation) || "بشمهندس";
   const savedReligion = normalizeReligion(profile.religion) || "muslim";
 
@@ -76,7 +78,10 @@ export default function ProfileSection({
     if (!avatarMenuOpen) return;
 
     const handlePointerDown = (e) => {
-      if (avatarContainerRef.current && !avatarContainerRef.current.contains(e.target)) {
+      if (
+        avatarContainerRef.current &&
+        !avatarContainerRef.current.contains(e.target)
+      ) {
         setAvatarMenuOpen(false);
       }
     };
@@ -137,15 +142,20 @@ export default function ProfileSection({
 
   const handleAvatarMenuKeyDown = (e) => {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key)) return;
-    const items = [...(avatarContainerRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+    const items = [
+      ...(avatarContainerRef.current?.querySelectorAll('[role="menuitem"]') ||
+        []),
+    ];
     if (!items.length) return;
     e.preventDefault();
     const current = items.indexOf(document.activeElement);
     let next = 0;
     if (e.key === "Home") next = 0;
     else if (e.key === "End") next = items.length - 1;
-    else if (e.key === "ArrowDown") next = current < 0 ? 0 : (current + 1) % items.length;
-    else if (e.key === "ArrowUp") next = current <= 0 ? items.length - 1 : current - 1;
+    else if (e.key === "ArrowDown")
+      next = current < 0 ? 0 : (current + 1) % items.length;
+    else if (e.key === "ArrowUp")
+      next = current <= 0 ? items.length - 1 : current - 1;
     items[next]?.focus();
   };
 
@@ -214,13 +224,14 @@ export default function ProfileSection({
         <div className="flex items-center gap-2.5">
           <User className="w-5 h-5 text-violet-400" />
           <div>
-            <h2 className="text-base font-bold text-zinc-100">الملف التعريفي والهوية</h2>
+            <h2 className="text-base font-bold text-zinc-100">
+              الملف التعريفي والهوية
+            </h2>
             <p className="text-xs text-zinc-400 mt-0.5">
               تحديث اسمك وصورتك الشخصية
             </p>
           </div>
         </div>
-     
       </div>
 
       {/* Vertical Profile Identity Card */}
@@ -357,7 +368,10 @@ export default function ProfileSection({
                 </span>
               </div>
               {nameError && (
-                <p id={nameErrorId} className="text-[11px] text-rose-400 font-medium">
+                <p
+                  id={nameErrorId}
+                  className="text-[11px] text-rose-400 font-medium"
+                >
                   {nameError}
                 </p>
               )}
@@ -425,9 +439,7 @@ export default function ProfileSection({
         </div>
 
         <div className="space-y-2">
-          <span className="text-xs font-bold text-zinc-300 block">
-            تخصيص التجربة الدينية
-          </span>
+          <span className="text-xs font-bold text-zinc-300 block">الديانة</span>
           <div className="grid grid-cols-3 gap-2">
             {RELIGIONS.map((item) => {
               const selected = currentReligion === item.value;
@@ -449,7 +461,8 @@ export default function ProfileSection({
             })}
           </div>
           <p className="text-[11px] text-zinc-500">
-            تغيير هذا الخيار يحدث الواجهة فوراً مع حفظ كافة سجلاتك السابقة دون حذف.
+            تغيير هذا الخيار يحدث الواجهة فوراً مع حفظ كافة سجلاتك السابقة دون
+            حذف.
           </p>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   RotateCcw,
   Calendar,
@@ -42,12 +42,31 @@ export default function LogRelapseModal({
 
   const [relapseDate, setRelapseDate] = useState(todayStr);
   const [relapseTime, setRelapseTime] = useState(defaultTimeStr);
+  const [isCustomRelapseDate, setIsCustomRelapseDate] = useState(false);
+  const [isCustomRelapseTime, setIsCustomRelapseTime] = useState(false);
   const [startNewFromRelapse, setStartNewFromRelapse] = useState(true);
   const [newStartDate, setNewStartDate] = useState(todayStr);
   const [newStartTime, setNewStartTime] = useState(defaultTimeStr);
+  const [isCustomNewStartDate, setIsCustomNewStartDate] = useState(false);
+  const [isCustomNewStartTime, setIsCustomNewStartTime] = useState(false);
   const [trigger, setTrigger] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const cur = new Date();
+    const curDate = getLocalDateString(cur, timezone);
+    const curTime = `${String(cur.getHours()).padStart(2, "0")}:${String(cur.getMinutes()).padStart(2, "0")}`;
+    setRelapseDate(curDate);
+    setRelapseTime(curTime);
+    setIsCustomRelapseDate(false);
+    setIsCustomRelapseTime(false);
+    setNewStartDate(curDate);
+    setNewStartTime(curTime);
+    setIsCustomNewStartDate(false);
+    setIsCustomNewStartTime(false);
+  }, [isOpen, timezone]);
 
   if (!isOpen || !tracker) return null;
 
@@ -60,10 +79,28 @@ export default function LogRelapseModal({
     const isGuest = effectiveUserId === "guest";
 
     const saveLocalRelapse = async () => {
-      const relapseDt = parseLocalDateTimeToUtc(relapseDate, relapseTime, timezone);
+      const submitNow = new Date();
+      const submitDateStr = getLocalDateString(submitNow, timezone);
+      const submitTimeStr = `${String(submitNow.getHours()).padStart(2, "0")}:${String(submitNow.getMinutes()).padStart(2, "0")}`;
+
+      const relapseDt =
+        !isCustomRelapseDate && !isCustomRelapseTime
+          ? submitNow
+          : parseLocalDateTimeToUtc(
+              isCustomRelapseDate ? relapseDate : submitDateStr,
+              isCustomRelapseTime ? relapseTime : submitTimeStr,
+              timezone
+            );
+
       const newStartDt = startNewFromRelapse
         ? relapseDt
-        : parseLocalDateTimeToUtc(newStartDate, newStartTime, timezone);
+        : !isCustomNewStartDate && !isCustomNewStartTime
+          ? submitNow
+          : parseLocalDateTimeToUtc(
+              isCustomNewStartDate ? newStartDate : submitDateStr,
+              isCustomNewStartTime ? newStartTime : submitTimeStr,
+              timezone
+            );
 
       const sessions = await localAbstinenceRepo.getSessionsForTracker(
         effectiveUserId,
@@ -198,7 +235,10 @@ export default function LogRelapseModal({
                 <label className="text-[11px] text-zinc-400 block">التاريخ:</label>
                 <DatePickerField
                   value={relapseDate}
-                  onChange={(d) => setRelapseDate(d)}
+                  onChange={(d) => {
+                    setRelapseDate(d);
+                    setIsCustomRelapseDate(true);
+                  }}
                   title="تحديد تاريخ الانتكاسة"
                   className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
@@ -209,7 +249,10 @@ export default function LogRelapseModal({
                 <div className="flex items-center gap-2">
                   <TimePickerField
                     value={relapseTime}
-                    onChange={(t) => setRelapseTime(t)}
+                    onChange={(t) => {
+                      setRelapseTime(t);
+                      setIsCustomRelapseTime(true);
+                    }}
                     title="تحديد وقت الانتكاسة"
                     className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                   />
@@ -221,6 +264,8 @@ export default function LogRelapseModal({
                       setRelapseTime(
                         `${String(cur.getHours()).padStart(2, "0")}:${String(cur.getMinutes()).padStart(2, "0")}`
                       );
+                      setIsCustomRelapseDate(false);
+                      setIsCustomRelapseTime(false);
                     }}
                     className="px-2.5 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-[11px] text-zinc-300 shrink-0 font-medium transition-colors"
                   >
@@ -265,13 +310,19 @@ export default function LogRelapseModal({
               <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
                 <DatePickerField
                   value={newStartDate}
-                  onChange={(d) => setNewStartDate(d)}
+                  onChange={(d) => {
+                    setNewStartDate(d);
+                    setIsCustomNewStartDate(true);
+                  }}
                   title="تحديد تاريخ البداية الجديدة"
                   className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
                 <TimePickerField
                   value={newStartTime}
-                  onChange={(t) => setNewStartTime(t)}
+                  onChange={(t) => {
+                    setNewStartTime(t);
+                    setIsCustomNewStartTime(true);
+                  }}
                   title="تحديد وقت البداية الجديدة"
                   className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                 />

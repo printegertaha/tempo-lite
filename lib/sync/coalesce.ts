@@ -1,4 +1,4 @@
-import { LocalMutation } from "../local-db/index";
+import type { LocalMutation } from "../local-db/index";
 
 export interface CoalescedMutation extends LocalMutation {
   /** All original mutationIds merged into this single coalesced operation */

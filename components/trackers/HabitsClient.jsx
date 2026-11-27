@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAthar } from "@/components/context/AtharContext";
 import { useLocalSession } from "@/hooks/useLocalSession";
 import TrackerCard from "@/components/trackers/TrackerCard";
@@ -19,6 +19,9 @@ import {
   Loader2,
   Sparkles,
   Calendar,
+  ChevronDown,
+  Folder,
+  Check,
 } from "lucide-react";
 
 import {
@@ -83,10 +86,31 @@ export default function HabitsClient({
   const [isLoading, setIsLoading] = useState(false);
 
   // Filter States
+  const [showControls, setShowControls] = useState(false);
   const [mainView, setMainView] = useState("cards"); // "cards" | "wheel"
   const [statusTab, setStatusTab] = useState("active"); // "active" | "pinned" | "paused" | "archived"
   const [selectedAreaId, setSelectedAreaId] = useState("all");
+  const [areaDropdownOpen, setAreaDropdownOpen] = useState(false);
+  const areaDropdownRef = useRef(null);
   const [searchQuery, setSearchQuery] = useState("");
+
+  useEffect(() => {
+    if (!areaDropdownOpen) return;
+    const onOutside = (e) => {
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(e.target)) {
+        setAreaDropdownOpen(false);
+      }
+    };
+    const onEsc = (e) => {
+      if (e.key === "Escape") setAreaDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [areaDropdownOpen]);
 
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
@@ -142,14 +166,11 @@ export default function HabitsClient({
           localEntryRepo.getByDate(effectiveUserId, selectedDate),
         ]);
         if (isCancelled) return;
-        const filteredByArchive = localTrackers.filter((t) =>
-          statusTab === "archived" ? Boolean(t.isArchived) : !t.isArchived
-        );
-        setTrackers(filteredByArchive);
+        setTrackers(localTrackers || []);
         setLifeAreas(localAreas || []);
         setDailyEntries(localEntries || []);
         habitsMemoryCache.set(effectiveUserId, {
-          trackers: filteredByArchive,
+          trackers: localTrackers || [],
           lifeAreas: localAreas || [],
           entriesByDate: {
             ...(habitsMemoryCache.get(effectiveUserId)?.entriesByDate || {}),
@@ -181,7 +202,7 @@ export default function HabitsClient({
       isCancelled = true;
       window.removeEventListener("athar_data_synced", onSynced);
     };
-  }, [effectiveUserId, statusTab, selectedDate]);
+  }, [effectiveUserId, selectedDate]);
 
   // Actions
   const handleOpenCreate = () => {
@@ -239,7 +260,9 @@ export default function HabitsClient({
   };
 
   const handleArchive = async (tracker) => {
-    setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+    setTrackers((prev) =>
+      prev.map((t) => (t.id === tracker.id ? { ...t, isArchived: true } : t))
+    );
     await localTrackerRepo.save({ ...tracker, userId: effectiveUserId, isArchived: true });
     await queueTrackerMutation(
       tracker.id,
@@ -251,7 +274,9 @@ export default function HabitsClient({
   };
 
   const handleRestore = async (tracker) => {
-    setTrackers((prev) => prev.filter((t) => t.id !== tracker.id));
+    setTrackers((prev) =>
+      prev.map((t) => (t.id === tracker.id ? { ...t, isArchived: false } : t))
+    );
     await localTrackerRepo.save({ ...tracker, userId: effectiveUserId, isArchived: false });
     await queueTrackerMutation(
       tracker.id,
@@ -303,10 +328,39 @@ export default function HabitsClient({
   };
 
   // Filter Computation
+  const stats = useMemo(() => {
+    let activeCount = 0;
+    let pinnedCount = 0;
+    let pausedCount = 0;
+    let archivedCount = 0;
+
+    for (const t of trackers) {
+      if (t.isArchived) {
+        archivedCount += 1;
+      } else {
+        if (t.isPaused) pausedCount += 1;
+        else activeCount += 1;
+        if (t.displayPreferences?.isPinned) pinnedCount += 1;
+      }
+    }
+
+    return { activeCount, pinnedCount, pausedCount, archivedCount };
+  }, [trackers]);
+
+  const activeNonArchivedTrackers = useMemo(
+    () => trackers.filter((t) => !t.isArchived),
+    [trackers]
+  );
+
   const filteredTrackers = trackers.filter((t) => {
-    if (statusTab === "pinned" && !t.displayPreferences?.isPinned) return false;
-    if (statusTab === "paused" && !t.isPaused) return false;
-    if (statusTab === "active" && t.isPaused) return false;
+    if (statusTab === "archived") {
+      if (!t.isArchived) return false;
+    } else {
+      if (t.isArchived) return false;
+      if (statusTab === "pinned" && !t.displayPreferences?.isPinned) return false;
+      if (statusTab === "paused" && !t.isPaused) return false;
+      if (statusTab === "active" && t.isPaused) return false;
+    }
 
     if (selectedAreaId !== "all") {
       if (selectedAreaId === "none" && t.lifeAreaId !== null) return false;
@@ -322,6 +376,41 @@ export default function HabitsClient({
 
     return true;
   });
+
+  const FILTER_TABS = [
+    {
+      id: "active",
+      label: "النشطة",
+      count: stats.activeCount,
+      icon: Flame,
+      activeColor: "bg-violet-600/20 text-violet-300 border-violet-500/40 shadow-sm",
+      badgeColor: "bg-violet-500/25 text-violet-200",
+    },
+    {
+      id: "pinned",
+      label: "المثبتة",
+      count: stats.pinnedCount,
+      icon: Pin,
+      activeColor: "bg-sky-500/20 text-sky-300 border-sky-500/40 shadow-sm",
+      badgeColor: "bg-sky-500/25 text-sky-200",
+    },
+    {
+      id: "paused",
+      label: "المتوقفة",
+      count: stats.pausedCount,
+      icon: Pause,
+      activeColor: "bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm",
+      badgeColor: "bg-amber-500/25 text-amber-200",
+    },
+    {
+      id: "archived",
+      label: "الأرشيف",
+      count: stats.archivedCount,
+      icon: Archive,
+      activeColor: "bg-zinc-800 text-zinc-300 border-zinc-700 shadow-sm",
+      badgeColor: "bg-zinc-850 text-zinc-400",
+    },
+  ];
 
   const getSummaryForTracker = (tracker) => {
     const entries = dailyEntries.filter((e) => e.trackerId === tracker.id);
@@ -373,241 +462,292 @@ export default function HabitsClient({
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-5 sm:py-8 space-y-5 sm:space-y-8">
-      {/* 1. Compact Sleek Header (Single-row on mobile) */}
-      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-6 rounded-2xl sm:rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-zinc-800/80 border border-zinc-700/80 text-emerald-400 shrink-0 shadow-inner">
-            <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-base sm:text-xl font-black text-zinc-100 truncate">
-              <span className="sm:hidden">العادات</span>
-              <span className="hidden sm:inline">العادات ومنظومة التتبع</span>
-            </h1>
-          </div>
-        </div>
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 space-y-5 select-none">
+      {/* Page Header: Clickable "إدارة العادات" toggle + "+" Quick Add button */}
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+        <button
+          type="button"
+          onClick={() => setShowControls((prev) => !prev)}
+          aria-expanded={showControls}
+          className="group flex items-center gap-2 text-right cursor-pointer focus:outline-none"
+        >
+          <h1 className="text-xl sm:text-3xl font-extrabold text-zinc-100 group-hover:text-violet-300 transition-colors tracking-tight">
+            إدارة العادات
+          </h1>
+          <ChevronDown
+            className={`w-5 h-5 text-zinc-400 group-hover:text-violet-300 transition-transform duration-200 ${
+              showControls ? "rotate-180" : ""
+            }`}
+          />
+        </button>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {/* Main View Toggle */}
-          <div className="hidden sm:flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-2xl">
-            <button
-              type="button"
-              onClick={() => setMainView("cards")}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all ${
-                mainView === "cards"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              البطاقات
-            </button>
-            <button
-              type="button"
-              onClick={() => setMainView("wheel")}
-              className={`px-3 py-1 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${
-                mainView === "wheel"
-                  ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
-                  : "text-zinc-400 hover:text-white"
-              }`}
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>العجلة</span>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={handleOpenCreate}
-            className="flex items-center justify-center gap-1.5 px-3.5 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer shrink-0"
-          >
-            <Plus className="w-4 h-4" />
-            <span>متعقب جديد</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={handleOpenCreate}
+          aria-label="إضافة متعقب جديد"
+          title="إضافة متعقب جديد"
+          className="p-2.5 rounded-xl bg-gray-950 hover:bg-gray-900 text-white shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
       </div>
 
+      {showControls && (
+        <div className="space-y-4">
+          {/* 1. Sleek Compact Top Bar: New Tracker on far right, Date & View Toggle on far left */}
+          <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>متعقب جديد</span>
+            </button>
 
+            <div className="flex items-center gap-2">
+              <DatePickerField
+                value={selectedDate}
+                onChange={(d) => {
+                  setSelectedDate(d);
+                  fetchDailyEntries(d);
+                }}
+                title="اختر تاريخ اليوميات"
+                className="px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs text-zinc-200 min-w-[125px]"
+              />
 
-      {/* Main View Conditional Rendering */}
-      {mainView === "wheel" ? (
-        <RadialHabitWheel existingTrackers={trackers} />
-      ) : (
-        <>
-          {/* 2. Unified Calm Controls Toolbar */}
-          <div className="p-2.5 sm:p-3 rounded-2xl bg-[#0c0e17]/75 border border-zinc-800/80 space-y-2.5">
-            {/* Top Row: Status Tabs + Search + Date (Single balanced row on md+) */}
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-              {/* Status Tabs */}
-              <div className="grid grid-cols-4 md:flex items-center gap-1 p-1 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs w-full md:w-fit shrink-0">
+              <div className="flex items-center p-1 bg-zinc-900 border border-zinc-800 rounded-xl">
                 <button
                   type="button"
-                  onClick={() => setStatusTab("active")}
-                  className={`py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
-                    statusTab === "active"
-                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200"
+                  onClick={() => setMainView("cards")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    mainView === "cards"
+                      ? "bg-zinc-800 text-white shadow-sm"
+                      : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  النشطة
+                  البطاقات
                 </button>
                 <button
                   type="button"
-                  onClick={() => setStatusTab("pinned")}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
-                    statusTab === "pinned"
-                      ? "bg-zinc-800 text-violet-300 shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200"
+                  onClick={() => setMainView("wheel")}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    mainView === "wheel"
+                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-600/30"
+                      : "text-zinc-400 hover:text-white"
                   }`}
                 >
-                  <Pin className="w-3 h-3 hidden sm:inline shrink-0" />
-                  <span>المثبتة</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusTab("paused")}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
-                    statusTab === "paused"
-                      ? "bg-zinc-800 text-amber-300 shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  <Pause className="w-3 h-3 hidden sm:inline shrink-0" />
-                  <span>المتوقفة</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setStatusTab("archived")}
-                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
-                    statusTab === "archived"
-                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                      : "text-zinc-400 hover:text-zinc-200"
-                  }`}
-                >
-                  <Archive className="w-3 h-3 hidden sm:inline shrink-0" />
-                  <span>الأرشيف</span>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>العجلة</span>
                 </button>
               </div>
+            </div>
+          </div>
 
-              {/* Search + Date + Mobile Wheel Toggle */}
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 md:max-w-md md:justify-end min-w-0">
-                <div className="relative flex-1 min-w-0">
-                  <Search className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+          {/* 2. Unified Compact Interactive Filter Bar */}
+          {mainView === "cards" && (
+            <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+              {/* Outer padded container -> Inner scrollable tabs div */}
+              <div className="p-1.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80">
+                <div
+                  role="tablist"
+                  aria-label="تصفية العادات"
+                  style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(161,161,170,0.22) transparent" }}
+                  className="flex sm:grid sm:grid-cols-4 gap-1.5 pb-1 sm:pb-0 overflow-x-auto sm:overflow-visible snap-x snap-proximity [&::-webkit-scrollbar]:h-[2px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40"
+                >
+                  {FILTER_TABS.map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = statusTab === tab.id;
+
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={(e) => {
+                          setStatusTab(tab.id);
+                          e.currentTarget.scrollIntoView({
+                            block: "nearest",
+                            inline: "nearest",
+                            behavior: "smooth",
+                          });
+                        }}
+                        className={`shrink-0 sm:shrink snap-start flex items-center justify-center gap-1.5 px-3 sm:px-2.5 py-2 rounded-xl border transition-all text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                          isActive
+                            ? tab.activeColor
+                            : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
+                        }`}
+                      >
+                        <Icon
+                          className={`w-3.5 h-3.5 ${
+                            isActive ? "" : "text-zinc-500"
+                          }`}
+                        />
+                        <span className="truncate">{tab.label}</span>
+                        <span
+                          className={`px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold ${
+                            isActive ? tab.badgeColor : "text-zinc-500 bg-zinc-900"
+                          }`}
+                        >
+                          {tab.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Filter by Life Area (Custom Dropdown) & Instant Search */}
+              <div className="flex items-center gap-2">
+                {lifeAreas.length > 0 && (
+                  <div className="relative shrink-0" ref={areaDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setAreaDropdownOpen((v) => !v)}
+                      aria-expanded={areaDropdownOpen}
+                      aria-haspopup="listbox"
+                      className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                        selectedAreaId !== "all"
+                          ? "bg-violet-600/15 border-violet-500/40 text-violet-200"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700"
+                      }`}
+                    >
+                      <Folder className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                      <span className="max-w-[110px] truncate">
+                        {selectedAreaId === "none"
+                          ? "بدون مجال"
+                          : lifeAreas.find((a) => a.id === selectedAreaId)?.name ||
+                            "جميع المجالات"}
+                      </span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-150 ${
+                          areaDropdownOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {areaDropdownOpen && (
+                      <div
+                        role="listbox"
+                        className="absolute right-0 sm:left-0 sm:right-auto top-full mt-1.5 min-w-[180px] max-h-60 overflow-y-auto p-1.5 rounded-2xl bg-[#0c0e17]/98 border border-zinc-800 shadow-2xl backdrop-blur-2xl z-40 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150"
+                      >
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={selectedAreaId === "all"}
+                          onClick={() => {
+                            setSelectedAreaId("all");
+                            setAreaDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                            selectedAreaId === "all"
+                              ? "bg-violet-600/20 text-violet-200"
+                              : "text-zinc-300 hover:bg-zinc-800/70"
+                          }`}
+                        >
+                          <span>جميع المجالات</span>
+                          {selectedAreaId === "all" && (
+                            <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                          )}
+                        </button>
+                        {lifeAreas.map((a) => {
+                          const isSelected = selectedAreaId === a.id;
+                          return (
+                            <button
+                              key={a.id}
+                              type="button"
+                              role="option"
+                              aria-selected={isSelected}
+                              onClick={() => {
+                                setSelectedAreaId(a.id);
+                                setAreaDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                                isSelected
+                                  ? "bg-violet-600/20 text-violet-200"
+                                  : "text-zinc-300 hover:bg-zinc-800/70"
+                              }`}
+                            >
+                              <span className="truncate">{a.name}</span>
+                              {isSelected && (
+                                <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={selectedAreaId === "none"}
+                          onClick={() => {
+                            setSelectedAreaId("none");
+                            setAreaDropdownOpen(false);
+                          }}
+                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                            selectedAreaId === "none"
+                              ? "bg-violet-600/20 text-violet-200"
+                              : "text-zinc-300 hover:bg-zinc-800/70"
+                          }`}
+                        >
+                          <span>بدون مجال</span>
+                          {selectedAreaId === "none" && (
+                            <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="relative flex-1 md:w-48">
+                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="بحث في المتعقبات..."
-                    className="w-full pr-8 pl-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500/70"
+                    placeholder="بحث في العادات..."
+                    className="w-full pr-8 pl-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
                   />
-                </div>
-
-                <div className="flex items-center gap-2 shrink-0">
-                  <DatePickerField
-                    value={selectedDate}
-                    onChange={(d) => {
-                      setSelectedDate(d);
-                      fetchDailyEntries(d);
-                    }}
-                    title="اختر تاريخ اليوميات"
-                    className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs text-zinc-200 min-w-[125px]"
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => setMainView(mainView === "cards" ? "wheel" : "cards")}
-                    className="sm:hidden flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs font-bold text-zinc-300 shrink-0 cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>{mainView === "cards" ? "العجلة" : "البطاقات"}</span>
-                  </button>
                 </div>
               </div>
             </div>
-
-            {/* Bottom Row: Life Areas Filter Pills + Subtle Count */}
-            {lifeAreas.length > 0 && trackers.length > 0 && (
-              <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/60 text-xs">
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAreaId("all")}
-                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
-                      selectedAreaId === "all"
-                        ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                        : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
-                    }`}
-                  >
-                    الكل
-                  </button>
-                  {lifeAreas.map((area) => (
-                    <button
-                      key={area.id}
-                      type="button"
-                      onClick={() => setSelectedAreaId(area.id)}
-                      className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
-                        selectedAreaId === area.id
-                          ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                          : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
-                      }`}
-                    >
-                      {area.name}
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedAreaId("none")}
-                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
-                      selectedAreaId === "none"
-                        ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                        : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
-                    }`}
-                  >
-                    بدون مجال
-                  </button>
-                </div>
-
-                <span className="hidden sm:inline text-[11px] text-zinc-500 font-mono shrink-0">
-                  {filteredTrackers.length} متعقب
-                </span>
-              </div>
-            )}
-          </div>
-
-      {/* 3. Trackers List / Clean Empty State */}
-      {isLoading ? (
-        <div className="py-20 text-center space-y-3">
-          <Loader2 className="w-8 h-8 animate-spin text-violet-500 mx-auto" />
-          <p className="text-xs text-zinc-400">جارٍ تحميل منظومة العادات والمتعقبات...</p>
-        </div>
-      ) : filteredTrackers.length === 0 ? (
-        <div className="py-16 px-6 rounded-3xl bg-[#0c0e17]/80 border border-dashed border-zinc-800 text-center space-y-4">
-          <div className="w-16 h-16 rounded-3xl bg-zinc-900/80 border border-zinc-750 text-zinc-400 flex items-center justify-center mx-auto shadow-inner">
-            <Flame className="w-8 h-8" />
-          </div>
-          <div className="space-y-1.5 max-w-md mx-auto">
-            <h3 className="text-base font-bold text-zinc-100">
-              {statusTab === "archived"
-                ? "الأرشيف فارغ"
-                : statusTab === "paused"
-                ? "لا توجد متعقبات متوقفة مؤقتاً"
-                : statusTab === "pinned"
-                ? "لم تقم بتثبيت أي متعقب بعد"
-                : "لم تقم بإنشاء أي متعقب بعد"}
-            </h3>
-          </div>
-          {statusTab === "active" && (
-            <button
-              type="button"
-              onClick={handleOpenCreate}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>أنشئ أول متعقب لك الآن ✨</span>
-            </button>
           )}
         </div>
+      )}
+
+      {/* Main View Conditional Rendering */}
+      {mainView === "wheel" ? (
+        <RadialHabitWheel existingTrackers={activeNonArchivedTrackers} />
       ) : (
+        <>
+          {/* 3. Trackers List / Clean Empty State */}
+          {isLoading ? (
+            <div className="py-16 text-center space-y-3">
+              <Loader2 className="w-8 h-8 animate-spin text-violet-500 mx-auto" />
+              <p className="text-xs text-zinc-500">جارٍ تحميل منظومة العادات والمتعقبات...</p>
+            </div>
+          ) : filteredTrackers.length === 0 ? (
+            <div className="p-8 sm:p-12 rounded-3xl bg-zinc-950/60 border border-zinc-800/80 text-center space-y-3">
+              <div className="w-12 h-12 rounded-2xl bg-zinc-900/90 border border-zinc-800 flex items-center justify-center mx-auto text-violet-400">
+                <Flame className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm sm:text-base font-bold text-zinc-100">
+                  {statusTab === "archived"
+                    ? "الأرشيف فارغ"
+                    : statusTab === "paused"
+                    ? "لا توجد عادات متوقفة مؤقتاً"
+                    : statusTab === "pinned"
+                    ? "لم تقم بتثبيت أي عادة بعد"
+                    : "لم تقم بإنشاء أي عادة بعد"}
+                </h3>
+                <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                  أضف عاداتك ومتعقباتك اليومية لبناء روتين مستدام ومتابعة تقدمك بوضوح.
+                </p>
+              </div>
+            </div>
+          ) : (
         <div className="space-y-3">
           {filteredTrackers.map((tracker, index) => (
             <TrackerCard

@@ -12,6 +12,8 @@ export type ActivityLevel = "inactive" | "low_active" | "active" | "very_active"
 export type FitnessGoal = "maintain" | "lose" | "gain";
 export type TrainingLevel = "none" | "recreational" | "strength_endurance";
 export type TargetCalculationMode = "auto" | "manual";
+export type NutritionExperienceMode = "calculator_only" | "diet_builder" | "full_tracking";
+export type ResolvedNutritionExperience = NutritionExperienceMode | "pending_choice";
 
 export interface NutritionTargets {
   calories: number;
@@ -44,6 +46,11 @@ export interface NutritionProfile {
   waterLitersOverride?: number | null;
   weightConfirmedAt?: string | null;
   updatedAt?: string | null;
+  setupCompleted?: boolean;
+  setupVersion?: number;
+  setupStep?: number;
+  setupInProgress?: boolean;
+  setupCompletedAt?: string | null;
 }
 
 export interface ActivityDefinition {
@@ -94,20 +101,24 @@ export const GOAL_OPTIONS: Array<{
   },
   {
     id: "lose",
-    labelAr: "نزول الوزن (عجز معتدل)",
+    labelAr: "نزول الوزن",
     defaultRateKgPerWeek: 0.25,
     rates: [
-      { value: 0.25, labelAr: "هادئ ومستدام (~0.25 كجم/أسبوع · −275 سعرة)", dailyDeltaKcal: -275 },
-      { value: 0.5, labelAr: "معتدل (~0.5 كجم/أسبوع · −550 سعرة)", dailyDeltaKcal: -550 },
+      { value: 0.25, labelAr: "ربع كيلو / أسبوع", dailyDeltaKcal: -275 },
+      { value: 0.5, labelAr: "نصف كيلو / أسبوع", dailyDeltaKcal: -550 },
+      { value: 0.75, labelAr: "ثلاثة أرباع كيلو / أسبوع ", dailyDeltaKcal: -825 },
+      { value: 1, labelAr: "كيلو / أسبوع ", dailyDeltaKcal: -1100 },
     ],
   },
   {
     id: "gain",
-    labelAr: "زيادة الوزن / الكتلة (فائض محسوب)",
-    defaultRateKgPerWeek: 0.2,
+    labelAr: "زيادة الوزن",
+    defaultRateKgPerWeek: 0.25,
     rates: [
-      { value: 0.2, labelAr: "نظيف وهادئ (~0.2 كجم/أسبوع · +220 سعرة)", dailyDeltaKcal: 220 },
-      { value: 0.35, labelAr: "معتدل (~0.35 كجم/أسبوع · +385 سعرة)", dailyDeltaKcal: 385 },
+      { value: 0.25, labelAr: "ربع كيلو / أسبوع ", dailyDeltaKcal: 275 },
+      { value: 0.5, labelAr: "نصف كيلو / أسبوع ", dailyDeltaKcal: 550 },
+      { value: 0.75, labelAr: "ثلاثة أرباع كيلو / أسبوع ", dailyDeltaKcal: 825 },
+      { value: 1, labelAr: "كيلو / أسبوع ", dailyDeltaKcal: 1100 },
     ],
   },
 ];
@@ -173,7 +184,66 @@ export function createEmptyNutritionProfile(): NutritionProfile {
     waterLitersOverride: null,
     weightConfirmedAt: null,
     updatedAt: null,
+    setupCompleted: false,
+    setupVersion: 1,
+    setupStep: 0,
+    setupInProgress: false,
+    setupCompletedAt: null,
   };
+}
+
+export function isNutritionProfileCompleted(
+  profile: Partial<NutritionProfile> | null | undefined
+): boolean {
+  if (!profile || typeof profile !== "object") return false;
+  if (profile.setupInProgress === true) return false;
+  if (profile.setupCompleted === false) return false;
+
+  if (profile.mode === "manual") {
+    const manualCals = Number(profile.manualTargets?.calories || 0);
+    if (!Number.isFinite(manualCals) || manualCals <= 0) return false;
+    return profile.setupCompleted === true || profile.setupCompleted === undefined;
+  }
+
+  const hasValidBody =
+    Number(profile.weightKg) > 0 &&
+    Number(profile.heightCm) > 0 &&
+    (resolveProfileAge(profile) ?? 0) >= 10 &&
+    Boolean(profile.biologicalSex);
+
+  if (!hasValidBody) return false;
+
+  if (profile.setupCompleted === true) {
+    return true;
+  }
+
+  // Legacy profile without explicit setupCompleted flag:
+  // allow direct dashboard entry if it already holds sufficient valid data.
+  if (profile.setupCompleted === undefined) {
+    const plan = calculateNutritionPlan(profile);
+    return plan.ready || plan.eligibility.eligibleForAutoEer;
+  }
+
+  return false;
+}
+
+export function resolveNutritionExperienceMode(params: {
+  explicitMode?: string | null;
+  hasExistingMeals?: boolean;
+  hasExistingPlans?: boolean;
+}): ResolvedNutritionExperience {
+  const { explicitMode, hasExistingMeals = false, hasExistingPlans = false } = params;
+  if (
+    explicitMode === "calculator_only" ||
+    explicitMode === "diet_builder" ||
+    explicitMode === "full_tracking"
+  ) {
+    return explicitMode;
+  }
+  if (hasExistingMeals || hasExistingPlans) {
+    return "full_tracking";
+  }
+  return "pending_choice";
 }
 
 export function computeAgeFromBirthDate(birthDate?: string | null, referenceDate = new Date()): number | null {
@@ -547,7 +617,7 @@ export function calculateNutritionPlan(
   let requestedRate = Number(profile.rateKgPerWeek);
   let goalDeltaKcal = 0;
   if (profile.goal === "lose") {
-    const validLoseRates = [0.25, 0.5];
+    const validLoseRates = [0.25, 0.5, 0.75, 1];
     if (!validLoseRates.includes(requestedRate)) requestedRate = 0.25;
     goalDeltaKcal = -Math.round((requestedRate * 7700) / 7);
     // Cap deficit at most 25% of maintenance EER to prevent aggressive deficits
@@ -556,8 +626,8 @@ export function calculateNutritionPlan(
       goalDeltaKcal = maxConservativeDeficit;
     }
   } else if (profile.goal === "gain") {
-    const validGainRates = [0.2, 0.35];
-    if (!validGainRates.includes(requestedRate)) requestedRate = 0.2;
+    const validGainRates = [0.25, 0.5, 0.75, 1];
+    if (!validGainRates.includes(requestedRate)) requestedRate = 0.25;
     goalDeltaKcal = Math.round((requestedRate * 7700) / 7);
   }
 

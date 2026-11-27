@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useId, useRef } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 const maxWidthMap = {
-  sm: "max-w-sm",
-  md: "max-w-md",
-  lg: "max-w-lg",
-  xl: "max-w-xl",
-  "2xl": "max-w-2xl",
+  sm: "w-[calc(100%-2rem)] max-w-sm",
+  md: "w-[calc(100%-2rem)] max-w-md",
+  lg: "w-[calc(100%-2rem)] max-w-lg",
+  xl: "w-[calc(100%-2rem)] max-w-xl",
+  "2xl": "w-[calc(100%-2rem)] max-w-2xl",
+  wide: "w-[94%] sm:w-[90%] md:w-[80%] lg:w-[75%] 2xl:w-[60%] max-w-6xl",
 };
 
 /**
@@ -18,7 +20,7 @@ const maxWidthMap = {
  * @param {any} [props.title]
  * @param {any} [props.description]
  * @param {any} props.children
- * @param {'sm' | 'md' | 'lg' | 'xl' | '2xl'} [props.maxWidth]
+ * @param {'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'wide'} [props.maxWidth]
  * @param {boolean} [props.showCloseButton]
  * @param {string} [props.zIndexClass]
  */
@@ -51,10 +53,15 @@ export default function Modal({
     };
   }, [isOpen]);
 
-  // Fallback light-dismiss for browsers without native <dialog closedby="any">
+  // Light-dismiss when clicking outside the top-most open dialog
   useEffect(() => {
     const dialog = dialogRef.current;
-    if (!isOpen || !dialog || "closedBy" in HTMLDialogElement.prototype) return;
+    if (!isOpen || !dialog) return;
+
+    const isTopMost = () => {
+      const openDialogs = document.querySelectorAll("dialog[open]");
+      return openDialogs.length > 0 && openDialogs[openDialogs.length - 1] === dialog;
+    };
 
     const isOutside = (e) => {
       const r = dialog.getBoundingClientRect();
@@ -68,10 +75,11 @@ export default function Modal({
 
     let pressedOutside = false;
     const handlePointerDown = (e) => {
-      pressedOutside = isOutside(e);
+      pressedOutside = isTopMost() && e.target === dialog && isOutside(e);
     };
     const handlePointerUp = (e) => {
-      if (pressedOutside && isOutside(e)) {
+      if (pressedOutside && isTopMost() && e.target === dialog && isOutside(e)) {
+        e.stopPropagation();
         onClose();
       }
       pressedOutside = false;
@@ -85,20 +93,20 @@ export default function Modal({
     };
   }, [isOpen, onClose]);
 
-  if (!isOpen) return null;
+  if (!isOpen || typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <dialog
       ref={dialogRef}
-      {...{ closedby: "any" }}
       aria-labelledby={title ? titleId : undefined}
       aria-label={!title ? "نافذة حوارية" : undefined}
       aria-describedby={description ? descriptionId : undefined}
       onCancel={(e) => {
         e.preventDefault();
+        e.stopPropagation();
         onClose();
       }}
-      className={`athar-modal m-auto w-[calc(100%-2rem)] ${maxWidthMap[maxWidth] || maxWidthMap.lg} max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] rounded-3xl bg-[#0c0e17] border border-zinc-800 shadow-2xl p-0 text-right text-zinc-100 overflow-hidden open:flex open:flex-col animate-in fade-in duration-150`}
+      className={`athar-modal m-auto ${maxWidthMap[maxWidth] || maxWidthMap.lg} max-h-[calc(100dvh-2rem)] sm:max-h-[calc(100dvh-3rem)] rounded-3xl bg-[#0c0e17] border border-zinc-800 shadow-2xl p-0 text-right text-zinc-100 overflow-hidden open:flex open:flex-col animate-in fade-in duration-150`}
     >
       {/* Header */}
       {(title || showCloseButton) && (
@@ -139,6 +147,7 @@ export default function Modal({
       <div className="flex-1 overflow-y-auto px-5 sm:px-7 py-5 space-y-4 overscroll-contain">
         {children}
       </div>
-    </dialog>
+    </dialog>,
+    document.body
   );
 }

@@ -116,6 +116,7 @@ export async function saveMealEntry(data: {
     }
 
     revalidatePath("/nutrition");
+    revalidatePath("/health");
     return { success: true, data: meal };
   } catch (error: any) {
     return { success: false, error: error.message || "فشل حفظ الوجبة" };
@@ -132,6 +133,7 @@ export async function deleteMealEntry(id: string) {
     await recordDeletionTombstone(userId, "meal_entry", id);
 
     revalidatePath("/nutrition");
+    revalidatePath("/health");
     return { success: true };
   } catch (error: any) {
     return { success: false, error: error.message || "فشل حذف الوجبة" };
@@ -213,6 +215,7 @@ export async function saveWaterEntry(data: {
     }
 
     revalidatePath("/nutrition");
+    revalidatePath("/health");
     revalidatePath("/habits");
     return { success: true, data: entry };
   } catch (error: any) {
@@ -230,6 +233,7 @@ export async function deleteWaterEntry(id: string) {
     await recordDeletionTombstone(userId, "water_entry", id);
 
     revalidatePath("/nutrition");
+    revalidatePath("/health");
     revalidatePath("/habits");
     return { success: true };
   } catch (error: any) {

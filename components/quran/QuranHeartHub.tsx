@@ -296,18 +296,12 @@ export default function QuranHeartHub() {
       {/* Compact Hero Header */}
       <div className="relative border-b border-zinc-800/80 bg-gradient-to-b from-rose-950/20 via-zinc-900/40 to-transparent py-5 lg:py-4 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto text-center space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-bold tracking-wide">
-            <Heart className="w-3.5 h-3.5 fill-rose-400" />
-            <span>متتبع حفظ القرآن الكريم بالقلب النابض</span>
-          </div>
+     
 
-          <h1 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white tracking-tight">
+          <h1 className="text-2xl text-red-400 sm:text-3xl lg:text-4xl font-black  tracking-tight">
             « عالج روحك بالقرآن »
           </h1>
 
-          <p className="max-w-2xl mx-auto text-zinc-400 text-xs sm:text-sm leading-relaxed">
-            اجعل كل سورة تحفظها تنبض بالحياة داخل قلبك. كلما أتممت حفظ سورة، تلوّنت خانتها بالأحمر القاني ليفيض قلبك بنور كتاب الله.
-          </p>
 
           {/* Mobile/Tablet Horizontal Scroll Stats Bar with visible slim scrollbar */}
           <div className="lg:hidden pt-3">
