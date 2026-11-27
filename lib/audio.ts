@@ -12,6 +12,7 @@ class SoundManager {
   private ctx: AudioContext | null = null;
   private enabled: boolean = true;
   private volume: number = 0.7;
+  private unlocked: boolean = false;
 
   constructor() {
     if (typeof window !== "undefined") {
@@ -23,6 +24,19 @@ class SoundManager {
       if (storedVol !== null) {
         this.volume = Math.max(0, Math.min(1, parseFloat(storedVol)));
       }
+
+      const unlockAudio = () => {
+        this.unlocked = true;
+        if (this.ctx && this.ctx.state === "suspended") {
+          this.ctx.resume().catch(() => {});
+        }
+        window.removeEventListener("pointerdown", unlockAudio, true);
+        window.removeEventListener("keydown", unlockAudio, true);
+        window.removeEventListener("touchstart", unlockAudio, true);
+      };
+      window.addEventListener("pointerdown", unlockAudio, { capture: true, passive: true });
+      window.addEventListener("keydown", unlockAudio, { capture: true, passive: true });
+      window.addEventListener("touchstart", unlockAudio, { capture: true, passive: true });
     }
   }
 
@@ -300,6 +314,33 @@ class SoundManager {
   }
 
   /**
+   * 8b. Picker Tick — Apple iOS UIPickerView style soft tactile tick
+   * Ultra-quiet, warm low-mid thump (~7ms), no harsh high-frequency hiss.
+   */
+  public playPickerTick() {
+    if (!this.enabled) return;
+    const ctx = this.getAudioContext();
+    if (!ctx) return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(360, now);
+    osc.frequency.exponentialRampToValueAtTime(140, now + 0.008);
+
+    gain.gain.setValueAtTime(0.001, now);
+    gain.gain.linearRampToValueAtTime(0.045 * this.volume, now + 0.0015);
+    gain.gain.exponentialRampToValueAtTime(0.0005, now + 0.009);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.01);
+  }
+
+  /**
    * 7. Task Interrupt Alert
    * Double gentle pulse
    */
@@ -327,6 +368,37 @@ class SoundManager {
       osc.start(now + delay);
       osc.stop(now + delay + 0.12);
     });
+  }
+
+  /**
+   * 7. Subtle Mechanical Clock Tick/Tock (when a task timer is actively running)
+   */
+  public playClockTick(isAccent: boolean = false) {
+    if (!this.enabled || !this.unlocked) return;
+    const ctx = this.getAudioContext();
+    if (!ctx || ctx.state !== "running") return;
+
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = "triangle";
+    const startFreq = isAccent ? 1250 : 950;
+    const endFreq = isAccent ? 380 : 300;
+
+    osc.frequency.setValueAtTime(startFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(endFreq, now + 0.018);
+
+    const peak = Math.min(0.1, (isAccent ? 0.085 : 0.065) * this.volume);
+    gain.gain.setValueAtTime(0, now);
+    gain.gain.linearRampToValueAtTime(peak, now + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0008, now + 0.024);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.025);
   }
 }
 

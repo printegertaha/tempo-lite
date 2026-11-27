@@ -67,8 +67,11 @@ export const ModelName = {
   MutationReceipt: 'MutationReceipt',
   GymWorkout: 'GymWorkout',
   MealEntry: 'MealEntry',
+  WaterEntry: 'WaterEntry',
   ExpenseEntry: 'ExpenseEntry',
-  PrayerRecord: 'PrayerRecord'
+  PrayerRecord: 'PrayerRecord',
+  TaskSession: 'TaskSession',
+  EntityRevision: 'EntityRevision'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -155,6 +158,11 @@ export const UserSettingsScalarFieldEnum = {
   currency: 'currency',
   currencyAuto: 'currencyAuto',
   prayerTrackingEnabled: 'prayerTrackingEnabled',
+  salutation: 'salutation',
+  religion: 'religion',
+  onboardingCompleted: 'onboardingCompleted',
+  onboardingStep: 'onboardingStep',
+  onboardingCompletedAt: 'onboardingCompletedAt',
   language: 'language',
   weekStartDay: 'weekStartDay',
   themeAccent: 'themeAccent',
@@ -279,6 +287,7 @@ export const TaskScalarFieldEnum = {
   subtasks: 'subtasks',
   version: 'version',
   tags: 'tags',
+  youtubeMeta: 'youtubeMeta',
   sortOrder: 'sortOrder',
   isArchived: 'isArchived',
   archivedAt: 'archivedAt',
@@ -371,18 +380,36 @@ export const MealEntryScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   date: 'date',
+  time: 'time',
   mealType: 'mealType',
   title: 'title',
   calories: 'calories',
   protein: 'protein',
   carbs: 'carbs',
   fat: 'fat',
+  items: 'items',
+  dailyTargetsSnapshot: 'dailyTargetsSnapshot',
   notes: 'notes',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type MealEntryScalarFieldEnum = (typeof MealEntryScalarFieldEnum)[keyof typeof MealEntryScalarFieldEnum]
+
+
+export const WaterEntryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  amountMl: 'amountMl',
+  occurredAt: 'occurredAt',
+  source: 'source',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WaterEntryScalarFieldEnum = (typeof WaterEntryScalarFieldEnum)[keyof typeof WaterEntryScalarFieldEnum]
 
 
 export const ExpenseEntryScalarFieldEnum = {
@@ -417,6 +444,51 @@ export const PrayerRecordScalarFieldEnum = {
 } as const
 
 export type PrayerRecordScalarFieldEnum = (typeof PrayerRecordScalarFieldEnum)[keyof typeof PrayerRecordScalarFieldEnum]
+
+
+export const TaskSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  taskId: 'taskId',
+  trackerId: 'trackerId',
+  localDate: 'localDate',
+  startedAt: 'startedAt',
+  endedAt: 'endedAt',
+  durationSeconds: 'durationSeconds',
+  status: 'status',
+  completionSource: 'completionSource',
+  isEstimated: 'isEstimated',
+  completedCycles: 'completedCycles',
+  taskTitleSnapshot: 'taskTitleSnapshot',
+  taskDescriptionSnapshot: 'taskDescriptionSnapshot',
+  subtasksSnapshot: 'subtasksSnapshot',
+  lifeAreaIdSnapshot: 'lifeAreaIdSnapshot',
+  lifeAreaNameSnapshot: 'lifeAreaNameSnapshot',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TaskSessionScalarFieldEnum = (typeof TaskSessionScalarFieldEnum)[keyof typeof TaskSessionScalarFieldEnum]
+
+
+export const EntityRevisionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  localDate: 'localDate',
+  revisionNumber: 'revisionNumber',
+  previousValues: 'previousValues',
+  newValues: 'newValues',
+  editedBy: 'editedBy',
+  editedAt: 'editedAt',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EntityRevisionScalarFieldEnum = (typeof EntityRevisionScalarFieldEnum)[keyof typeof EntityRevisionScalarFieldEnum]
 
 
 export const SortOrder = {

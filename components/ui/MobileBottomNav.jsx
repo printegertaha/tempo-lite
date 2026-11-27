@@ -15,7 +15,7 @@ const NAV_ITEMS = [
   { href: "/", label: "اليوم", icon: Flame },
   { href: "/tasks", label: "المهام", icon: ListTodo },
   { href: "/habits", label: "العادات", icon: Sparkles },
-  { href: "/journal", label: "اليومية", icon: BookMarked },
+  { href: "/journal", label: "عملت إيه النهارده", icon: BookMarked },
 ];
 
 const emptySubscribe = () => () => {};
@@ -28,9 +28,18 @@ export default function MobileBottomNav() {
     () => false
   );
 
+  if (
+    pathname === "/welcome" ||
+    pathname?.startsWith("/welcome/") ||
+    pathname === "/login" ||
+    pathname === "/register"
+  ) {
+    return null;
+  }
+
   return (
     <nav
-      className="fixed bottom-0 inset-x-0 z-40 md:hidden bg-[#0a0c13]/95 border-t border-zinc-800/80 backdrop-blur-xl shadow-2xl pb-safe select-none"
+      className="fixed bottom-0 inset-x-0 z-40 lg:hidden bg-[#0a0c13]/95 border-t border-zinc-800/80 backdrop-blur-xl shadow-2xl pb-safe select-none"
       aria-label="شريط التنقل السفلي للهاتف"
     >
       
@@ -65,7 +74,7 @@ export default function MobileBottomNav() {
                   }`}
                 />
               </div>
-              <span className="text-[10px] tracking-tight">{item.label}</span>
+              <span className="text-[10px] max-[400px]:text-[9px] tracking-tight whitespace-nowrap">{item.label}</span>
             </Link>
           );
         })}

@@ -83,6 +83,7 @@ export async function createTask(rawInput: CreateTaskInput) {
         breakCycle: validated.breakCycle,
         isRecurring: validated.isRecurring,
         subtasks: validated.subtasks,
+        youtubeMeta: validated.youtubeMeta ?? undefined,
         lifeAreaId: validated.lifeAreaId || null,
         trackerId: validated.trackerId || null,
         tags: validated.tags,
@@ -628,13 +629,39 @@ export async function deleteTask(taskId: string) {
       return { success: false, error: "المهمة غير موجودة أو غير مصرح بحذفها" };
     }
 
-    await prisma.task.delete({
-      where: { id: taskId },
+    await prisma.$transaction(async (tx) => {
+      const taskSessions = await tx.taskSession.findMany({
+        where: { userId, taskId },
+        select: { id: true },
+      });
+      const sessionIds = taskSessions.map((s) => s.id);
+
+      if (sessionIds.length > 0) {
+        await tx.trackerEntry.deleteMany({
+          where: { userId, id: { in: sessionIds } },
+        });
+        await tx.entityRevision.deleteMany({
+          where: { userId, entityType: "task_session", entityId: { in: sessionIds } },
+        });
+      }
+
+      await tx.taskSession.deleteMany({
+        where: { userId, taskId },
+      });
+      await tx.entityRevision.deleteMany({
+        where: { userId, entityType: "task", entityId: taskId },
+      });
+      await tx.task.delete({
+        where: { id: taskId },
+      });
     });
+
     await recordDeletionTombstone(userId, "task", taskId);
 
     revalidatePath("/tasks");
     revalidatePath("/journal");
+    revalidatePath("/calendar");
+    revalidatePath("/habits");
     revalidatePath("/");
 
     return { success: true, message: "تم حذف المهمة بنجاح" };
@@ -654,12 +681,40 @@ export async function deleteAllTasks() {
   try {
     const userId = await requireAuth();
 
-    await prisma.task.deleteMany({
+    const tasks = await prisma.task.findMany({
       where: { userId },
+      select: { id: true },
     });
+
+    await prisma.$transaction(async (tx) => {
+      const taskSessions = await tx.taskSession.findMany({
+        where: { userId },
+        select: { id: true },
+      });
+      const sessionIds = taskSessions.map((s) => s.id);
+      if (sessionIds.length > 0) {
+        await tx.trackerEntry.deleteMany({
+          where: { userId, id: { in: sessionIds } },
+        });
+      }
+      await tx.entityRevision.deleteMany({
+        where: { userId, entityType: { in: ["task", "task_session"] } },
+      });
+      await tx.taskSession.deleteMany({
+        where: { userId },
+      });
+      await tx.task.deleteMany({
+        where: { userId },
+      });
+    });
+
+    for (const t of tasks) {
+      await recordDeletionTombstone(userId, "task", t.id).catch(() => {});
+    }
 
     revalidatePath("/tasks");
     revalidatePath("/journal");
+    revalidatePath("/calendar");
     revalidatePath("/");
 
     return { success: true, message: "تم حذف جميع المهام بنجاح" };

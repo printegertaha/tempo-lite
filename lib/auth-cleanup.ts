@@ -2,6 +2,7 @@ import { clearAllLocalIndexedDB } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
 import { activeTimerEngine } from "@/lib/timer/active-timer";
 import { clearMemoryTaskCache } from "@/hooks/useLocalTasks";
+import { setOnboardingCookie } from "@/lib/onboarding";
 
 /**
  * Clears all browser-side cached user data (in-memory caches, IndexedDB,
@@ -34,6 +35,7 @@ export async function clearBrowserCacheOnSignOut(): Promise<void> {
   } catch (err) {
     console.warn("Failed to clear sessionStorage on sign out:", err);
   }
+  setOnboardingCookie(false);
 
   // 5. Clear Service Worker Cache Storage (runtime HTML/RSC & static caches)
   if ("caches" in window) {

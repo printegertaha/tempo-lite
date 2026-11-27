@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useProgressRouter } from "@/hooks/useProgressRouter";
 import { Mail, Lock, Loader2, LogIn, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { getSafeReturnUrl } from "@/lib/auth-redirect";
@@ -10,7 +11,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import AuthErrorBanner from "@/components/auth/AuthErrorBanner";
 
 function LoginContent() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const searchParams = useSearchParams();
   const urlError = searchParams?.get("error");
   const urlRef = searchParams?.get("ref");
@@ -70,7 +71,7 @@ function LoginContent() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-start sm:justify-center py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-start sm:justify-center py-6 sm:py-10 px-4 max-[420px]:px-2 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background ambient lighting */}
       <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-violet-600/15 blur-[120px] pointer-events-none rounded-full" />
       <div className="absolute bottom-10 right-10 w-60 h-60 bg-emerald-600/10 blur-[90px] pointer-events-none rounded-full" />
@@ -83,8 +84,8 @@ function LoginContent() {
       </div>
 
       {/* Main Card */}
-      <div className="mt-5 sm:mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
+      <div className="w-full mt-5 sm:mt-6 sm:mx-auto sm:max-w-md relative z-10 px-2 max-[420px]:px-0 sm:px-0">
+        <div className="p-6 max-[420px]:p-4 sm:p-8 rounded-3xl max-[420px]:rounded-2xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
           {/* Structured OAuth / Auth Error Banner */}
           {(formError || urlError) && (
             <AuthErrorBanner
@@ -198,7 +199,7 @@ function LoginContent() {
 
           {/* Register Link */}
           <div className="flex items-center gap-1 justify-center pt-3 text-center text-xs text-zinc-400 border-t border-zinc-800/80">
-            <span>ليس لديك حساب بعد؟ </span>
+            <span className="max-[450px]:hidden">ليس لديك حساب بعد؟ </span>
             <Link
               href={
                 returnTo !== "/"

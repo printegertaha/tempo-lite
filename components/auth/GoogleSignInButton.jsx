@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { useProgressRouter } from "@/hooks/useProgressRouter";
+import { navigateAssign } from "@/lib/navigation-progress";
 import { authClient } from "@/lib/auth-client";
 import { getSafeErrorCallbackUrl } from "@/lib/auth-redirect";
 import { getGoogleOAuthMode } from "@/lib/device-detection";
@@ -11,13 +13,14 @@ import AuthErrorBanner from "./AuthErrorBanner";
 export default function GoogleSignInButton({
   className = "",
   label = "المتابعة باستخدام Google",
+  shortLabel = "سجل مع Google",
 }) {
   const [loading, setLoading] = useState(false);
   const [errorState, setErrorState] = useState(null);
   const [popupBlocked, setPopupBlocked] = useState(false);
   const [activeMode, setActiveMode] = useState(null);
   const pathname = usePathname();
-  const router = useRouter();
+  const router = useProgressRouter();
   const cancelledRef = useRef(false);
   const mountedRef = useRef(true);
   const inFlightRef = useRef(false);
@@ -106,7 +109,7 @@ export default function GoogleSignInButton({
       }
 
       if (res?.data?.url) {
-        window.location.assign(res.data.url);
+        navigateAssign(res.data.url);
       } else {
         inFlightRef.current = false;
         setLoading(false);
@@ -247,7 +250,7 @@ export default function GoogleSignInButton({
         onClick={handleSignIn}
         disabled={loading}
         aria-busy={loading}
-        className={`w-full min-h-[48px] touch-manipulation flex items-center justify-center gap-3 py-3.5 px-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-700/80 hover:border-zinc-500 text-zinc-100 text-xs sm:text-sm font-bold shadow-xl hover:shadow-violet-600/10 transition-all duration-200 cursor-pointer active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed group ${className}`}
+        className={`w-full min-h-[48px] touch-manipulation flex items-center justify-center gap-2.5 sm:gap-3 py-3.5 px-3 sm:px-4 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800/90 border border-zinc-700/80 hover:border-zinc-500 text-zinc-100 text-xs sm:text-sm font-bold shadow-xl hover:shadow-violet-600/10 transition-all duration-200 cursor-pointer active:scale-[0.99] disabled:opacity-70 disabled:cursor-not-allowed group whitespace-nowrap ${className}`}
       >
         {loading ? (
           <>
@@ -282,7 +285,8 @@ export default function GoogleSignInButton({
                 d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
               />
             </svg>
-            <span>{label}</span>
+            <span className="max-[444px]:hidden whitespace-nowrap">{label}</span>
+            <span className="hidden max-[444px]:inline whitespace-nowrap">{shortLabel}</span>
           </>
         )}
       </button>

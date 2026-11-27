@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Flame, Clock, MapPin, AlertCircle, Check, X, ShieldCheck, Sparkles } from "lucide-react";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 export default function PrayerDetailModal({
   isOpen,
@@ -110,12 +111,11 @@ export default function PrayerDetailModal({
               <label className="block text-xs font-semibold text-zinc-300 mb-1">
                 الوقت الفعلي للأداء
               </label>
-              <input
-                type="time"
+              <TimePickerField
                 value={actualTime}
-                onChange={(e) => setActualTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-750 font-mono text-zinc-100 text-xs focus:outline-none focus:border-emerald-500"
-                required
+                onChange={(t) => setActualTime(t)}
+                title="تحديد الوقت الفعلي للأداء"
+                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-750 font-mono text-zinc-100 text-xs"
               />
             </div>
 

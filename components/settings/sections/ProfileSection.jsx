@@ -11,8 +11,14 @@ import {
   Check,
   Mail,
 } from "lucide-react";
+import {
+  SALUTATIONS,
+  RELIGIONS,
+  normalizeSalutation,
+  normalizeReligion,
+} from "@/lib/onboarding";
 
-const MAX_NAME_LENGTH = 10;
+const MAX_NAME_LENGTH = 30;
 
 /**
  * Profile & identity settings section (avatar with action menu, inline-editable display name up to 10 chars, read-only email, save/cancel).
@@ -21,6 +27,7 @@ export default function ProfileSection({
   profile,
   sessionUser,
   isPending,
+  isProfileLoading = false,
   onSaveProfile,
   onProcessAvatarFile,
   onError,
@@ -28,9 +35,13 @@ export default function ProfileSection({
   const savedName = profile.name || "";
   const savedImage =
     profile.image !== undefined ? profile.image || null : sessionUser?.image || null;
+  const savedSalutation = normalizeSalutation(profile.salutation) || "بشمهندس";
+  const savedReligion = normalizeReligion(profile.religion) || "muslim";
 
   const [draftName, setDraftName] = useState(undefined);
   const [draftImage, setDraftImage] = useState(undefined);
+  const [draftSalutation, setDraftSalutation] = useState(undefined);
+  const [draftReligion, setDraftReligion] = useState(undefined);
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameBeforeEdit, setNameBeforeEdit] = useState("");
   const [nameError, setNameError] = useState("");
@@ -38,6 +49,10 @@ export default function ProfileSection({
 
   const currentName = draftName !== undefined ? draftName : savedName;
   const currentImage = draftImage !== undefined ? draftImage : savedImage;
+  const currentSalutation =
+    draftSalutation !== undefined ? draftSalutation : savedSalutation;
+  const currentReligion =
+    draftReligion !== undefined ? draftReligion : savedReligion;
 
   const avatarContainerRef = useRef(null);
   const avatarButtonRef = useRef(null);
@@ -86,7 +101,9 @@ export default function ProfileSection({
   const displayEmail = profile.email || sessionUser?.email || "";
   const hasChanges =
     currentName.trim() !== savedName.trim() ||
-    (currentImage || null) !== (savedImage || null);
+    (currentImage || null) !== (savedImage || null) ||
+    currentSalutation !== savedSalutation ||
+    currentReligion !== savedReligion;
 
   const handleOpenNameEdit = () => {
     setNameBeforeEdit(currentName);
@@ -97,7 +114,7 @@ export default function ProfileSection({
   const handleConfirmNameEdit = () => {
     const trimmed = currentName.trim();
     if (!trimmed) {
-      setNameError("يرجى إدخال اسم لا يتجاوز 10 أحرف");
+      setNameError(`يرجى إدخال اسم لا يتجاوز ${MAX_NAME_LENGTH} حرفاً`);
       nameInputRef.current?.focus();
       return;
     }
@@ -157,6 +174,8 @@ export default function ProfileSection({
   const handleCancel = () => {
     setDraftName(undefined);
     setDraftImage(undefined);
+    setDraftSalutation(undefined);
+    setDraftReligion(undefined);
     setNameError("");
     setIsEditingName(false);
     setAvatarMenuOpen(false);
@@ -167,7 +186,7 @@ export default function ProfileSection({
     const trimmed = currentName.trim().slice(0, MAX_NAME_LENGTH);
     if (!trimmed) {
       setIsEditingName(true);
-      setNameError("يرجى إدخال اسم لا يتجاوز 10 أحرف");
+      setNameError(`يرجى إدخال اسم لا يتجاوز ${MAX_NAME_LENGTH} حرفاً`);
       setTimeout(() => nameInputRef.current?.focus(), 0);
       return;
     }
@@ -176,9 +195,13 @@ export default function ProfileSection({
     setAvatarMenuOpen(false);
     setDraftName(undefined);
     setDraftImage(undefined);
+    setDraftSalutation(undefined);
+    setDraftReligion(undefined);
     onSaveProfile?.({
       name: trimmed,
       image: currentImage || null,
+      salutation: currentSalutation,
+      religion: currentReligion,
     });
   };
 
@@ -214,7 +237,9 @@ export default function ProfileSection({
             aria-label="خيارات الصورة الشخصية"
             className="relative group block rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0c0e17] cursor-pointer"
           >
-            {hasAvatar ? (
+            {isProfileLoading ? (
+              <div className="w-20 h-20 rounded-2xl bg-zinc-800 animate-pulse border-2 border-zinc-700/60" />
+            ) : hasAvatar ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={currentImage}
@@ -286,7 +311,11 @@ export default function ProfileSection({
 
         {/* User Name (max 10 chars, inline edit via pencil on the left) */}
         <div className="w-full max-w-xs space-y-1.5">
-          {isEditingName ? (
+          {isProfileLoading ? (
+            <div className="relative flex items-center justify-center min-h-[44px] px-10 py-2 rounded-xl bg-zinc-950/50 border border-zinc-800/90">
+              <div className="h-4 w-32 rounded bg-zinc-800 animate-pulse" />
+            </div>
+          ) : isEditingName ? (
             <div className="space-y-1">
               <div className="relative flex items-center">
                 <label htmlFor={nameInputId} className="sr-only">
@@ -352,14 +381,77 @@ export default function ProfileSection({
         </div>
 
         {/* Non-editable Email */}
-        {displayEmail && (
-          <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 select-all">
-            <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
-            <span dir="ltr" className="font-mono truncate max-w-full">
-              {displayEmail}
-            </span>
+        {isProfileLoading ? (
+          <div className="flex items-center justify-center">
+            <div className="h-3.5 w-44 rounded bg-zinc-800/70 animate-pulse" />
           </div>
+        ) : (
+          displayEmail && (
+            <div className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 select-all">
+              <Mail className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+              <span dir="ltr" className="font-mono truncate max-w-full">
+                {displayEmail}
+              </span>
+            </div>
+          )
         )}
+      </div>
+
+      {/* Personalization Controls: Salutation & Religion */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-800/80">
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-zinc-300 block">
+            طريقة المخاطبة
+          </span>
+          <div className="grid grid-cols-2 gap-2">
+            {SALUTATIONS.map((item) => {
+              const selected = currentSalutation === item.value;
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDraftSalutation(item.value)}
+                  className={`py-2.5 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    selected
+                      ? "bg-violet-600/20 border-violet-500 text-violet-200 shadow-sm"
+                      : "bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <span className="text-xs font-bold text-zinc-300 block">
+            تخصيص التجربة الدينية
+          </span>
+          <div className="grid grid-cols-3 gap-2">
+            {RELIGIONS.map((item) => {
+              const selected = currentReligion === item.value;
+              return (
+                <button
+                  key={item.value}
+                  type="button"
+                  onClick={() => setDraftReligion(item.value)}
+                  data-testid={`settings-religion-${item.value}`}
+                  className={`py-2.5 px-2 rounded-xl border text-xs font-bold transition-all cursor-pointer ${
+                    selected
+                      ? "bg-emerald-600/20 border-emerald-500 text-emerald-200 shadow-sm"
+                      : "bg-zinc-900/60 border-zinc-800 text-zinc-400 hover:border-zinc-700 hover:text-zinc-200"
+                  }`}
+                >
+                  {item.label}
+                </button>
+              );
+            })}
+          </div>
+          <p className="text-[11px] text-zinc-500">
+            تغيير هذا الخيار يحدث الواجهة فوراً مع حفظ كافة سجلاتك السابقة دون حذف.
+          </p>
+        </div>
       </div>
 
       {/* Footer Actions: Cancel on the right, Save Changes on the left (in RTL) */}

@@ -63,11 +63,20 @@ function HabitDetailsContent() {
     deleteRunningSession,
     deleteGymSession,
     addWaterCup,
+    deleteWaterEntry,
+    nutritionData,
     showToast
   } = useAthar();
 
   const habit = habits.find((h) => h.slug === slug) || habits[0];
   const dayRecords = getDayRecords(selectedDate);
+  const selectedDayWaterEntries = (nutritionData?.allWaterEntries || []).filter(
+    (w) => w.date === selectedDate
+  );
+  const selectedDayWaterMl = selectedDayWaterEntries.reduce(
+    (s, w) => s + Number(w.amountMl || 0),
+    0
+  );
 
   // Local quick manual log state for custom habits
   const [customValue, setCustomValue] = useState("");
@@ -117,6 +126,11 @@ function HabitDetailsContent() {
     const totalCigs = todaySmoke.reduce((acc, s) => acc + (s.count || 1), 0);
     habitSpecificStats.todayValue = `${totalCigs} سجائر`;
     habitSpecificStats.totalLogged = totalCigs === 0 ? "يوم ناصع نقي 🌿" : `${todaySmoke.length} أحداث`;
+  } else if (slug === "water") {
+    const cups = Math.round(selectedDayWaterMl / 250);
+    const liters = (selectedDayWaterMl / 1000).toFixed(2);
+    habitSpecificStats.todayValue = `${liters} لتر`;
+    habitSpecificStats.totalLogged = `${cups} كوب (${selectedDayWaterMl} مل)`;
   }
 
   return (
@@ -395,6 +409,37 @@ function HabitDetailsContent() {
             </button>
           </div>
         )}
+
+        {/* WATER: Unified canonical hydration logger */}
+        {slug === "water" && (
+          <div className="p-5 rounded-2xl bg-teal-950/20 border border-teal-500/30 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <span className="text-xs font-bold text-teal-300 block">تسجيل شرب الماء (موحد مع صفحة التغذية)</span>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                يُحفظ كل سجل ماء في المخزن الموحد ويتزامن مع صفحة التغذية دون تكرار الحساب.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => addWaterCup(1, selectedDate)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold shadow-md transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+250 مل (كوب)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => addWaterCup(2, selectedDate)}
+                className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-200 border border-teal-500/40 text-xs font-bold transition-all cursor-pointer shrink-0"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>+500 مل</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 5. Historical Activity Feed for this habit */}
@@ -520,6 +565,35 @@ function HabitDetailsContent() {
                 </button>
               </div>
             ))
+          )}
+
+          {slug === "water" && (
+            selectedDayWaterEntries.length === 0 ? (
+              <p className="py-4 text-xs text-zinc-500 text-center">
+                لا توجد سجلات ماء موثقة لهذا اليوم.
+              </p>
+            ) : (
+              selectedDayWaterEntries.map((w) => (
+                <div key={w.id} className="py-3 flex items-center justify-between group">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-bold text-teal-300">{w.amountMl} مل</span>
+                      <span className="text-[11px] text-zinc-400">
+                        {w.source === "habit_water" ? "من عادة الماء" : "من سجل التغذية"}
+                      </span>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteWaterEntry(w.id)}
+                    className="opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 transition-opacity cursor-pointer"
+                    title="حذف"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))
+            )
           )}
         </div>
       </div>

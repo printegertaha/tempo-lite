@@ -1,7 +1,15 @@
 "use client";
 
 import { soundManager } from "@/lib/audio";
-import { localTaskRepo, localOutboxRepo, localEntryRepo } from "@/lib/local-db";
+import { getDefaultTimezone, getLocalDateString } from "@/lib/dates";
+import {
+  localTaskRepo,
+  localTaskSessionRepo,
+  localLifeAreaRepo,
+  localOutboxRepo,
+  localEntryRepo,
+  type LocalTaskSession,
+} from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
 
 export type TimerSessionStatus =
@@ -19,10 +27,16 @@ export interface ActiveTimerSession {
   taskTitle: string;
   taskDescription?: string | null;
   trackerId?: string | null;
+  lifeAreaId?: string | null;
+  lifeAreaName?: string | null;
+  subtasks?: Array<{ id: string; title: string; completed: boolean }>;
+  youtubeMeta?: any;
+  isPomodoro?: boolean;
   userId: string;
   mode: TimerMode;
   status: TimerSessionStatus;
   isRunning: boolean;
+  originalStartedAt: number;
   startedAt: number | null;
   accumulatedSeconds: number;
   plannedDurationMinutes: number | null;
@@ -113,12 +127,8 @@ class ActiveTimerEngine {
 
       window.addEventListener("athar_task_deleted_externally", (e: Event) => {
         const taskId = (e as CustomEvent)?.detail?.taskId;
-        if (taskId && this.session && this.session.taskId === taskId) {
-          void this.finalizeCurrentSession("cancelled", false);
-        } else if (taskId && this.completedSession && this.completedSession.taskId === taskId) {
-          this.completedSession = null;
-          this.persistSession();
-          this.notify();
+        if (taskId) {
+          this.discardForDeletedTask(taskId);
         }
       });
     }
@@ -146,6 +156,7 @@ class ActiveTimerEngine {
               mode: "stopwatch",
               status: legacy.isRunning ? "running" : "paused",
               isRunning: Boolean(legacy.isRunning),
+              originalStartedAt: legacy.startedAt || Date.now(),
               startedAt: legacy.startedAt || null,
               accumulatedSeconds: legacy.accumulatedSeconds || 0,
               plannedDurationMinutes: legacy.plannedDurationMinutes || null,
@@ -271,6 +282,18 @@ class ActiveTimerEngine {
     return base;
   }
 
+  private getWorkDurationSecsForCycle(completedCycles: number): number {
+    const baseWorkMins = this.session?.workCycleMinutes || 25;
+    const plannedMins = this.session?.plannedDurationMinutes;
+    if (plannedMins && plannedMins > 0) {
+      const remainingMins = plannedMins - completedCycles * baseWorkMins;
+      if (remainingMins > 0) {
+        return Math.max(60, Math.min(baseWorkMins, remainingMins) * 60);
+      }
+    }
+    return Math.max(60, baseWorkMins * 60);
+  }
+
   public computeZenState(nowMs = Date.now()): {
     secondsRemaining: number;
     isBreak: boolean;
@@ -281,7 +304,6 @@ class ActiveTimerEngine {
       return { secondsRemaining: 25 * 60, isBreak: false, completedCycles: 0, progressPercent: 0 };
     }
 
-    const workSecs = Math.max(60, (this.session.workCycleMinutes || 25) * 60);
     const breakSecs = Math.max(60, (this.session.breakCycleMinutes || 5) * 60);
 
     let isBreak = this.session.isBreak;
@@ -293,7 +315,9 @@ class ActiveTimerEngine {
     }
 
     // Advance across phase boundaries accurately even after refresh / tab sleep
-    let currentPhaseDuration = isBreak ? breakSecs : workSecs;
+    let currentPhaseDuration = isBreak
+      ? breakSecs
+      : this.getWorkDurationSecsForCycle(completedCycles);
     let transitioned = false;
     while (phaseElapsed >= currentPhaseDuration) {
       phaseElapsed -= currentPhaseDuration;
@@ -305,15 +329,18 @@ class ActiveTimerEngine {
         soundManager.playBreakStart();
       } else {
         isBreak = false;
-        currentPhaseDuration = workSecs;
+        currentPhaseDuration = this.getWorkDurationSecsForCycle(completedCycles);
         soundManager.playBreakEnd();
       }
     }
 
     if (transitioned && this.session.isRunning) {
+      const nextAccumulated = this.computeElapsedSeconds(nowMs);
       this.session = {
         ...this.session,
         isBreak,
+        startedAt: isBreak ? null : nowMs,
+        accumulatedSeconds: nextAccumulated,
         completedCycles,
         phaseAccumulatedSeconds: phaseElapsed,
         phaseStartedAt: nowMs,
@@ -386,10 +413,16 @@ class ActiveTimerEngine {
       taskTitle: task.title || "مهمة",
       taskDescription: task.description || null,
       trackerId: task.trackerId || null,
+      lifeAreaId: task.lifeAreaId || null,
+      lifeAreaName: task.lifeArea?.name || task.lifeAreaName || null,
+      subtasks: Array.isArray(task.subtasks) ? task.subtasks : [],
+      youtubeMeta: task.youtubeMeta ?? null,
+      isPomodoro: Boolean(task.isPomodoro),
       userId: userId || task.userId || "guest",
       mode,
       status: "running",
       isRunning: true,
+      originalStartedAt: now,
       startedAt: now,
       accumulatedSeconds: 0,
       plannedDurationMinutes: task.durationMinutes || null,
@@ -404,6 +437,40 @@ class ActiveTimerEngine {
     this.persistSession();
     soundManager.playTaskStart();
     this.notify();
+  }
+
+  public hasActiveSessionForTask(taskId: string): boolean {
+    return Boolean(this.session && this.session.taskId === taskId);
+  }
+
+  public discardForDeletedTask(taskId: string): void {
+    let changed = false;
+    if (this.session && this.session.taskId === taskId) {
+      this.session = null;
+      changed = true;
+    }
+    if (this.completedSession && this.completedSession.taskId === taskId) {
+      this.completedSession = null;
+      changed = true;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem(TIMER_HISTORY_KEY);
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            const filtered = list.filter((item) => item?.taskId !== taskId);
+            if (filtered.length !== list.length) {
+              localStorage.setItem(TIMER_HISTORY_KEY, JSON.stringify(filtered));
+            }
+          }
+        }
+      } catch {}
+    }
+    if (changed) {
+      this.persistSession();
+      this.notify();
+    }
   }
 
   /**
@@ -446,6 +513,7 @@ class ActiveTimerEngine {
       ...this.session,
       status: "paused",
       isRunning: false,
+      originalStartedAt: this.session.originalStartedAt || this.session.startedAt || now,
       startedAt: null,
       accumulatedSeconds: totalWork,
       phaseStartedAt: null,
@@ -464,6 +532,7 @@ class ActiveTimerEngine {
       ...this.session,
       status: "running",
       isRunning: true,
+      originalStartedAt: this.session.originalStartedAt || now,
       startedAt: this.session.isBreak ? null : now,
       phaseStartedAt: now,
       updatedAt: now,
@@ -541,6 +610,21 @@ class ActiveTimerEngine {
     } catch {}
   }
 
+  private resolveUserTimezone(userId: string): string {
+    if (typeof window !== "undefined") {
+      try {
+        const raw =
+          localStorage.getItem(`athar_user_settings:${userId}`) ||
+          localStorage.getItem("athar_user_settings");
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed?.timezone) return String(parsed.timezone);
+        }
+      } catch {}
+    }
+    return getDefaultTimezone();
+  }
+
   private async finalizeCurrentSession(
     finalStatus: "completed" | "cancelled" | "interrupted",
     markTaskCompleted: boolean
@@ -554,6 +638,12 @@ class ActiveTimerEngine {
 
     const now = Date.now();
     const totalSeconds = this.computeElapsedSeconds(now);
+    const activeUserId = active.userId || "guest";
+    const resolvedTimezone = this.resolveUserTimezone(activeUserId);
+    const endedAtIso = new Date(now).toISOString();
+    const startedAtMs = active.originalStartedAt || active.startedAt || now;
+    const startedAtIso = new Date(startedAtMs).toISOString();
+    const localDate = getLocalDateString(new Date(now), resolvedTimezone);
 
     // Clear active session immediately so UI never double-submits
     this.session = null;
@@ -562,10 +652,10 @@ class ActiveTimerEngine {
         sessionId: active.sessionId,
         taskId: active.taskId,
         taskTitle: active.taskTitle,
-        userId: active.userId,
+        userId: activeUserId,
         durationSeconds: totalSeconds,
         completedCycles: active.completedCycles,
-        endedAt: new Date(now).toISOString(),
+        endedAt: endedAtIso,
       };
     } else {
       this.completedSession = null;
@@ -574,40 +664,102 @@ class ActiveTimerEngine {
     this.notify();
 
     try {
-      // Save deduplicated session history for any meaningful duration or completion
+      const taskRecord = await localTaskRepo.getById(active.taskId).catch(() => null);
+      const lifeAreaIdSnapshot = taskRecord?.lifeAreaId ?? active.lifeAreaId ?? null;
+      let lifeAreaNameSnapshot = active.lifeAreaName ?? null;
+      if (lifeAreaIdSnapshot && !lifeAreaNameSnapshot) {
+        const area = await localLifeAreaRepo.getById(lifeAreaIdSnapshot).catch(() => null);
+        lifeAreaNameSnapshot = area?.name || null;
+      }
+
+      // Persist durable TaskSession into IndexedDB + Outbox for any meaningful duration or completion
       if (totalSeconds > 0 || finalStatus === "completed") {
         this.recordSessionHistory({
           sessionId: active.sessionId,
           taskId: active.taskId,
-          taskTitle: active.taskTitle,
-          userId: active.userId,
+          taskTitle: taskRecord?.title || active.taskTitle,
+          userId: activeUserId,
           status: finalStatus,
           durationSeconds: totalSeconds,
           completedCycles: active.completedCycles,
-          endedAt: new Date(now).toISOString(),
+          endedAt: endedAtIso,
         });
+
+        const durableSession: LocalTaskSession = {
+          id: active.sessionId,
+          userId: activeUserId,
+          taskId: active.taskId,
+          trackerId: taskRecord?.trackerId ?? active.trackerId ?? null,
+          localDate,
+          startedAt: startedAtIso,
+          endedAt: endedAtIso,
+          durationSeconds: totalSeconds,
+          status: finalStatus,
+          completionSource: "timer",
+          isEstimated: false,
+          completedCycles: active.completedCycles || 0,
+          taskTitleSnapshot: taskRecord?.title || active.taskTitle,
+          taskDescriptionSnapshot: taskRecord?.description ?? active.taskDescription ?? null,
+          subtasksSnapshot: Array.isArray(taskRecord?.subtasks)
+            ? taskRecord.subtasks
+            : Array.isArray(active.subtasks)
+              ? active.subtasks
+              : [],
+          lifeAreaIdSnapshot,
+          lifeAreaNameSnapshot,
+          notes: null,
+          createdAt: startedAtIso,
+          updatedAt: endedAtIso,
+          clientUpdatedAt: now,
+          _syncStatus: activeUserId === "guest" ? "synced" : "pending",
+        };
+
+        await localTaskSessionRepo.save(durableSession).catch(() => {});
+
+        if (activeUserId !== "guest") {
+          await localOutboxRepo
+            .add({
+              mutationId: `tsess_${active.sessionId}`,
+              userId: activeUserId,
+              entityType: "task_session",
+              entityId: durableSession.id,
+              action: "create",
+              payload: durableSession,
+              clientTimestamp: now,
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .catch(() => {});
+          syncEngine.scheduleSync(2000);
+        }
+
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(
+            new CustomEvent("athar_task_sessions_updated", { detail: { userId: activeUserId } })
+          );
+        }
       }
 
       // If linked to a duration/habit tracker, log focused seconds idempotently by sessionId
       if (active.trackerId && totalSeconds >= 10 && finalStatus !== "cancelled") {
-        const localDate = new Date(now).toISOString().split("T")[0];
         const entry = {
           id: active.sessionId, // Idempotent key prevents duplicate session entries!
           trackerId: active.trackerId,
-          userId: active.userId || "guest",
+          userId: activeUserId,
           localDate,
-          occurredAt: new Date(now).toISOString(),
+          occurredAt: endedAtIso,
           valueDuration: totalSeconds,
-          entryPayload: { subject: active.taskTitle },
+          entryPayload: { subject: taskRecord?.title || active.taskTitle },
           notes: `جلسة مؤقت (${finalStatus})`,
           trackerVersion: 1,
         };
         await localEntryRepo.save(entry).catch(() => {});
-        if (active.userId && active.userId !== "guest") {
+        if (activeUserId !== "guest") {
           await localOutboxRepo
             .add({
               mutationId: `timer_${active.sessionId}`,
-              userId: active.userId,
+              userId: activeUserId,
               entityType: "tracker_entry",
               entityId: active.sessionId,
               action: "create",
@@ -625,9 +777,9 @@ class ActiveTimerEngine {
       // Mark task completed in localTaskRepo + outbox when user clicks Complete
       if (markTaskCompleted) {
         soundManager.playTaskDone();
-        const task = await localTaskRepo.getById(active.taskId).catch(() => null);
+        const task = taskRecord || (await localTaskRepo.getById(active.taskId).catch(() => null));
         if (task && task.status !== "COMPLETED") {
-          const completedAt = new Date(now).toISOString();
+          const completedAt = endedAtIso;
           const updatedTask = {
             ...task,
             status: "COMPLETED" as const,
@@ -668,6 +820,98 @@ class ActiveTimerEngine {
       }
     } finally {
       this.finalizingSessionIds.delete(active.sessionId);
+    }
+  }
+
+  public async migrateLegacyTimerHistory(userId: string, timezone?: string): Promise<number> {
+    if (typeof window === "undefined") return 0;
+    const targetUser = userId || "guest";
+    const markerKey = `athar_legacy_timer_migrated_v1:${targetUser}`;
+    try {
+      if (localStorage.getItem(markerKey) === "1") return 0;
+      const raw = localStorage.getItem(TIMER_HISTORY_KEY);
+      if (!raw) {
+        localStorage.setItem(markerKey, "1");
+        return 0;
+      }
+      const list = JSON.parse(raw);
+      if (!Array.isArray(list) || list.length === 0) {
+        localStorage.setItem(markerKey, "1");
+        return 0;
+      }
+
+      const tz = timezone || this.resolveUserTimezone(targetUser);
+      const existing = await localTaskSessionRepo.getAllForUser(targetUser).catch(() => []);
+      const existingIds = new Set(existing.map((s) => s.id));
+      const tasks = await localTaskRepo.getAllForUser(targetUser, true).catch(() => []);
+      const taskMap = new Map(tasks.map((t) => [t.id, t]));
+
+      const migrated: LocalTaskSession[] = [];
+      for (const item of list) {
+        if (!item?.sessionId || existingIds.has(item.sessionId)) continue;
+        const owner = item.userId || "guest";
+        if (owner !== targetUser) continue;
+        const endedIso = item.endedAt || new Date().toISOString();
+        const linkedTask = item.taskId ? taskMap.get(item.taskId) : undefined;
+        const durationSecs =
+          typeof item.durationSeconds === "number" ? item.durationSeconds : null;
+
+        migrated.push({
+          id: item.sessionId,
+          userId: targetUser,
+          taskId: item.taskId || item.sessionId,
+          trackerId: linkedTask?.trackerId ?? null,
+          localDate: getLocalDateString(new Date(endedIso), tz),
+          startedAt: null, // Legacy records did not store start timestamp; never fabricate
+          endedAt: endedIso,
+          durationSeconds: durationSecs,
+          status:
+            item.status === "interrupted" || item.status === "cancelled"
+              ? item.status
+              : "legacy",
+          completionSource: "legacy",
+          isEstimated: true,
+          completedCycles: Number(item.completedCycles) || 0,
+          taskTitleSnapshot: linkedTask?.title || item.taskTitle || "مهمة مسجلة",
+          taskDescriptionSnapshot: linkedTask?.description ?? null,
+          subtasksSnapshot: Array.isArray(linkedTask?.subtasks) ? linkedTask.subtasks : [],
+          lifeAreaIdSnapshot: linkedTask?.lifeAreaId ?? null,
+          lifeAreaNameSnapshot: null,
+          notes: null,
+          createdAt: endedIso,
+          updatedAt: endedIso,
+          clientUpdatedAt: Date.now(),
+          _syncStatus: targetUser === "guest" ? "synced" : "pending",
+        });
+      }
+
+      if (migrated.length > 0) {
+        await localTaskSessionRepo.saveBatch(migrated);
+        if (targetUser !== "guest") {
+          for (const rec of migrated) {
+            await localOutboxRepo
+              .add({
+                mutationId: `tsess_mig_${rec.id}`,
+                userId: targetUser,
+                entityType: "task_session",
+                entityId: rec.id,
+                action: "create",
+                payload: rec,
+                clientTimestamp: Date.now(),
+                version: 1,
+                status: "pending",
+                retryCount: 0,
+              })
+              .catch(() => {});
+          }
+          syncEngine.scheduleSync(2500);
+        }
+      }
+
+      localStorage.setItem(markerKey, "1");
+      return migrated.length;
+    } catch {
+      return 0;
     }
   }
 

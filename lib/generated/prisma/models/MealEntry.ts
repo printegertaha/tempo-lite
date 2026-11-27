@@ -44,6 +44,7 @@ export type MealEntryMinAggregateOutputType = {
   id: string | null
   userId: string | null
   date: string | null
+  time: string | null
   mealType: string | null
   title: string | null
   calories: number | null
@@ -59,6 +60,7 @@ export type MealEntryMaxAggregateOutputType = {
   id: string | null
   userId: string | null
   date: string | null
+  time: string | null
   mealType: string | null
   title: string | null
   calories: number | null
@@ -74,12 +76,15 @@ export type MealEntryCountAggregateOutputType = {
   id: number
   userId: number
   date: number
+  time: number
   mealType: number
   title: number
   calories: number
   protein: number
   carbs: number
   fat: number
+  items: number
+  dailyTargetsSnapshot: number
   notes: number
   createdAt: number
   updatedAt: number
@@ -105,6 +110,7 @@ export type MealEntryMinAggregateInputType = {
   id?: true
   userId?: true
   date?: true
+  time?: true
   mealType?: true
   title?: true
   calories?: true
@@ -120,6 +126,7 @@ export type MealEntryMaxAggregateInputType = {
   id?: true
   userId?: true
   date?: true
+  time?: true
   mealType?: true
   title?: true
   calories?: true
@@ -135,12 +142,15 @@ export type MealEntryCountAggregateInputType = {
   id?: true
   userId?: true
   date?: true
+  time?: true
   mealType?: true
   title?: true
   calories?: true
   protein?: true
   carbs?: true
   fat?: true
+  items?: true
+  dailyTargetsSnapshot?: true
   notes?: true
   createdAt?: true
   updatedAt?: true
@@ -237,12 +247,15 @@ export type MealEntryGroupByOutputType = {
   id: string
   userId: string
   date: string
+  time: string | null
   mealType: string
   title: string
   calories: number
   protein: number
   carbs: number
   fat: number
+  items: runtime.JsonValue
+  dailyTargetsSnapshot: runtime.JsonValue | null
   notes: string | null
   createdAt: Date
   updatedAt: Date
@@ -275,12 +288,15 @@ export type MealEntryWhereInput = {
   id?: Prisma.StringFilter<"MealEntry"> | string
   userId?: Prisma.StringFilter<"MealEntry"> | string
   date?: Prisma.StringFilter<"MealEntry"> | string
+  time?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   mealType?: Prisma.StringFilter<"MealEntry"> | string
   title?: Prisma.StringFilter<"MealEntry"> | string
   calories?: Prisma.IntFilter<"MealEntry"> | number
   protein?: Prisma.FloatFilter<"MealEntry"> | number
   carbs?: Prisma.FloatFilter<"MealEntry"> | number
   fat?: Prisma.FloatFilter<"MealEntry"> | number
+  items?: Prisma.JsonFilter<"MealEntry">
+  dailyTargetsSnapshot?: Prisma.JsonNullableFilter<"MealEntry">
   notes?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
@@ -291,12 +307,15 @@ export type MealEntryOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   date?: Prisma.SortOrder
+  time?: Prisma.SortOrderInput | Prisma.SortOrder
   mealType?: Prisma.SortOrder
   title?: Prisma.SortOrder
   calories?: Prisma.SortOrder
   protein?: Prisma.SortOrder
   carbs?: Prisma.SortOrder
   fat?: Prisma.SortOrder
+  items?: Prisma.SortOrder
+  dailyTargetsSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -310,12 +329,15 @@ export type MealEntryWhereUniqueInput = Prisma.AtLeast<{
   NOT?: Prisma.MealEntryWhereInput | Prisma.MealEntryWhereInput[]
   userId?: Prisma.StringFilter<"MealEntry"> | string
   date?: Prisma.StringFilter<"MealEntry"> | string
+  time?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   mealType?: Prisma.StringFilter<"MealEntry"> | string
   title?: Prisma.StringFilter<"MealEntry"> | string
   calories?: Prisma.IntFilter<"MealEntry"> | number
   protein?: Prisma.FloatFilter<"MealEntry"> | number
   carbs?: Prisma.FloatFilter<"MealEntry"> | number
   fat?: Prisma.FloatFilter<"MealEntry"> | number
+  items?: Prisma.JsonFilter<"MealEntry">
+  dailyTargetsSnapshot?: Prisma.JsonNullableFilter<"MealEntry">
   notes?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
@@ -326,12 +348,15 @@ export type MealEntryOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   date?: Prisma.SortOrder
+  time?: Prisma.SortOrderInput | Prisma.SortOrder
   mealType?: Prisma.SortOrder
   title?: Prisma.SortOrder
   calories?: Prisma.SortOrder
   protein?: Prisma.SortOrder
   carbs?: Prisma.SortOrder
   fat?: Prisma.SortOrder
+  items?: Prisma.SortOrder
+  dailyTargetsSnapshot?: Prisma.SortOrderInput | Prisma.SortOrder
   notes?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -349,12 +374,15 @@ export type MealEntryScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"MealEntry"> | string
   userId?: Prisma.StringWithAggregatesFilter<"MealEntry"> | string
   date?: Prisma.StringWithAggregatesFilter<"MealEntry"> | string
+  time?: Prisma.StringNullableWithAggregatesFilter<"MealEntry"> | string | null
   mealType?: Prisma.StringWithAggregatesFilter<"MealEntry"> | string
   title?: Prisma.StringWithAggregatesFilter<"MealEntry"> | string
   calories?: Prisma.IntWithAggregatesFilter<"MealEntry"> | number
   protein?: Prisma.FloatWithAggregatesFilter<"MealEntry"> | number
   carbs?: Prisma.FloatWithAggregatesFilter<"MealEntry"> | number
   fat?: Prisma.FloatWithAggregatesFilter<"MealEntry"> | number
+  items?: Prisma.JsonWithAggregatesFilter<"MealEntry">
+  dailyTargetsSnapshot?: Prisma.JsonNullableWithAggregatesFilter<"MealEntry">
   notes?: Prisma.StringNullableWithAggregatesFilter<"MealEntry"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"MealEntry"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"MealEntry"> | Date | string
@@ -363,12 +391,15 @@ export type MealEntryScalarWhereWithAggregatesInput = {
 export type MealEntryCreateInput = {
   id?: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -379,12 +410,15 @@ export type MealEntryUncheckedCreateInput = {
   id?: string
   userId: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -393,12 +427,15 @@ export type MealEntryUncheckedCreateInput = {
 export type MealEntryUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -409,12 +446,15 @@ export type MealEntryUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -424,12 +464,15 @@ export type MealEntryCreateManyInput = {
   id?: string
   userId: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -438,12 +481,15 @@ export type MealEntryCreateManyInput = {
 export type MealEntryUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -453,12 +499,15 @@ export type MealEntryUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   userId?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -478,12 +527,15 @@ export type MealEntryCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   date?: Prisma.SortOrder
+  time?: Prisma.SortOrder
   mealType?: Prisma.SortOrder
   title?: Prisma.SortOrder
   calories?: Prisma.SortOrder
   protein?: Prisma.SortOrder
   carbs?: Prisma.SortOrder
   fat?: Prisma.SortOrder
+  items?: Prisma.SortOrder
+  dailyTargetsSnapshot?: Prisma.SortOrder
   notes?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
@@ -500,6 +552,7 @@ export type MealEntryMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   date?: Prisma.SortOrder
+  time?: Prisma.SortOrder
   mealType?: Prisma.SortOrder
   title?: Prisma.SortOrder
   calories?: Prisma.SortOrder
@@ -515,6 +568,7 @@ export type MealEntryMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   userId?: Prisma.SortOrder
   date?: Prisma.SortOrder
+  time?: Prisma.SortOrder
   mealType?: Prisma.SortOrder
   title?: Prisma.SortOrder
   calories?: Prisma.SortOrder
@@ -578,12 +632,15 @@ export type MealEntryUncheckedUpdateManyWithoutUserNestedInput = {
 export type MealEntryCreateWithoutUserInput = {
   id?: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -592,12 +649,15 @@ export type MealEntryCreateWithoutUserInput = {
 export type MealEntryUncheckedCreateWithoutUserInput = {
   id?: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -636,12 +696,15 @@ export type MealEntryScalarWhereInput = {
   id?: Prisma.StringFilter<"MealEntry"> | string
   userId?: Prisma.StringFilter<"MealEntry"> | string
   date?: Prisma.StringFilter<"MealEntry"> | string
+  time?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   mealType?: Prisma.StringFilter<"MealEntry"> | string
   title?: Prisma.StringFilter<"MealEntry"> | string
   calories?: Prisma.IntFilter<"MealEntry"> | number
   protein?: Prisma.FloatFilter<"MealEntry"> | number
   carbs?: Prisma.FloatFilter<"MealEntry"> | number
   fat?: Prisma.FloatFilter<"MealEntry"> | number
+  items?: Prisma.JsonFilter<"MealEntry">
+  dailyTargetsSnapshot?: Prisma.JsonNullableFilter<"MealEntry">
   notes?: Prisma.StringNullableFilter<"MealEntry"> | string | null
   createdAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"MealEntry"> | Date | string
@@ -650,12 +713,15 @@ export type MealEntryScalarWhereInput = {
 export type MealEntryCreateManyUserInput = {
   id?: string
   date: string
+  time?: string | null
   mealType: string
   title: string
   calories?: number
   protein?: number
   carbs?: number
   fat?: number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
@@ -664,12 +730,15 @@ export type MealEntryCreateManyUserInput = {
 export type MealEntryUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -678,12 +747,15 @@ export type MealEntryUpdateWithoutUserInput = {
 export type MealEntryUncheckedUpdateWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -692,12 +764,15 @@ export type MealEntryUncheckedUpdateWithoutUserInput = {
 export type MealEntryUncheckedUpdateManyWithoutUserInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   date?: Prisma.StringFieldUpdateOperationsInput | string
+  time?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   mealType?: Prisma.StringFieldUpdateOperationsInput | string
   title?: Prisma.StringFieldUpdateOperationsInput | string
   calories?: Prisma.IntFieldUpdateOperationsInput | number
   protein?: Prisma.FloatFieldUpdateOperationsInput | number
   carbs?: Prisma.FloatFieldUpdateOperationsInput | number
   fat?: Prisma.FloatFieldUpdateOperationsInput | number
+  items?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  dailyTargetsSnapshot?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   notes?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -709,12 +784,15 @@ export type MealEntrySelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   id?: boolean
   userId?: boolean
   date?: boolean
+  time?: boolean
   mealType?: boolean
   title?: boolean
   calories?: boolean
   protein?: boolean
   carbs?: boolean
   fat?: boolean
+  items?: boolean
+  dailyTargetsSnapshot?: boolean
   notes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -725,12 +803,15 @@ export type MealEntrySelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   userId?: boolean
   date?: boolean
+  time?: boolean
   mealType?: boolean
   title?: boolean
   calories?: boolean
   protein?: boolean
   carbs?: boolean
   fat?: boolean
+  items?: boolean
+  dailyTargetsSnapshot?: boolean
   notes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -741,12 +822,15 @@ export type MealEntrySelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   userId?: boolean
   date?: boolean
+  time?: boolean
   mealType?: boolean
   title?: boolean
   calories?: boolean
   protein?: boolean
   carbs?: boolean
   fat?: boolean
+  items?: boolean
+  dailyTargetsSnapshot?: boolean
   notes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
@@ -757,18 +841,21 @@ export type MealEntrySelectScalar = {
   id?: boolean
   userId?: boolean
   date?: boolean
+  time?: boolean
   mealType?: boolean
   title?: boolean
   calories?: boolean
   protein?: boolean
   carbs?: boolean
   fat?: boolean
+  items?: boolean
+  dailyTargetsSnapshot?: boolean
   notes?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type MealEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "date" | "mealType" | "title" | "calories" | "protein" | "carbs" | "fat" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["mealEntry"]>
+export type MealEntryOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "date" | "time" | "mealType" | "title" | "calories" | "protein" | "carbs" | "fat" | "items" | "dailyTargetsSnapshot" | "notes" | "createdAt" | "updatedAt", ExtArgs["result"]["mealEntry"]>
 export type MealEntryInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -788,12 +875,15 @@ export type $MealEntryPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     id: string
     userId: string
     date: string
+    time: string | null
     mealType: string
     title: string
     calories: number
     protein: number
     carbs: number
     fat: number
+    items: runtime.JsonValue
+    dailyTargetsSnapshot: runtime.JsonValue | null
     notes: string | null
     createdAt: Date
     updatedAt: Date
@@ -1224,12 +1314,15 @@ export interface MealEntryFieldRefs {
   readonly id: Prisma.FieldRef<"MealEntry", 'String'>
   readonly userId: Prisma.FieldRef<"MealEntry", 'String'>
   readonly date: Prisma.FieldRef<"MealEntry", 'String'>
+  readonly time: Prisma.FieldRef<"MealEntry", 'String'>
   readonly mealType: Prisma.FieldRef<"MealEntry", 'String'>
   readonly title: Prisma.FieldRef<"MealEntry", 'String'>
   readonly calories: Prisma.FieldRef<"MealEntry", 'Int'>
   readonly protein: Prisma.FieldRef<"MealEntry", 'Float'>
   readonly carbs: Prisma.FieldRef<"MealEntry", 'Float'>
   readonly fat: Prisma.FieldRef<"MealEntry", 'Float'>
+  readonly items: Prisma.FieldRef<"MealEntry", 'Json'>
+  readonly dailyTargetsSnapshot: Prisma.FieldRef<"MealEntry", 'Json'>
   readonly notes: Prisma.FieldRef<"MealEntry", 'String'>
   readonly createdAt: Prisma.FieldRef<"MealEntry", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"MealEntry", 'DateTime'>

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useAthar } from "@/components/context/AtharContext";
+import DatePickerField from "@/components/ui/DatePickerField";
 import {
   Dumbbell,
   Plus,
@@ -187,11 +188,11 @@ export default function GymPage() {
               placeholder="الوزن (كجم)"
               className="w-32 px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-100 focus:outline-none focus:border-orange-500"
             />
-            <input
-              type="date"
+            <DatePickerField
               value={weightDate || selectedDate}
-              onChange={(e) => setWeightDate(e.target.value)}
-              className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500"
+              onChange={(d) => setWeightDate(d)}
+              title="تاريخ قياس الوزن"
+              className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs font-mono text-zinc-200 focus:outline-none focus:border-orange-500 min-w-[130px]"
             />
             <button
               type="submit"

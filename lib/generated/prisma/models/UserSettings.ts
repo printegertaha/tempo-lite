@@ -27,11 +27,13 @@ export type AggregateUserSettings = {
 }
 
 export type UserSettingsAvgAggregateOutputType = {
+  onboardingStep: number | null
   weekStartDay: number | null
   audioVolume: number | null
 }
 
 export type UserSettingsSumAggregateOutputType = {
+  onboardingStep: number | null
   weekStartDay: number | null
   audioVolume: number | null
 }
@@ -46,6 +48,11 @@ export type UserSettingsMinAggregateOutputType = {
   currency: string | null
   currencyAuto: boolean | null
   prayerTrackingEnabled: boolean | null
+  salutation: string | null
+  religion: string | null
+  onboardingCompleted: boolean | null
+  onboardingStep: number | null
+  onboardingCompletedAt: Date | null
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
@@ -65,6 +72,11 @@ export type UserSettingsMaxAggregateOutputType = {
   currency: string | null
   currencyAuto: boolean | null
   prayerTrackingEnabled: boolean | null
+  salutation: string | null
+  religion: string | null
+  onboardingCompleted: boolean | null
+  onboardingStep: number | null
+  onboardingCompletedAt: Date | null
   language: string | null
   weekStartDay: number | null
   themeAccent: string | null
@@ -84,6 +96,11 @@ export type UserSettingsCountAggregateOutputType = {
   currency: number
   currencyAuto: number
   prayerTrackingEnabled: number
+  salutation: number
+  religion: number
+  onboardingCompleted: number
+  onboardingStep: number
+  onboardingCompletedAt: number
   language: number
   weekStartDay: number
   themeAccent: number
@@ -98,11 +115,13 @@ export type UserSettingsCountAggregateOutputType = {
 
 
 export type UserSettingsAvgAggregateInputType = {
+  onboardingStep?: true
   weekStartDay?: true
   audioVolume?: true
 }
 
 export type UserSettingsSumAggregateInputType = {
+  onboardingStep?: true
   weekStartDay?: true
   audioVolume?: true
 }
@@ -117,6 +136,11 @@ export type UserSettingsMinAggregateInputType = {
   currency?: true
   currencyAuto?: true
   prayerTrackingEnabled?: true
+  salutation?: true
+  religion?: true
+  onboardingCompleted?: true
+  onboardingStep?: true
+  onboardingCompletedAt?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -136,6 +160,11 @@ export type UserSettingsMaxAggregateInputType = {
   currency?: true
   currencyAuto?: true
   prayerTrackingEnabled?: true
+  salutation?: true
+  religion?: true
+  onboardingCompleted?: true
+  onboardingStep?: true
+  onboardingCompletedAt?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -155,6 +184,11 @@ export type UserSettingsCountAggregateInputType = {
   currency?: true
   currencyAuto?: true
   prayerTrackingEnabled?: true
+  salutation?: true
+  religion?: true
+  onboardingCompleted?: true
+  onboardingStep?: true
+  onboardingCompletedAt?: true
   language?: true
   weekStartDay?: true
   themeAccent?: true
@@ -263,6 +297,11 @@ export type UserSettingsGroupByOutputType = {
   currency: string | null
   currencyAuto: boolean
   prayerTrackingEnabled: boolean
+  salutation: string | null
+  religion: string | null
+  onboardingCompleted: boolean
+  onboardingStep: number
+  onboardingCompletedAt: Date | null
   language: string
   weekStartDay: number
   themeAccent: string
@@ -307,6 +346,11 @@ export type UserSettingsWhereInput = {
   currency?: Prisma.StringNullableFilter<"UserSettings"> | string | null
   currencyAuto?: Prisma.BoolFilter<"UserSettings"> | boolean
   prayerTrackingEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
+  salutation?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  religion?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  onboardingCompleted?: Prisma.BoolFilter<"UserSettings"> | boolean
+  onboardingStep?: Prisma.IntFilter<"UserSettings"> | number
+  onboardingCompletedAt?: Prisma.DateTimeNullableFilter<"UserSettings"> | Date | string | null
   language?: Prisma.StringFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
@@ -329,6 +373,11 @@ export type UserSettingsOrderByWithRelationInput = {
   currency?: Prisma.SortOrderInput | Prisma.SortOrder
   currencyAuto?: Prisma.SortOrder
   prayerTrackingEnabled?: Prisma.SortOrder
+  salutation?: Prisma.SortOrderInput | Prisma.SortOrder
+  religion?: Prisma.SortOrderInput | Prisma.SortOrder
+  onboardingCompleted?: Prisma.SortOrder
+  onboardingStep?: Prisma.SortOrder
+  onboardingCompletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -354,6 +403,11 @@ export type UserSettingsWhereUniqueInput = Prisma.AtLeast<{
   currency?: Prisma.StringNullableFilter<"UserSettings"> | string | null
   currencyAuto?: Prisma.BoolFilter<"UserSettings"> | boolean
   prayerTrackingEnabled?: Prisma.BoolFilter<"UserSettings"> | boolean
+  salutation?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  religion?: Prisma.StringNullableFilter<"UserSettings"> | string | null
+  onboardingCompleted?: Prisma.BoolFilter<"UserSettings"> | boolean
+  onboardingStep?: Prisma.IntFilter<"UserSettings"> | number
+  onboardingCompletedAt?: Prisma.DateTimeNullableFilter<"UserSettings"> | Date | string | null
   language?: Prisma.StringFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringFilter<"UserSettings"> | string
@@ -376,6 +430,11 @@ export type UserSettingsOrderByWithAggregationInput = {
   currency?: Prisma.SortOrderInput | Prisma.SortOrder
   currencyAuto?: Prisma.SortOrder
   prayerTrackingEnabled?: Prisma.SortOrder
+  salutation?: Prisma.SortOrderInput | Prisma.SortOrder
+  religion?: Prisma.SortOrderInput | Prisma.SortOrder
+  onboardingCompleted?: Prisma.SortOrder
+  onboardingStep?: Prisma.SortOrder
+  onboardingCompletedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -405,6 +464,11 @@ export type UserSettingsScalarWhereWithAggregatesInput = {
   currency?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
   currencyAuto?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
   prayerTrackingEnabled?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
+  salutation?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  religion?: Prisma.StringNullableWithAggregatesFilter<"UserSettings"> | string | null
+  onboardingCompleted?: Prisma.BoolWithAggregatesFilter<"UserSettings"> | boolean
+  onboardingStep?: Prisma.IntWithAggregatesFilter<"UserSettings"> | number
+  onboardingCompletedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"UserSettings"> | Date | string | null
   language?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
   weekStartDay?: Prisma.IntWithAggregatesFilter<"UserSettings"> | number
   themeAccent?: Prisma.StringWithAggregatesFilter<"UserSettings"> | string
@@ -425,6 +489,11 @@ export type UserSettingsCreateInput = {
   currency?: string | null
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: string | null
+  religion?: string | null
+  onboardingCompleted?: boolean
+  onboardingStep?: number
+  onboardingCompletedAt?: Date | string | null
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -447,6 +516,11 @@ export type UserSettingsUncheckedCreateInput = {
   currency?: string | null
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: string | null
+  religion?: string | null
+  onboardingCompleted?: boolean
+  onboardingStep?: number
+  onboardingCompletedAt?: Date | string | null
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -467,6 +541,11 @@ export type UserSettingsUpdateInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -489,6 +568,11 @@ export type UserSettingsUncheckedUpdateInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -510,6 +594,11 @@ export type UserSettingsCreateManyInput = {
   currency?: string | null
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: string | null
+  religion?: string | null
+  onboardingCompleted?: boolean
+  onboardingStep?: number
+  onboardingCompletedAt?: Date | string | null
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -530,6 +619,11 @@ export type UserSettingsUpdateManyMutationInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -551,6 +645,11 @@ export type UserSettingsUncheckedUpdateManyInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -577,6 +676,11 @@ export type UserSettingsCountOrderByAggregateInput = {
   currency?: Prisma.SortOrder
   currencyAuto?: Prisma.SortOrder
   prayerTrackingEnabled?: Prisma.SortOrder
+  salutation?: Prisma.SortOrder
+  religion?: Prisma.SortOrder
+  onboardingCompleted?: Prisma.SortOrder
+  onboardingStep?: Prisma.SortOrder
+  onboardingCompletedAt?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -589,6 +693,7 @@ export type UserSettingsCountOrderByAggregateInput = {
 }
 
 export type UserSettingsAvgOrderByAggregateInput = {
+  onboardingStep?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   audioVolume?: Prisma.SortOrder
 }
@@ -603,6 +708,11 @@ export type UserSettingsMaxOrderByAggregateInput = {
   currency?: Prisma.SortOrder
   currencyAuto?: Prisma.SortOrder
   prayerTrackingEnabled?: Prisma.SortOrder
+  salutation?: Prisma.SortOrder
+  religion?: Prisma.SortOrder
+  onboardingCompleted?: Prisma.SortOrder
+  onboardingStep?: Prisma.SortOrder
+  onboardingCompletedAt?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -622,6 +732,11 @@ export type UserSettingsMinOrderByAggregateInput = {
   currency?: Prisma.SortOrder
   currencyAuto?: Prisma.SortOrder
   prayerTrackingEnabled?: Prisma.SortOrder
+  salutation?: Prisma.SortOrder
+  religion?: Prisma.SortOrder
+  onboardingCompleted?: Prisma.SortOrder
+  onboardingStep?: Prisma.SortOrder
+  onboardingCompletedAt?: Prisma.SortOrder
   language?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   themeAccent?: Prisma.SortOrder
@@ -632,6 +747,7 @@ export type UserSettingsMinOrderByAggregateInput = {
 }
 
 export type UserSettingsSumOrderByAggregateInput = {
+  onboardingStep?: Prisma.SortOrder
   weekStartDay?: Prisma.SortOrder
   audioVolume?: Prisma.SortOrder
 }
@@ -693,6 +809,11 @@ export type UserSettingsCreateWithoutUserInput = {
   currency?: string | null
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: string | null
+  religion?: string | null
+  onboardingCompleted?: boolean
+  onboardingStep?: number
+  onboardingCompletedAt?: Date | string | null
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -713,6 +834,11 @@ export type UserSettingsUncheckedCreateWithoutUserInput = {
   currency?: string | null
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: string | null
+  religion?: string | null
+  onboardingCompleted?: boolean
+  onboardingStep?: number
+  onboardingCompletedAt?: Date | string | null
   language?: string
   weekStartDay?: number
   themeAccent?: string
@@ -749,6 +875,11 @@ export type UserSettingsUpdateWithoutUserInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -769,6 +900,11 @@ export type UserSettingsUncheckedUpdateWithoutUserInput = {
   currency?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   currencyAuto?: Prisma.BoolFieldUpdateOperationsInput | boolean
   prayerTrackingEnabled?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  salutation?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  religion?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
+  onboardingCompleted?: Prisma.BoolFieldUpdateOperationsInput | boolean
+  onboardingStep?: Prisma.IntFieldUpdateOperationsInput | number
+  onboardingCompletedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   language?: Prisma.StringFieldUpdateOperationsInput | string
   weekStartDay?: Prisma.IntFieldUpdateOperationsInput | number
   themeAccent?: Prisma.StringFieldUpdateOperationsInput | string
@@ -792,6 +928,11 @@ export type UserSettingsSelect<ExtArgs extends runtime.Types.Extensions.Internal
   currency?: boolean
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: boolean
+  religion?: boolean
+  onboardingCompleted?: boolean
+  onboardingStep?: boolean
+  onboardingCompletedAt?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -814,6 +955,11 @@ export type UserSettingsSelectCreateManyAndReturn<ExtArgs extends runtime.Types.
   currency?: boolean
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: boolean
+  religion?: boolean
+  onboardingCompleted?: boolean
+  onboardingStep?: boolean
+  onboardingCompletedAt?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -836,6 +982,11 @@ export type UserSettingsSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.
   currency?: boolean
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: boolean
+  religion?: boolean
+  onboardingCompleted?: boolean
+  onboardingStep?: boolean
+  onboardingCompletedAt?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -858,6 +1009,11 @@ export type UserSettingsSelectScalar = {
   currency?: boolean
   currencyAuto?: boolean
   prayerTrackingEnabled?: boolean
+  salutation?: boolean
+  religion?: boolean
+  onboardingCompleted?: boolean
+  onboardingStep?: boolean
+  onboardingCompletedAt?: boolean
   language?: boolean
   weekStartDay?: boolean
   themeAccent?: boolean
@@ -869,7 +1025,7 @@ export type UserSettingsSelectScalar = {
   updatedAt?: boolean
 }
 
-export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "countryCode" | "governorate" | "city" | "currency" | "currencyAuto" | "prayerTrackingEnabled" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "audioEnabled" | "audioVolume" | "plannerConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
+export type UserSettingsOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "timezone" | "countryCode" | "governorate" | "city" | "currency" | "currencyAuto" | "prayerTrackingEnabled" | "salutation" | "religion" | "onboardingCompleted" | "onboardingStep" | "onboardingCompletedAt" | "language" | "weekStartDay" | "themeAccent" | "dashboardConfig" | "audioEnabled" | "audioVolume" | "plannerConfig" | "createdAt" | "updatedAt", ExtArgs["result"]["userSettings"]>
 export type UserSettingsInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
 }
@@ -895,6 +1051,11 @@ export type $UserSettingsPayload<ExtArgs extends runtime.Types.Extensions.Intern
     currency: string | null
     currencyAuto: boolean
     prayerTrackingEnabled: boolean
+    salutation: string | null
+    religion: string | null
+    onboardingCompleted: boolean
+    onboardingStep: number
+    onboardingCompletedAt: Date | null
     language: string
     weekStartDay: number
     themeAccent: string
@@ -1337,6 +1498,11 @@ export interface UserSettingsFieldRefs {
   readonly currency: Prisma.FieldRef<"UserSettings", 'String'>
   readonly currencyAuto: Prisma.FieldRef<"UserSettings", 'Boolean'>
   readonly prayerTrackingEnabled: Prisma.FieldRef<"UserSettings", 'Boolean'>
+  readonly salutation: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly religion: Prisma.FieldRef<"UserSettings", 'String'>
+  readonly onboardingCompleted: Prisma.FieldRef<"UserSettings", 'Boolean'>
+  readonly onboardingStep: Prisma.FieldRef<"UserSettings", 'Int'>
+  readonly onboardingCompletedAt: Prisma.FieldRef<"UserSettings", 'DateTime'>
   readonly language: Prisma.FieldRef<"UserSettings", 'String'>
   readonly weekStartDay: Prisma.FieldRef<"UserSettings", 'Int'>
   readonly themeAccent: Prisma.FieldRef<"UserSettings", 'String'>

@@ -661,64 +661,18 @@ export const GYM_WORKOUTS_DATA = {
   ]
 };
 
-// Nutrition Database
+// Legacy Nutrition export — emptied so new/empty users never receive demo meals or fake consumption
 export const NUTRITION_DATA = {
-  dailyTargets: {
-    calories: 2400,
-    protein: 160,
-    carbs: 260,
-    fat: 65,
-    waterLiters: 3.5,
-  },
+  dailyTargets: null,
   todayLogged: {
-    calories: 2150,
-    protein: 148,
-    carbs: 220,
-    fat: 55,
-    waterLiters: 3.0,
+    calories: 0,
+    protein: 0,
+    carbs: 0,
+    fat: 0,
+    waterMl: 0,
+    waterLiters: 0,
   },
-  meals: [
-    {
-      id: "m1",
-      name: "إفطار الأبطال الصباحي",
-      time: "07:00",
-      calories: 550,
-      protein: 36,
-      carbs: 60,
-      fat: 18,
-      items: ["4 بيضات بلدي (2 كاملة + 2 بياض)", "شوفان كامل الحبة مع حليب لوز وقرفة", "موزة طازجة وملعقة عسل نحل"]
-    },
-    {
-      id: "m2",
-      name: "غداء عالي البروتين بعد العمل",
-      time: "13:30",
-      calories: 780,
-      protein: 58,
-      carbs: 85,
-      fat: 22,
-      items: ["250 جم صدر دجاج متبل مشوي", "كوب أرز بسمتي بني", "صحن سلطة خضراء غنية بزيت الزيتون"]
-    },
-    {
-      id: "m3",
-      name: "وجبة ما قبل التمرين (Pre-Workout)",
-      time: "15:15",
-      calories: 280,
-      protein: 14,
-      carbs: 45,
-      fat: 4,
-      items: ["شريحة خبز حبوب كاملة مع زبدة فول سوداني", "قهوة سوداء سادة (إسبريسو)"]
-    },
-    {
-      id: "m4",
-      name: "عشاء الاستشفاء الليلي",
-      time: "20:00",
-      calories: 540,
-      protein: 40,
-      carbs: 30,
-      fat: 11,
-      items: ["علبة تونة بالماء مع ليمون وكمون", "جبن قريش طبيعي بزيت حبة البركة", "خيار وطماطم وخس"]
-    }
-  ]
+  meals: [],
 };
 
 // Expenses Database

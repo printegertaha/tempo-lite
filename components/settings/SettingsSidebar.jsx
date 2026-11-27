@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ChevronLeft,
 } from "lucide-react";
+import { isIslamicFeatureVisible } from "@/lib/onboarding";
 
 /**
  * Configuration of settings sections shown in both desktop sidebar and mobile pill bar.
@@ -87,8 +88,13 @@ export default function SettingsSidebar({
   onSelectSection,
   profile,
   isCloudUser,
+  isProfileLoading = false,
 }) {
   const mobileItemRefs = useRef({});
+  const showIslamic = isIslamicFeatureVisible(profile);
+  const visibleSections = SETTINGS_SECTIONS.filter(
+    (s) => s.id !== "prayers" || showIslamic
+  );
 
   useEffect(() => {
     const activeEl = mobileItemRefs.current[activeSection];
@@ -101,7 +107,7 @@ export default function SettingsSidebar({
     }
   }, [activeSection]);
 
-  const groups = Array.from(new Set(SETTINGS_SECTIONS.map((s) => s.group)));
+  const groups = Array.from(new Set(visibleSections.map((s) => s.group)));
   const avatarSrc = profile?.image;
 
   return (
@@ -112,7 +118,7 @@ export default function SettingsSidebar({
         className="lg:hidden -mx-1 px-1 pb-1 overflow-x-auto no-scrollbar"
       >
         <div className="flex flex-nowrap items-center gap-2 min-w-max">
-          {SETTINGS_SECTIONS.map((item) => {
+          {visibleSections.map((item) => {
             const Icon = item.icon;
             const isActive = activeSection === item.id;
             return (
@@ -153,34 +159,46 @@ export default function SettingsSidebar({
         <div className="sticky top-24 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl p-4 space-y-5 backdrop-blur-xl">
           {/* Compact Identity Mini Card */}
           <div className="flex items-center gap-3 p-3 rounded-2xl bg-zinc-900/70 border border-zinc-800/80">
-            {avatarSrc ? (
-              /* eslint-disable-next-line @next/next/no-img-element */
-              <img
-                src={avatarSrc}
-                alt={profile?.name || "المستخدم"}
-                referrerPolicy="no-referrer"
-                className="w-11 h-11 rounded-xl object-cover border border-violet-500/30 shrink-0"
-              />
+            {isProfileLoading ? (
+              <>
+                <div className="w-11 h-11 rounded-xl bg-zinc-800 animate-pulse shrink-0 border border-zinc-700/50" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="h-3.5 w-24 rounded bg-zinc-800 animate-pulse" />
+                  <div className="h-2.5 w-28 rounded bg-zinc-800/70 animate-pulse" />
+                </div>
+              </>
             ) : (
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center text-white font-black text-base shrink-0 border border-violet-400/30">
-                {profile?.name?.charAt(0) || "أ"}
-              </div>
-            )}
+              <>
+                {avatarSrc ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={avatarSrc}
+                    alt={profile?.name || "المستخدم"}
+                    referrerPolicy="no-referrer"
+                    className="w-11 h-11 rounded-xl object-cover border border-violet-500/30 shrink-0"
+                  />
+                ) : (
+                  <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center text-white font-black text-base shrink-0 border border-violet-400/30">
+                    {profile?.name?.charAt(0) || "أ"}
+                  </div>
+                )}
 
-            <div className="min-w-0 flex-1">
-              <p className="text-xs font-bold text-zinc-100 truncate" suppressHydrationWarning>
-                {profile?.name || "مستخدم أثـر"}
-              </p>
-              <p className="text-[11px] text-zinc-400 truncate mt-0.5" suppressHydrationWarning>
-                {isCloudUser ? "حساب سحابي متزامن" : "وضع التفضيلات المحلية"}
-              </p>
-            </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-bold text-zinc-100 truncate" suppressHydrationWarning>
+                    {profile?.name || "مستخدم أثـر"}
+                  </p>
+                  <p className="text-[11px] text-zinc-400 truncate mt-0.5" suppressHydrationWarning>
+                    {isCloudUser ? "حساب سحابي متزامن" : "وضع التفضيلات المحلية"}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Grouped Vertical Navigation */}
           <nav aria-label="أقسام الإعدادات" className="space-y-4">
             {groups.map((groupTitle) => {
-              const items = SETTINGS_SECTIONS.filter((s) => s.group === groupTitle);
+              const items = visibleSections.filter((s) => s.group === groupTitle);
               return (
                 <div key={groupTitle} className="space-y-1.5">
                   <div className="px-2.5 text-[11px] font-bold text-zinc-500">

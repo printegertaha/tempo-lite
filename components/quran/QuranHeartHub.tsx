@@ -4,6 +4,9 @@ import React, { useState, useEffect, useMemo, useRef, useId } from "react";
 import { QURAN_SURAHS, TOTAL_QURAN_AYAHS, TOTAL_QURAN_SURAHS } from "@/lib/quranData";
 import QuranHeartVisualizer from "./QuranHeartVisualizer";
 import { soundManager } from "@/lib/audio";
+import { useAthar } from "@/components/context/AtharContext";
+import { useProgressRouter } from "@/hooks/useProgressRouter";
+import { isIslamicFeatureVisible } from "@/lib/onboarding";
 import {
   Heart,
   Sparkles,
@@ -25,6 +28,16 @@ import {
 const STORAGE_KEY = "athar_quran_memorization_v1";
 
 export default function QuranHeartHub() {
+  const router = useProgressRouter();
+  const { userPreferences } = (useAthar() || {}) as any;
+  const showIslamic = isIslamicFeatureVisible(userPreferences);
+
+  useEffect(() => {
+    if (userPreferences?.onboardingCompleted && !showIslamic) {
+      router.replace("/");
+    }
+  }, [userPreferences?.onboardingCompleted, showIslamic, router]);
+
   const [memorizedIds, setMemorizedIds] = useState<number[]>([]);
   const [selectedSurahId, setSelectedSurahId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -273,6 +286,10 @@ export default function QuranHeartHub() {
       </button>
     </div>
   );
+
+  if (userPreferences?.onboardingCompleted && !showIslamic) {
+    return null;
+  }
 
   return (
     <div className="min-h-screen bg-[#08090d] text-zinc-100 pb-24 selection:bg-rose-500/30">

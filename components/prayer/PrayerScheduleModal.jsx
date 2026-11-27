@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Clock, Check, X, Sparkles, Settings } from "lucide-react";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 export default function PrayerScheduleModal({
   isOpen,
@@ -65,12 +66,11 @@ export default function PrayerScheduleModal({
           {Object.entries(schedule).map(([key, data]) => (
             <div key={key} className="flex items-center justify-between p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800">
               <span className="text-xs font-bold text-zinc-200">{data.name}</span>
-              <input
-                type="time"
+              <TimePickerField
                 value={data.scheduledTime}
-                onChange={(e) => handleChangeTime(key, e.target.value)}
-                className="px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-700 font-mono text-xs text-zinc-100 focus:outline-none focus:border-emerald-500"
-                required
+                onChange={(t) => handleChangeTime(key, t)}
+                title={`تحديد وقت ${data.name}`}
+                className="px-3 py-1.5 rounded-xl bg-zinc-950 border border-zinc-700 font-mono text-xs text-zinc-100 min-w-[115px]"
               />
             </div>
           ))}

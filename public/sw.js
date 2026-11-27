@@ -1,11 +1,11 @@
 // Athar (أثـر) — Offline-First Service Worker
-const CACHE_VERSION = 'athar-v1.1.0';
+const CACHE_VERSION = 'athar-v1.2.0';
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
 // Pre-cached assets for instant offline startup
 const PRECACHE_URLS = [
-  '/',
+  '/welcome',
   '/manifest.json',
   '/offline.html',
   '/icon.svg',
@@ -15,6 +15,7 @@ const PRECACHE_URLS = [
 
 // Essential app routes to proactively pre-cache for offline navigation
 const CORE_ROUTES = [
+  '/welcome',
   '/',
   '/tasks',
   '/habits',
@@ -36,11 +37,11 @@ self.addEventListener('install', (event) => {
       // 1. Precache offline fallback and core static assets
       await cache.addAll(PRECACHE_URLS);
 
-      // 2. Precache core app routes gracefully (don't fail install if a route has temporary issue)
+      // 2. Precache core app routes gracefully (skip redirected responses)
       for (const route of CORE_ROUTES) {
         try {
-          const res = await fetch(route, { credentials: 'same-origin' });
-          if (res.ok) {
+          const res = await fetch(route, { credentials: 'same-origin', redirect: 'manual' });
+          if (res.status === 200) {
             await cache.put(route, res);
           }
         } catch {

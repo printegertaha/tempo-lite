@@ -122,6 +122,11 @@ export type GymWorkout = Prisma.GymWorkoutModel
  */
 export type MealEntry = Prisma.MealEntryModel
 /**
+ * Model WaterEntry
+ * 
+ */
+export type WaterEntry = Prisma.WaterEntryModel
+/**
  * Model ExpenseEntry
  * 
  */
@@ -131,3 +136,13 @@ export type ExpenseEntry = Prisma.ExpenseEntryModel
  * 
  */
 export type PrayerRecord = Prisma.PrayerRecordModel
+/**
+ * Model TaskSession
+ * 
+ */
+export type TaskSession = Prisma.TaskSessionModel
+/**
+ * Model EntityRevision
+ * 
+ */
+export type EntityRevision = Prisma.EntityRevisionModel

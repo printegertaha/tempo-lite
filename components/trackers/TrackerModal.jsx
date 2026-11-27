@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import HorizontalFormCarousel from "@/components/ui/HorizontalFormCarousel";
 import {
   X,
   Check,
@@ -28,6 +29,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { saveTrackerLocalFirst } from "@/lib/local-db/habit-ops";
+import TimePickerField from "@/components/ui/TimePickerField";
 import { LIFE_AREA_COLORS } from "@/lib/validations/life-area";
 import {
   TRACKER_METRIC_TYPES,
@@ -325,8 +327,18 @@ function TrackerForm({
   ];
 
   return (
-    <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-      {/* 1. Metric Type Selector */}
+    <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-4">
+      <HorizontalFormCarousel
+        resetKey={editingTracker?.id || "create-new-tracker"}
+        sections={[
+          { id: "type-info", title: "نوع التتبع والبيانات الأساسية" },
+          { id: "target-priority", title: "الهدف والقياس والأولوية" },
+          { id: "schedule", title: "الجدول والأيام النشطة" },
+          { id: "color", title: "اللون المميز" },
+        ]}
+      >
+      {/* 1. Metric Type + Basic Info */}
+      <div className="space-y-4">
       <div className="space-y-2.5">
         <label className="block text-xs font-semibold text-zinc-300">
           نوع التتبع والقياس (Metric Type) <span className="text-rose-400">*</span>
@@ -407,9 +419,10 @@ function TrackerForm({
           />
         </div>
       </div>
+      </div>
 
-      {/* 3. Type-Specific Config & Targets */}
-      <div className="p-4 rounded-2xl bg-zinc-900/40 border border-zinc-800 space-y-4">
+      {/* 2. Type-Specific Config & Targets */}
+      <div className="space-y-4">
         <h4 className="text-xs font-bold text-zinc-200 flex items-center gap-2">
           <Sparkles className="w-4 h-4 text-violet-400" />
           <span>إعدادات الهدف والقياس المخصص ({METRIC_TYPE_METADATA[metricType]?.shortLabel})</span>
@@ -473,21 +486,21 @@ function TrackerForm({
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                 وقت البدء الافتراضي (HH:MM)
               </label>
-              <input
-                type="time"
+              <TimePickerField
                 value={timeRangeStart}
-                onChange={(e) => setTimeRangeStart(e.target.value)}
+                onChange={(t) => setTimeRangeStart(t)}
+                title="تحديد وقت البدء الافتراضي"
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100"
               />
             </div>
             <div>
               <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                وقت الانتهاء الافتراضي (HH:MM)
+                وقت الانتهاء الافتراضي
               </label>
-              <input
-                type="time"
+              <TimePickerField
                 value={timeRangeEnd}
-                onChange={(e) => setTimeRangeEnd(e.target.value)}
+                onChange={(t) => setTimeRangeEnd(t)}
+                title="تحديد وقت الانتهاء الافتراضي"
                 className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100"
               />
             </div>
@@ -577,8 +590,8 @@ function TrackerForm({
         </div>
       </div>
 
-      {/* 4. Flexible Schedule Configuration */}
-      <div className="space-y-3 pt-2 border-t border-zinc-800/80">
+      {/* 3. Flexible Schedule Configuration */}
+      <div className="space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold text-zinc-300">
             جدول التكرار والأيام النشطة
@@ -632,8 +645,8 @@ function TrackerForm({
         )}
       </div>
 
-      {/* 5. Color & Icon Selector */}
-      <div className="space-y-3 pt-2 border-t border-zinc-800/80">
+      {/* 4. Color & Icon Selector */}
+      <div className="space-y-3">
         <div>
           <label className="block text-xs font-semibold text-zinc-300 mb-2">
             اللون المميز
@@ -656,27 +669,28 @@ function TrackerForm({
           </div>
         </div>
       </div>
+      </HorizontalFormCarousel>
 
       {/* Modal Footer Actions */}
-      <div className="flex items-center justify-end gap-3 pt-4 border-t border-zinc-800 shrink-0">
-        <button
-          type="button"
-          onClick={onClose}
-          className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-medium transition-colors cursor-pointer"
-        >
-          إلغاء
-        </button>
+      <div className="flex items-center justify-start gap-2.5 pt-4 border-t border-zinc-800 shrink-0">
         <button
           type="submit"
           disabled={isSubmitting}
-          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer"
+          className="flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs max-[400px]:text-[11px] font-bold shadow-lg shadow-violet-600/30 transition-all cursor-pointer whitespace-nowrap shrink-0"
         >
           {isSubmitting ? (
-            <Loader2 className="w-4 h-4 animate-spin" />
+            <Loader2 className="w-4 h-4 animate-spin shrink-0" />
           ) : (
-            <Check className="w-4 h-4" />
+            <Check className="w-4 h-4 shrink-0" />
           )}
           <span>{isEditing ? "حفظ التعديلات" : "إنشاء المتعقب"}</span>
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="px-4 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs max-[400px]:text-[11px] font-medium transition-colors cursor-pointer whitespace-nowrap shrink-0"
+        >
+          إلغاء
         </button>
       </div>
     </form>

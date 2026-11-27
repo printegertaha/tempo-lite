@@ -6,6 +6,8 @@ export const SyncBatchMutationSchema = z.object({
   mutationId: z.string().min(1),
   entityType: z.enum([
     "task",
+    "task_session",
+    "entity_revision",
     "tracker",
     "tracker_entry",
     "daily_note",
@@ -14,6 +16,7 @@ export const SyncBatchMutationSchema = z.object({
     "life_area",
     "gym_workout",
     "meal_entry",
+    "water_entry",
     "expense_entry",
     "prayer_record",
     "user_settings",
@@ -216,6 +219,7 @@ export async function processSyncBatch(
                     isRecurring: Boolean(mut.payload.isRecurring),
                     subtasks: mut.payload.subtasks ?? [],
                     tags: mut.payload.tags ?? [],
+                    ...(mut.payload.youtubeMeta !== undefined ? { youtubeMeta: mut.payload.youtubeMeta } : {}),
                     sortOrder: mut.payload.sortOrder ?? 0,
                     lifeAreaId: safeLifeAreaId,
                     trackerId: safeTrackerId,
@@ -240,6 +244,7 @@ export async function processSyncBatch(
                     isRecurring: Boolean(mut.payload.isRecurring),
                     subtasks: mut.payload.subtasks ?? [],
                     tags: mut.payload.tags ?? [],
+                    ...(mut.payload.youtubeMeta !== undefined ? { youtubeMeta: mut.payload.youtubeMeta } : {}),
                     sortOrder: mut.payload.sortOrder ?? 0,
                     version: (mut.payload.version ?? 1) + 1,
                     lifeAreaId: safeLifeAreaId,
@@ -334,7 +339,158 @@ export async function processSyncBatch(
             serverVersion = updated.version;
             serverUpdatedAt = updated.updatedAt.toISOString();
           } else if (mut.action === "delete") {
+            const taskSessions = await tx.taskSession.findMany({
+              where: { userId, taskId: mut.entityId },
+              select: { id: true },
+            });
+            const sessionIds = taskSessions.map((s) => s.id);
+            if (sessionIds.length > 0) {
+              await tx.trackerEntry.deleteMany({
+                where: { userId, id: { in: sessionIds } },
+              });
+              await tx.entityRevision.deleteMany({
+                where: { userId, entityType: "task_session", entityId: { in: sessionIds } },
+              });
+            }
+            await tx.taskSession.deleteMany({
+              where: { userId, taskId: mut.entityId },
+            });
+            await tx.entityRevision.deleteMany({
+              where: { userId, entityType: "task", entityId: mut.entityId },
+            });
             await tx.task.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+          }
+        } else if (mut.entityType === "task_session") {
+          if (mut.action === "create" || mut.action === "update") {
+            const existingOwner = await tx.taskSession.findUnique({
+              where: { id: mut.entityId },
+              select: { id: true, userId: true },
+            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            // Enforce permanent task deletion precedence: ignore sessions whose parent task has a deletion tombstone
+            if (mut.payload.taskId) {
+              const taskDeletedReceipt = await tx.mutationReceipt.findFirst({
+                where: {
+                  userId,
+                  entityType: "task",
+                  entityId: String(mut.payload.taskId),
+                  action: "delete",
+                },
+                select: { id: true },
+              });
+              if (taskDeletedReceipt) {
+                serverUpdatedAt = new Date().toISOString();
+                await tx.mutationReceipt.create({
+                  data: {
+                    id: mut.mutationId,
+                    userId,
+                    entityType: mut.entityType,
+                    entityId: mut.entityId,
+                    action: mut.action,
+                  },
+                });
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "applied" as const,
+                  serverUpdatedAt,
+                };
+              }
+            }
+
+            if (existingOwner) {
+              const updatedSess = await tx.taskSession.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.status !== undefined ? { status: mut.payload.status } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                  ...(mut.payload.taskTitleSnapshot !== undefined
+                    ? { taskTitleSnapshot: mut.payload.taskTitleSnapshot }
+                    : {}),
+                  ...(mut.payload.taskDescriptionSnapshot !== undefined
+                    ? { taskDescriptionSnapshot: mut.payload.taskDescriptionSnapshot }
+                    : {}),
+                  ...(mut.payload.subtasksSnapshot !== undefined
+                    ? { subtasksSnapshot: mut.payload.subtasksSnapshot }
+                    : {}),
+                  ...(mut.payload.durationSeconds !== undefined
+                    ? { durationSeconds: mut.payload.durationSeconds }
+                    : {}),
+                },
+              });
+              serverUpdatedAt = updatedSess.updatedAt.toISOString();
+            } else {
+              if (!mut.payload.taskId || !mut.payload.localDate) {
+                throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "taskId and localDate required");
+              }
+              const createdSess = await tx.taskSession.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  taskId: mut.payload.taskId,
+                  trackerId: mut.payload.trackerId ?? null,
+                  localDate: mut.payload.localDate,
+                  startedAt: parseOptionalDate(mut.payload.startedAt),
+                  endedAt: parseOptionalDate(mut.payload.endedAt),
+                  durationSeconds:
+                    mut.payload.durationSeconds !== undefined && mut.payload.durationSeconds !== null
+                      ? Number(mut.payload.durationSeconds)
+                      : null,
+                  status: mut.payload.status || "completed",
+                  completionSource: mut.payload.completionSource || "timer",
+                  isEstimated: Boolean(mut.payload.isEstimated),
+                  completedCycles: Number(mut.payload.completedCycles) || 0,
+                  taskTitleSnapshot: mut.payload.taskTitleSnapshot || "مهمة",
+                  taskDescriptionSnapshot: mut.payload.taskDescriptionSnapshot ?? null,
+                  subtasksSnapshot: mut.payload.subtasksSnapshot ?? [],
+                  lifeAreaIdSnapshot: mut.payload.lifeAreaIdSnapshot ?? null,
+                  lifeAreaNameSnapshot: mut.payload.lifeAreaNameSnapshot ?? null,
+                  notes: mut.payload.notes ?? null,
+                },
+              });
+              serverUpdatedAt = createdSess.updatedAt.toISOString();
+            }
+          } else if (mut.action === "delete") {
+            await tx.taskSession.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+          }
+        } else if (mut.entityType === "entity_revision") {
+          if (mut.action === "create" || mut.action === "update") {
+            const existingOwner = await tx.entityRevision.findUnique({
+              where: { id: mut.entityId },
+              select: { id: true, userId: true },
+            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            if (!mut.payload.entityType || !mut.payload.entityId) {
+              throw new PermanentSyncError("MISSING_REQUIRED_FIELD", "entityType and entityId required");
+            }
+            if (!existingOwner) {
+              const createdRev = await tx.entityRevision.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  entityType: mut.payload.entityType,
+                  entityId: mut.payload.entityId,
+                  localDate: mut.payload.localDate ?? null,
+                  revisionNumber: Number(mut.payload.revisionNumber) || 1,
+                  previousValues: mut.payload.previousValues ?? {},
+                  newValues: mut.payload.newValues ?? {},
+                  editedBy: mut.payload.editedBy || userId,
+                  editedAt: parseOptionalDate(mut.payload.editedAt) || new Date(),
+                  reason: mut.payload.reason ?? null,
+                },
+              });
+              serverUpdatedAt = createdRev.updatedAt.toISOString();
+            }
+          } else if (mut.action === "delete") {
+            await tx.entityRevision.deleteMany({
               where: { id: mut.entityId, userId },
             });
           }
@@ -545,12 +701,17 @@ export async function processSyncBatch(
                 where: { id: mut.entityId },
                 data: {
                   ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
+                  ...(mut.payload.time !== undefined ? { time: mut.payload.time } : {}),
                   ...(mut.payload.mealType !== undefined ? { mealType: mut.payload.mealType } : {}),
                   ...(mut.payload.title !== undefined ? { title: mut.payload.title } : {}),
-                  ...(mut.payload.calories !== undefined ? { calories: Number(mut.payload.calories) || 0 } : {}),
+                  ...(mut.payload.calories !== undefined ? { calories: Math.round(Number(mut.payload.calories) || 0) } : {}),
                   ...(mut.payload.protein !== undefined ? { protein: Number(mut.payload.protein) || 0 } : {}),
                   ...(mut.payload.carbs !== undefined ? { carbs: Number(mut.payload.carbs) || 0 } : {}),
                   ...(mut.payload.fat !== undefined ? { fat: Number(mut.payload.fat) || 0 } : {}),
+                  ...(mut.payload.items !== undefined ? { items: Array.isArray(mut.payload.items) ? mut.payload.items : [] } : {}),
+                  ...(mut.payload.dailyTargetsSnapshot !== undefined
+                    ? { dailyTargetsSnapshot: mut.payload.dailyTargetsSnapshot }
+                    : {}),
                   ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
                 },
               });
@@ -561,18 +722,74 @@ export async function processSyncBatch(
                   id: mut.entityId,
                   userId,
                   date: mut.payload.date || new Date().toISOString().split("T")[0],
+                  time: mut.payload.time || null,
                   mealType: mut.payload.mealType || "lunch",
                   title: mut.payload.title || "وجبة",
-                  calories: Number(mut.payload.calories) || 0,
+                  calories: Math.round(Number(mut.payload.calories) || 0),
                   protein: Number(mut.payload.protein) || 0,
                   carbs: Number(mut.payload.carbs) || 0,
                   fat: Number(mut.payload.fat) || 0,
+                  items: Array.isArray(mut.payload.items) ? mut.payload.items : [],
+                  dailyTargetsSnapshot: mut.payload.dailyTargetsSnapshot ?? undefined,
                   notes: mut.payload.notes || null,
                 },
               });
             }
           } else if (mut.action === "delete") {
             await tx.mealEntry.deleteMany({
+              where: { id: mut.entityId, userId },
+            });
+          }
+        } else if (mut.entityType === "water_entry") {
+          if (mut.action === "create" || mut.action === "update") {
+            const existingOwner = await tx.waterEntry.findUnique({
+              where: { id: mut.entityId },
+            });
+            if (existingOwner && existingOwner.userId !== userId) {
+              throw new PermanentSyncError("FORBIDDEN_ENTITY_ID");
+            }
+            const amountMl = Math.max(1, Math.round(Number(mut.payload.amountMl) || 0));
+            if (existingOwner) {
+              if (hasTimestampConflict(existingOwner.updatedAt, mut)) {
+                return {
+                  mutationId: mut.mutationId,
+                  entityId: mut.entityId,
+                  status: "conflict" as const,
+                  serverUpdatedAt: existingOwner.updatedAt.toISOString(),
+                  serverRecord: {
+                    ...existingOwner,
+                    occurredAt: existingOwner.occurredAt.toISOString(),
+                    createdAt: existingOwner.createdAt.toISOString(),
+                    updatedAt: existingOwner.updatedAt.toISOString(),
+                  },
+                };
+              }
+              const updatedWater = await tx.waterEntry.update({
+                where: { id: mut.entityId },
+                data: {
+                  ...(mut.payload.date !== undefined ? { date: mut.payload.date } : {}),
+                  ...(mut.payload.amountMl !== undefined ? { amountMl } : {}),
+                  ...(mut.payload.occurredAt ? { occurredAt: parseOptionalDate(mut.payload.occurredAt) || undefined } : {}),
+                  ...(mut.payload.source !== undefined ? { source: mut.payload.source } : {}),
+                  ...(mut.payload.notes !== undefined ? { notes: mut.payload.notes } : {}),
+                },
+              });
+              serverUpdatedAt = updatedWater.updatedAt.toISOString();
+            } else {
+              await tx.waterEntry.create({
+                data: {
+                  id: mut.entityId,
+                  userId,
+                  date: mut.payload.date || new Date().toISOString().split("T")[0],
+                  amountMl,
+                  occurredAt: parseOptionalDate(mut.payload.occurredAt) || new Date(),
+                  source: mut.payload.source || "nutrition",
+                  notes: mut.payload.notes || null,
+                },
+              });
+            }
+          } else if (mut.action === "delete") {
+            await tx.waterEntry.deleteMany({
               where: { id: mut.entityId, userId },
             });
           }
@@ -688,6 +905,43 @@ export async function processSyncBatch(
                   version: { increment: 1 },
                 },
               });
+
+              const versionAffectingChange =
+                mut.payload.name !== undefined ||
+                mut.payload.targetValue !== undefined ||
+                mut.payload.targetFrequency !== undefined ||
+                mut.payload.unit !== undefined ||
+                mut.payload.scheduleConfig !== undefined ||
+                mut.payload.trackerConfig !== undefined;
+
+              if (versionAffectingChange) {
+                const now = new Date();
+                await tx.trackerVersion.updateMany({
+                  where: { trackerId: tracker.id, validTo: null },
+                  data: { validTo: now },
+                });
+                const maxVer = await tx.trackerVersion.aggregate({
+                  where: { trackerId: tracker.id },
+                  _max: { versionNumber: true },
+                });
+                const nextVerNum = Math.max(tracker.version, (maxVer._max.versionNumber ?? 0) + 1);
+                await tx.trackerVersion.create({
+                  data: {
+                    trackerId: tracker.id,
+                    userId,
+                    versionNumber: nextVerNum,
+                    name: tracker.name,
+                    metricType: tracker.metricType,
+                    unit: tracker.unit,
+                    targetValue: tracker.targetValue,
+                    targetFrequency: tracker.targetFrequency,
+                    trackerConfig: tracker.trackerConfig ?? {},
+                    scheduleConfig: tracker.scheduleConfig ?? {},
+                    validFrom: now,
+                  },
+                });
+              }
+
               serverVersion = tracker.version;
               serverUpdatedAt = tracker.updatedAt.toISOString();
             } else {
@@ -736,6 +990,21 @@ export async function processSyncBatch(
                   version: (mut.payload.version ?? 1) + 1,
                   isPaused: Boolean(mut.payload.isPaused),
                   isArchived: Boolean(mut.payload.isArchived),
+                },
+              });
+              await tx.trackerVersion.create({
+                data: {
+                  trackerId: tracker.id,
+                  userId,
+                  versionNumber: 1,
+                  name: tracker.name,
+                  metricType: tracker.metricType,
+                  unit: tracker.unit,
+                  targetValue: tracker.targetValue,
+                  targetFrequency: tracker.targetFrequency,
+                  trackerConfig: tracker.trackerConfig ?? {},
+                  scheduleConfig: tracker.scheduleConfig ?? {},
+                  validFrom: tracker.createdAt,
                 },
               });
               serverVersion = tracker.version;
@@ -1024,7 +1293,11 @@ export async function processSyncBatch(
           if (mut.action === "create" || mut.action === "update") {
             const existingSettings = await tx.userSettings.findUnique({
               where: { userId },
-              select: { dashboardConfig: true, updatedAt: true },
+              select: {
+                dashboardConfig: true,
+                updatedAt: true,
+                onboardingCompletedAt: true,
+              },
             });
             const prevCfg =
               existingSettings?.dashboardConfig && typeof existingSettings.dashboardConfig === "object"
@@ -1041,17 +1314,36 @@ export async function processSyncBatch(
             delete mergedCfg.profileImage;
             delete mergedCfg.image;
 
+            const onboardingDone =
+              mut.payload.onboardingCompleted !== undefined
+                ? Boolean(mut.payload.onboardingCompleted)
+                : incomingCfg.onboardingCompleted !== undefined
+                  ? Boolean(incomingCfg.onboardingCompleted)
+                  : undefined;
+            const resolvedCompletedAt =
+              mut.payload.onboardingCompletedAt !== undefined
+                ? parseOptionalDate(mut.payload.onboardingCompletedAt)
+                : onboardingDone === true && !existingSettings?.onboardingCompletedAt
+                  ? new Date()
+                  : undefined;
+
             const savedSettings = await tx.userSettings.upsert({
               where: { userId },
               create: {
                 userId,
                 timezone: mut.payload.timezone || "Africa/Cairo",
-                countryCode: mut.payload.countryCode ?? null,
-                governorate: mut.payload.governorate ?? null,
+                countryCode: mut.payload.countryCode ?? "EG",
+                governorate: mut.payload.governorate ?? "القاهرة",
                 city: mut.payload.city ?? null,
-                currency: mut.payload.currency ? String(mut.payload.currency).toUpperCase() : null,
+                currency: mut.payload.currency ? String(mut.payload.currency).toUpperCase() : "EGP",
                 currencyAuto: mut.payload.currencyAuto ?? true,
                 prayerTrackingEnabled: mut.payload.prayerTrackingEnabled ?? true,
+                salutation: mut.payload.salutation ?? incomingCfg.salutation ?? null,
+                religion: mut.payload.religion ?? incomingCfg.religion ?? null,
+                onboardingCompleted: onboardingDone ?? false,
+                onboardingStep:
+                  Number(mut.payload.onboardingStep ?? incomingCfg.onboardingStep ?? 1) || 1,
+                onboardingCompletedAt: resolvedCompletedAt ?? null,
                 language: mut.payload.language || "ar",
                 weekStartDay: mut.payload.weekStartDay ?? 6,
                 themeAccent: mut.payload.themeAccent || "violet",
@@ -1069,6 +1361,15 @@ export async function processSyncBatch(
                 ...(mut.payload.prayerTrackingEnabled !== undefined
                   ? { prayerTrackingEnabled: Boolean(mut.payload.prayerTrackingEnabled) }
                   : {}),
+                ...(mut.payload.salutation !== undefined ? { salutation: mut.payload.salutation } : {}),
+                ...(mut.payload.religion !== undefined ? { religion: mut.payload.religion } : {}),
+                ...(onboardingDone !== undefined ? { onboardingCompleted: onboardingDone } : {}),
+                ...(mut.payload.onboardingStep !== undefined
+                  ? { onboardingStep: Number(mut.payload.onboardingStep) || 1 }
+                  : {}),
+                ...(resolvedCompletedAt !== undefined
+                  ? { onboardingCompletedAt: resolvedCompletedAt }
+                  : {}),
                 ...(mut.payload.weekStartDay !== undefined ? { weekStartDay: Number(mut.payload.weekStartDay) } : {}),
                 ...(mut.payload.themeAccent !== undefined ? { themeAccent: mut.payload.themeAccent } : {}),
                 dashboardConfig: mergedCfg,
@@ -1079,17 +1380,28 @@ export async function processSyncBatch(
               (mut.payload.profileName && typeof mut.payload.profileName === "string") ||
               mut.payload.profileImage !== undefined
             ) {
-              await tx.user.update({
+              const currentUser = await tx.user.findUnique({
                 where: { id: userId },
-                data: {
-                  ...(mut.payload.profileName && typeof mut.payload.profileName === "string"
-                    ? { name: mut.payload.profileName.trim() || "مستخدم أثـر" }
-                    : {}),
-                  ...(mut.payload.profileImage !== undefined
-                    ? { image: mut.payload.profileImage }
-                    : {}),
-                },
+                select: { name: true },
               });
+              const incomingName =
+                typeof mut.payload.profileName === "string"
+                  ? mut.payload.profileName.trim()
+                  : "";
+              const shouldUpdateName = Boolean(
+                incomingName && (!currentUser?.name?.trim() || mut.payload.forceProfileNameUpdate)
+              );
+              if (shouldUpdateName || mut.payload.profileImage !== undefined) {
+                await tx.user.update({
+                  where: { id: userId },
+                  data: {
+                    ...(shouldUpdateName ? { name: incomingName } : {}),
+                    ...(mut.payload.profileImage !== undefined
+                      ? { image: mut.payload.profileImage }
+                      : {}),
+                  },
+                });
+              }
             }
             serverUpdatedAt = savedSettings.updatedAt.toISOString();
           }

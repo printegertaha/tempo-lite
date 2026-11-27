@@ -413,8 +413,11 @@ export const ModelName = {
   MutationReceipt: 'MutationReceipt',
   GymWorkout: 'GymWorkout',
   MealEntry: 'MealEntry',
+  WaterEntry: 'WaterEntry',
   ExpenseEntry: 'ExpenseEntry',
-  PrayerRecord: 'PrayerRecord'
+  PrayerRecord: 'PrayerRecord',
+  TaskSession: 'TaskSession',
+  EntityRevision: 'EntityRevision'
 } as const
 
 export type ModelName = (typeof ModelName)[keyof typeof ModelName]
@@ -430,7 +433,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "session" | "account" | "verification" | "userSettings" | "lifeArea" | "tracker" | "trackerVersion" | "trackerEntry" | "task" | "dailyNote" | "abstinenceTracker" | "abstinenceSession" | "mutationReceipt" | "gymWorkout" | "mealEntry" | "expenseEntry" | "prayerRecord"
+    modelProps: "user" | "session" | "account" | "verification" | "userSettings" | "lifeArea" | "tracker" | "trackerVersion" | "trackerEntry" | "task" | "dailyNote" | "abstinenceTracker" | "abstinenceSession" | "mutationReceipt" | "gymWorkout" | "mealEntry" | "waterEntry" | "expenseEntry" | "prayerRecord" | "taskSession" | "entityRevision"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1618,6 +1621,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    WaterEntry: {
+      payload: Prisma.$WaterEntryPayload<ExtArgs>
+      fields: Prisma.WaterEntryFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.WaterEntryFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.WaterEntryFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        findFirst: {
+          args: Prisma.WaterEntryFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.WaterEntryFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        findMany: {
+          args: Prisma.WaterEntryFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>[]
+        }
+        create: {
+          args: Prisma.WaterEntryCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        createMany: {
+          args: Prisma.WaterEntryCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.WaterEntryCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>[]
+        }
+        delete: {
+          args: Prisma.WaterEntryDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        update: {
+          args: Prisma.WaterEntryUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        deleteMany: {
+          args: Prisma.WaterEntryDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.WaterEntryUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.WaterEntryUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>[]
+        }
+        upsert: {
+          args: Prisma.WaterEntryUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$WaterEntryPayload>
+        }
+        aggregate: {
+          args: Prisma.WaterEntryAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateWaterEntry>
+        }
+        groupBy: {
+          args: Prisma.WaterEntryGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WaterEntryGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.WaterEntryCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.WaterEntryCountAggregateOutputType> | number
+        }
+      }
+    }
     ExpenseEntry: {
       payload: Prisma.$ExpenseEntryPayload<ExtArgs>
       fields: Prisma.ExpenseEntryFieldRefs
@@ -1766,6 +1843,154 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    TaskSession: {
+      payload: Prisma.$TaskSessionPayload<ExtArgs>
+      fields: Prisma.TaskSessionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.TaskSessionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.TaskSessionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        findFirst: {
+          args: Prisma.TaskSessionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.TaskSessionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        findMany: {
+          args: Prisma.TaskSessionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>[]
+        }
+        create: {
+          args: Prisma.TaskSessionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        createMany: {
+          args: Prisma.TaskSessionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.TaskSessionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>[]
+        }
+        delete: {
+          args: Prisma.TaskSessionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        update: {
+          args: Prisma.TaskSessionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        deleteMany: {
+          args: Prisma.TaskSessionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.TaskSessionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.TaskSessionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>[]
+        }
+        upsert: {
+          args: Prisma.TaskSessionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$TaskSessionPayload>
+        }
+        aggregate: {
+          args: Prisma.TaskSessionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateTaskSession>
+        }
+        groupBy: {
+          args: Prisma.TaskSessionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TaskSessionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.TaskSessionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.TaskSessionCountAggregateOutputType> | number
+        }
+      }
+    }
+    EntityRevision: {
+      payload: Prisma.$EntityRevisionPayload<ExtArgs>
+      fields: Prisma.EntityRevisionFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.EntityRevisionFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.EntityRevisionFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        findFirst: {
+          args: Prisma.EntityRevisionFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.EntityRevisionFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        findMany: {
+          args: Prisma.EntityRevisionFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>[]
+        }
+        create: {
+          args: Prisma.EntityRevisionCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        createMany: {
+          args: Prisma.EntityRevisionCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.EntityRevisionCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>[]
+        }
+        delete: {
+          args: Prisma.EntityRevisionDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        update: {
+          args: Prisma.EntityRevisionUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        deleteMany: {
+          args: Prisma.EntityRevisionDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.EntityRevisionUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.EntityRevisionUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>[]
+        }
+        upsert: {
+          args: Prisma.EntityRevisionUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$EntityRevisionPayload>
+        }
+        aggregate: {
+          args: Prisma.EntityRevisionAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateEntityRevision>
+        }
+        groupBy: {
+          args: Prisma.EntityRevisionGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EntityRevisionGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.EntityRevisionCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.EntityRevisionCountAggregateOutputType> | number
+        }
+      }
+    }
   }
 } & {
   other: {
@@ -1873,6 +2098,11 @@ export const UserSettingsScalarFieldEnum = {
   currency: 'currency',
   currencyAuto: 'currencyAuto',
   prayerTrackingEnabled: 'prayerTrackingEnabled',
+  salutation: 'salutation',
+  religion: 'religion',
+  onboardingCompleted: 'onboardingCompleted',
+  onboardingStep: 'onboardingStep',
+  onboardingCompletedAt: 'onboardingCompletedAt',
   language: 'language',
   weekStartDay: 'weekStartDay',
   themeAccent: 'themeAccent',
@@ -1997,6 +2227,7 @@ export const TaskScalarFieldEnum = {
   subtasks: 'subtasks',
   version: 'version',
   tags: 'tags',
+  youtubeMeta: 'youtubeMeta',
   sortOrder: 'sortOrder',
   isArchived: 'isArchived',
   archivedAt: 'archivedAt',
@@ -2089,18 +2320,36 @@ export const MealEntryScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
   date: 'date',
+  time: 'time',
   mealType: 'mealType',
   title: 'title',
   calories: 'calories',
   protein: 'protein',
   carbs: 'carbs',
   fat: 'fat',
+  items: 'items',
+  dailyTargetsSnapshot: 'dailyTargetsSnapshot',
   notes: 'notes',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
 
 export type MealEntryScalarFieldEnum = (typeof MealEntryScalarFieldEnum)[keyof typeof MealEntryScalarFieldEnum]
+
+
+export const WaterEntryScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  date: 'date',
+  amountMl: 'amountMl',
+  occurredAt: 'occurredAt',
+  source: 'source',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type WaterEntryScalarFieldEnum = (typeof WaterEntryScalarFieldEnum)[keyof typeof WaterEntryScalarFieldEnum]
 
 
 export const ExpenseEntryScalarFieldEnum = {
@@ -2135,6 +2384,51 @@ export const PrayerRecordScalarFieldEnum = {
 } as const
 
 export type PrayerRecordScalarFieldEnum = (typeof PrayerRecordScalarFieldEnum)[keyof typeof PrayerRecordScalarFieldEnum]
+
+
+export const TaskSessionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  taskId: 'taskId',
+  trackerId: 'trackerId',
+  localDate: 'localDate',
+  startedAt: 'startedAt',
+  endedAt: 'endedAt',
+  durationSeconds: 'durationSeconds',
+  status: 'status',
+  completionSource: 'completionSource',
+  isEstimated: 'isEstimated',
+  completedCycles: 'completedCycles',
+  taskTitleSnapshot: 'taskTitleSnapshot',
+  taskDescriptionSnapshot: 'taskDescriptionSnapshot',
+  subtasksSnapshot: 'subtasksSnapshot',
+  lifeAreaIdSnapshot: 'lifeAreaIdSnapshot',
+  lifeAreaNameSnapshot: 'lifeAreaNameSnapshot',
+  notes: 'notes',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type TaskSessionScalarFieldEnum = (typeof TaskSessionScalarFieldEnum)[keyof typeof TaskSessionScalarFieldEnum]
+
+
+export const EntityRevisionScalarFieldEnum = {
+  id: 'id',
+  userId: 'userId',
+  entityType: 'entityType',
+  entityId: 'entityId',
+  localDate: 'localDate',
+  revisionNumber: 'revisionNumber',
+  previousValues: 'previousValues',
+  newValues: 'newValues',
+  editedBy: 'editedBy',
+  editedAt: 'editedAt',
+  reason: 'reason',
+  createdAt: 'createdAt',
+  updatedAt: 'updatedAt'
+} as const
+
+export type EntityRevisionScalarFieldEnum = (typeof EntityRevisionScalarFieldEnum)[keyof typeof EntityRevisionScalarFieldEnum]
 
 
 export const SortOrder = {
@@ -2490,8 +2784,11 @@ export type GlobalOmitConfig = {
   mutationReceipt?: Prisma.MutationReceiptOmit
   gymWorkout?: Prisma.GymWorkoutOmit
   mealEntry?: Prisma.MealEntryOmit
+  waterEntry?: Prisma.WaterEntryOmit
   expenseEntry?: Prisma.ExpenseEntryOmit
   prayerRecord?: Prisma.PrayerRecordOmit
+  taskSession?: Prisma.TaskSessionOmit
+  entityRevision?: Prisma.EntityRevisionOmit
 }
 
 /* Types for Logging */

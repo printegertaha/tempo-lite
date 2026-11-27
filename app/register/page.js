@@ -2,7 +2,8 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useProgressRouter } from "@/hooks/useProgressRouter";
 import { User, Mail, Lock, Loader2, Eye, EyeOff } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { getSafeReturnUrl } from "@/lib/auth-redirect";
@@ -10,7 +11,7 @@ import GoogleSignInButton from "@/components/auth/GoogleSignInButton";
 import AuthErrorBanner from "@/components/auth/AuthErrorBanner";
 
 function RegisterContent() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const searchParams = useSearchParams();
   const urlError = searchParams?.get("error");
   const urlRef = searchParams?.get("ref");
@@ -82,7 +83,7 @@ function RegisterContent() {
   };
 
   return (
-    <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-start sm:justify-center py-6 sm:py-10 px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+    <div className="min-h-[calc(100vh-14rem)] flex flex-col justify-start sm:justify-center py-6 sm:py-10 px-4 max-[420px]:px-2 sm:px-6 lg:px-8 relative overflow-hidden">
       {/* Background ambient glow */}
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[550px] h-[350px] bg-violet-600/15 blur-[130px] pointer-events-none rounded-full" />
       <div className="absolute bottom-10 left-10 w-64 h-64 bg-indigo-600/10 blur-[100px] pointer-events-none rounded-full" />
@@ -98,8 +99,8 @@ function RegisterContent() {
       </div>
 
       {/* Main Card */}
-      <div className="mt-5 sm:mt-6 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4 sm:px-0">
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
+      <div className="w-full mt-5 sm:mt-6 sm:mx-auto sm:max-w-md relative z-10 px-2 max-[420px]:px-0 sm:px-0">
+        <div className="p-6 max-[420px]:p-4 sm:p-8 rounded-3xl max-[420px]:rounded-2xl bg-[#0c0e17]/95 border border-zinc-800/80 shadow-2xl backdrop-blur-xl space-y-5">
           {/* Structured Auth Error Banner */}
           {(formError || urlError) && (
             <AuthErrorBanner
@@ -232,14 +233,14 @@ function RegisterContent() {
                   <span>جارٍ إنشاء الحساب...</span>
                 </>
               ) : (
-                <span>إنشاء الحساب والبدء فوراً</span>
+                <span>إنشاء الحساب</span>
               )}
             </button>
           </form>
 
           {/* Switch to Login */}
           <div className="flex items-center justify-center gap-1 pt-3 text-center text-xs text-zinc-400 border-t border-zinc-800/80">
-            <span>لديك حساب بالفعل؟ </span>
+            <span className="">لديك حساب بالفعل؟ </span>
             <Link
               href={
                 returnTo !== "/"
@@ -248,7 +249,7 @@ function RegisterContent() {
               }
               className="text-violet-400 hover:text-violet-300 font-bold transition-colors"
             >
-              تسجيل الدخول
+             تسجيل دخول
             </Link>
           </div>
         </div>

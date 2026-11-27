@@ -2,11 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { navigateReplace } from "@/lib/navigation-progress";
 import {
   Flame,
   LayoutDashboard,
-  Calendar as CalendarIcon,
   BarChart3,
   Settings,
   Plus,
@@ -32,6 +32,7 @@ import { clearBrowserCacheOnSignOut } from "@/lib/auth-cleanup";
 import { getSafeReturnUrl } from "@/lib/auth-redirect";
 import { useAthar } from "@/components/context/AtharContext";
 import SignOutConfirmDialog from "@/components/auth/SignOutConfirmDialog";
+import { isIslamicFeatureVisible } from "@/lib/onboarding";
 
 const SyncStatusBadge = dynamic(
   () => import("@/components/sync/SyncStatusBadge"),
@@ -46,13 +47,12 @@ const SyncStatusBadge = dynamic(
         <span>المزامنة</span>
       </div>
     ),
-  }
+  },
 );
 
 export default function Navbar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
-  const router = useRouter();
   const { data: sessionData, isPending } = useSession();
   const { userPreferences } = useAthar();
 
@@ -162,10 +162,19 @@ export default function Navbar() {
   }, []);
 
   const isAuthPage = pathname === "/login" || pathname === "/register";
+  const isWelcomePage =
+    pathname === "/welcome" || pathname?.startsWith("/welcome/");
   const isAuthenticated = !!sessionData?.user;
+  const showIslamicFeatures = isIslamicFeatureVisible(userPreferences);
+
+  if (isWelcomePage) {
+    return null;
+  }
 
   const currentSearch = searchParams?.toString();
-  const currentFullPath = currentSearch ? `${pathname}?${currentSearch}` : pathname;
+  const currentFullPath = currentSearch
+    ? `${pathname}?${currentSearch}`
+    : pathname;
   const safeReturnTo = getSafeReturnUrl(currentFullPath, "/");
   const loginHref =
     safeReturnTo && safeReturnTo !== "/"
@@ -176,12 +185,11 @@ export default function Navbar() {
     { href: "/", label: "الرئيسية", icon: LayoutDashboard },
     { href: "/tasks", label: "المهام", icon: CheckSquare },
     { href: "/habits", label: "العادات", icon: Flame },
-    { href: "/journal", label: "اليوميات", icon: BookMarked },
-    { href: "/calendar", label: "التقويم", icon: CalendarIcon },
+    { href: "/journal", label: "عملت إيه النهارده", icon: BookMarked },
     { href: "/analytics", label: "التحليلات", icon: BarChart3 },
   ];
 
-  const moreLinks = [
+  const allMoreLinks = [
     {
       href: "/abstinence",
       label: "الامتناع والتعافي",
@@ -216,6 +224,7 @@ export default function Navbar() {
       desc: "متابعة حفظ القرآن الكريم وتلوين السور",
       icon: BookOpen,
       accent: "text-rose-400 group-hover:bg-rose-500/10",
+      islamicOnly: true,
     },
     {
       href: "/landing",
@@ -225,6 +234,9 @@ export default function Navbar() {
       accent: "text-violet-400 group-hover:bg-violet-500/10",
     },
   ];
+  const moreLinks = allMoreLinks.filter(
+    (link) => !link.islamicOnly || showIslamicFeatures,
+  );
 
   const isActive = (href) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -241,7 +253,7 @@ export default function Navbar() {
       await clearBrowserCacheOnSignOut();
       setSignOutConfirmOpen(false);
       setUserDropdownOpen(false);
-      window.location.replace("/");
+      navigateReplace("/");
     } catch (err) {
       console.error("Sign out error:", err);
       setIsSigningOut(false);
@@ -253,40 +265,43 @@ export default function Navbar() {
   // ---------------------------------------------------------------------------
   if (isAuthPage) {
     return (
-      <header className="sticky top-0 z-50 w-full border-b border-zinc-850/80 bg-[#08090d]/90 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 sm:h-18">
-            {/* Brand Logo */}
-            <Link
-              href="/"
-              className="flex items-center gap-3 group focus:outline-none"
-            >
-              <span className="flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-600/30 group-hover:shadow-violet-600/50 group-hover:scale-105 transition-all duration-200">
-                <Flame className="w-5 h-5 fill-white" />
-              </span>
-              <div className="text-right">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-lg font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
-                    أثـر
+      <>
+        <header className="fixed top-0 inset-x-0 z-50 w-full border-b border-zinc-850/80 bg-[#08090d]/90 backdrop-blur-xl">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between gap-2 h-16 sm:h-18">
+              {/* Brand Logo */}
+              <Link
+                href="/"
+                className="flex items-center gap-2.5 sm:gap-3 group focus:outline-none min-w-0 flex-1"
+              >
+                <span className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-600/30 group-hover:shadow-violet-600/50 group-hover:scale-105 transition-all duration-200 shrink-0">
+                  <Flame className="w-5 h-5 fill-white" />
+                </span>
+                <div className="text-right min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-base sm:text-lg font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
+                      أثـر
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-zinc-400 block -mt-0.5 truncate">
+                    منظومة إتقان العادات وعمارة الوقت
                   </span>
                 </div>
-                <span className="text-[11px] text-zinc-400 block -mt-0.5">
-                  منظومة إتقان العادات وعمارة الوقت
-                </span>
-              </div>
-            </Link>
+              </Link>
 
-            {/* Back link */}
-            <Link
-              href="/"
-              className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors"
-            >
-              <ArrowRight className="w-3.5 h-3.5" />
-              <span>العودة للرئيسية</span>
-            </Link>
+              {/* Back link */}
+              <Link
+                href="/"
+                className="inline-flex items-center gap-1.5 sm:gap-2 px-3 sm:px-3.5 py-1.5 sm:py-2 max-[400px]:px-2.5 max-[400px]:py-1.5 max-[400px]:text-[11px] rounded-xl text-xs font-semibold text-zinc-300 hover:text-white bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors whitespace-nowrap shrink-0"
+              >
+                <ArrowRight className="w-3.5 h-3.5 shrink-0" />
+                <span>العودة للرئيسية</span>
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
+        <div className="h-16 sm:h-18 w-full shrink-0" aria-hidden="true" />
+      </>
     );
   }
 
@@ -297,27 +312,27 @@ export default function Navbar() {
     <>
       <header
         ref={headerRef}
-        className={`sticky top-0 z-[60] w-full transition-all duration-300 ${
+        className={`fixed top-0 inset-x-0 z-40 w-full transition-all duration-300 ${
           scrolled || mobileMenuOpen
             ? "border-b border-zinc-800/80 bg-[#08090d]/95 backdrop-blur-2xl shadow-xl shadow-black/40"
             : "border-b border-zinc-800/40 bg-[#08090d]/80 backdrop-blur-xl"
         } ${mobileMenuOpen ? "max-lg:opacity-0 max-lg:pointer-events-none" : ""}`}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16 sm:h-18">
+          <div className="flex items-center justify-between h-16 max-[400px]:h-14 sm:h-18">
             {/* 1. Right side (Brand & Identity) */}
             <div className="flex items-center gap-6">
               <Link
                 href="/"
                 onClick={closeMobileMenu}
-                className="flex items-center gap-3 group focus:outline-none"
+                className="flex items-center gap-3 max-[400px]:gap-2 group focus:outline-none"
               >
-                <span className="relative flex items-center justify-center w-10 h-10 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-600/30 group-hover:shadow-violet-600/50 group-hover:scale-105 transition-all duration-200">
-                  <Flame className="w-5 h-5 fill-white" />
+                <span className="relative flex items-center justify-center w-10 h-10 max-[400px]:w-8 max-[400px]:h-8 rounded-2xl max-[400px]:rounded-xl bg-gradient-to-br from-violet-600 to-indigo-700 text-white shadow-lg shadow-violet-600/30 group-hover:shadow-violet-600/50 group-hover:scale-105 transition-all duration-200">
+                  <Flame className="w-5 h-5 max-[400px]:w-4 max-[400px]:h-4 fill-white" />
                 </span>
                 <div className="text-right">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-lg sm:text-xl font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
+                    <span className="text-lg sm:text-xl max-[400px]:text-base font-black text-zinc-100 tracking-tight group-hover:text-white transition-colors">
                       أثـر
                     </span>
                   </div>
@@ -326,7 +341,7 @@ export default function Navbar() {
             </div>
 
             {/* 2. Center (Desktop Navigation Tabs) */}
-            <nav className="hidden lg:flex items-center gap-1 p-1.5 rounded-2xl bg-zinc-900/70 border border-zinc-800/70 backdrop-blur-md shadow-inner">
+            <nav className="hidden lg:flex items-center gap-0.5 xl:gap-1 p-1.5 rounded-2xl bg-zinc-900/70 border border-zinc-800/70 backdrop-blur-md shadow-inner shrink-0">
               {primaryLinks.map((link) => {
                 const Icon = link.icon;
                 const active = isActive(link.href);
@@ -334,14 +349,14 @@ export default function Navbar() {
                   <Link
                     key={link.href}
                     href={link.href}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
+                    className={`flex items-center gap-1.5 xl:gap-2 px-2.5 xl:px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all duration-150 ${
                       active
                         ? "text-zinc-100 bg-zinc-800/90 shadow-sm shadow-violet-500/10 border border-zinc-700/80"
                         : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50 border border-transparent"
                     }`}
                   >
                     <Icon
-                      className={`w-3.5 h-3.5 ${active ? "text-violet-400" : "text-zinc-400"}`}
+                      className={`w-3.5 h-3.5 shrink-0 ${active ? "text-violet-400" : "text-zinc-400"}`}
                     />
                     <span>{link.label}</span>
                   </Link>
@@ -353,7 +368,7 @@ export default function Navbar() {
                 <button
                   type="button"
                   onClick={() => setMoreDropdownOpen(!moreDropdownOpen)}
-                  className={`flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-bold transition-all border border-transparent ${
+                  className={`flex items-center gap-1 px-2.5 xl:px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all border border-transparent ${
                     moreDropdownOpen || moreLinks.some((l) => isActive(l.href))
                       ? "text-zinc-100 bg-zinc-800/80"
                       : "text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/50"
@@ -422,13 +437,16 @@ export default function Navbar() {
                 <div
                   aria-label="جاري التحقق من الحساب"
                   role="status"
-                  className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-zinc-900/70 border border-zinc-800/80 animate-pulse shrink-0"
+                  className="max-[350px]:hidden flex items-center gap-2 px-2 py-1.5 rounded-xl bg-zinc-900/70 border border-zinc-800/80 animate-pulse shrink-0"
                 >
                   <div className="w-7 h-7 rounded-lg bg-zinc-800 shrink-0" />
                   <div className="w-12 sm:w-16 h-3 rounded-md bg-zinc-800" />
                 </div>
               ) : isAuthenticated ? (
-                <div className="relative shrink-0" ref={userDropdownRef}>
+                <div
+                  className="relative max-[350px]:hidden shrink-0"
+                  ref={userDropdownRef}
+                >
                   <button
                     type="button"
                     onClick={() => setUserDropdownOpen((prev) => !prev)}
@@ -501,13 +519,28 @@ export default function Navbar() {
                   )}
                 </div>
               ) : (
-                <Link
-                  href={loginHref}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0"
-                >
-                  <UserIcon className="w-3.5 h-3.5 hidden sm:inline" />
-                  <span>تسجيل الدخول</span>
-                </Link>
+                <div className="max-[350px]:hidden flex items-center gap-1.5 sm:gap-2 shrink-0">
+                  <Link
+                    href="/settings"
+                    aria-label="الإعدادات"
+                    title="الإعدادات"
+                    data-testid="guest-settings-link"
+                    className={`max-[500px]:hidden p-2 rounded-xl border transition-all shrink-0 ${
+                      pathname === "/settings"
+                        ? "bg-violet-600/15 border-violet-500/40 text-violet-300"
+                        : "bg-zinc-900/80 hover:bg-zinc-800/90 border-zinc-800 hover:border-zinc-700 text-zinc-300 hover:text-white"
+                    }`}
+                  >
+                    <Settings className="w-4 h-4" />
+                  </Link>
+                  <Link
+                    href={loginHref}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 max-[400px]:px-2 max-[400px]:py-1 max-[400px]:text-[11px] max-[375px]:px-1.5 max-[375px]:py-0.5 max-[375px]:text-[10px] rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-md shadow-violet-600/20 transition-all shrink-0 whitespace-nowrap"
+                  >
+                    <UserIcon className="w-3.5 h-3.5 hidden sm:inline" />
+                    <span>تسجيل الدخول</span>
+                  </Link>
+                </div>
               )}
 
               {/* Mobile menu toggle button */}
@@ -517,19 +550,22 @@ export default function Navbar() {
                 onClick={toggleMobileMenu}
                 aria-expanded={mobileMenuOpen}
                 aria-controls="mobile-nav-drawer"
-                className="lg:hidden p-2.5 rounded-xl text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors cursor-pointer"
-                aria-label={mobileMenuOpen ? "إغلاق القائمة" : "القائمة الشاملة"}
+                className="lg:hidden p-2.5 max-[400px]:p-1.5 rounded-xl text-zinc-400 hover:text-zinc-100 bg-zinc-900/80 hover:bg-zinc-850 border border-zinc-800 transition-colors cursor-pointer shrink-0"
+                aria-label={
+                  mobileMenuOpen ? "إغلاق القائمة" : "القائمة الشاملة"
+                }
               >
                 {mobileMenuOpen ? (
-                  <X className="w-5 h-5" />
+                  <X className="w-5 h-5 max-[400px]:w-4 max-[400px]:h-4" />
                 ) : (
-                  <Menu className="w-5 h-5" />
+                  <Menu className="w-5 h-5 max-[400px]:w-4 max-[400px]:h-4" />
                 )}
               </button>
             </div>
           </div>
         </div>
       </header>
+      <div className="h-16 sm:h-18 w-full shrink-0" aria-hidden="true" />
 
       {/* ------------------------------------------------------------------- */}
       {/* Mobile Navigation Drawer (takes top: 0, covers screen completely)   */}
@@ -538,7 +574,7 @@ export default function Navbar() {
         <>
           {/* Backdrop: covers full screen from top: 0, blurs background, closes on click */}
           <div
-            className="athar-drawer-backdrop fixed inset-0 bg-black/75 backdrop-blur-md z-[70] lg:hidden touch-none"
+            className="athar-drawer-backdrop fixed inset-0 bg-black/75 backdrop-blur-md z-[45] lg:hidden touch-none"
             onClick={closeMobileMenu}
             aria-hidden="true"
           />
@@ -549,7 +585,7 @@ export default function Navbar() {
             role="dialog"
             aria-modal="true"
             aria-label="القائمة الشاملة"
-            className="athar-drawer-right fixed top-0 right-0 bottom-0 z-[75] lg:hidden w-[min(22.5rem,88vw)] max-w-[90vw] bg-[#08090d] border-l border-zinc-800/90 shadow-2xl shadow-black/80 flex flex-col"
+            className="athar-drawer-right fixed top-0 right-0 bottom-0 z-[48] lg:hidden w-[min(22.5rem,88vw)] max-w-[90vw] bg-[#08090d] border-l border-zinc-800/90 shadow-2xl shadow-black/80 flex flex-col"
           >
             {/* Drawer Header with Brand Logo & explicit X close button */}
             <div className="flex items-center justify-between px-4 pt-[calc(0.875rem+env(safe-area-inset-top,0px))] pb-3.5 border-b border-zinc-800/80 shrink-0 bg-[#08090d]">

@@ -13,6 +13,9 @@ interface DatePickerModalProps {
   onChange: (dateStr: string) => void;
   title?: string;
   minDate?: string;
+  maxDate?: string;
+  minYear?: number;
+  maxYear?: number;
 }
 
 function getDaysInMonth(year: number, month: number): number {
@@ -25,12 +28,16 @@ export default function DatePickerModal({
   value,
   onChange,
   title = "تحديد التاريخ",
+  minDate,
+  maxDate,
+  minYear,
+  maxYear,
 }: DatePickerModalProps) {
   const initial = useMemo(() => {
     const today = getLocalDateString();
     const dStr = value || today;
     const parts = dStr.split("-").map(Number);
-    if (parts.length === 3 && !isNaN(parts[0])) {
+    if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
       return { year: parts[0], month: parts[1], day: parts[2] };
     }
     const now = new Date();
@@ -57,8 +64,13 @@ export default function DatePickerModal({
     setDay(maxDays);
   }
 
-  /* ── Options ────────────────────────────────────────────────── */
   const currentYear = new Date().getFullYear();
+  const parsedMinYear = minDate ? Number(minDate.slice(0, 4)) : undefined;
+  const parsedMaxYear = maxDate ? Number(maxDate.slice(0, 4)) : undefined;
+  const resolvedMinYear =
+    minYear ?? (Number.isFinite(parsedMinYear) ? Math.min(parsedMinYear!, initial.year) : Math.min(currentYear - 10, initial.year));
+  const resolvedMaxYear =
+    maxYear ?? (Number.isFinite(parsedMaxYear) ? Math.max(parsedMaxYear!, initial.year) : Math.max(currentYear + 10, initial.year));
 
   const dayOptions = useMemo(
     () =>
@@ -80,24 +92,26 @@ export default function DatePickerModal({
 
   const yearOptions = useMemo(() => {
     const years = [];
-    for (let y = currentYear - 5; y <= currentYear + 10; y++) {
+    for (let y = resolvedMinYear; y <= resolvedMaxYear; y++) {
       years.push({ value: y, label: String(y) });
     }
     return years;
-  }, [currentYear]);
+  }, [resolvedMinYear, resolvedMaxYear]);
 
-  /* ── Apply ──────────────────────────────────────────────────── */
   const handleApply = () => {
     const yStr = String(year);
     const mStr = String(month).padStart(2, "0");
     const dStr = String(day).padStart(2, "0");
-    onChange(`${yStr}-${mStr}-${dStr}`);
+    let result = `${yStr}-${mStr}-${dStr}`;
+    if (minDate && result < minDate) result = minDate;
+    if (maxDate && result > maxDate) result = maxDate;
+    onChange(result);
     onClose();
   };
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" showCloseButton={false}>
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-1">
           <div className="flex items-center gap-2.5">
@@ -114,14 +128,12 @@ export default function DatePickerModal({
           </button>
         </div>
 
-        {/*
-          Apple-style unified picker
-          RTL order: Day (right) → Month (center) → Year (left)
-        */}
+        {/* RTL order: Day (right) -> Month (center) -> Year (left) */}
         <div dir="rtl">
           <AppleWheelPicker
             columns={[
               {
+                label: "اليوم",
                 options: dayOptions,
                 value: day,
                 onChange: (v) => setDay(Number(v)),
@@ -129,6 +141,7 @@ export default function DatePickerModal({
                 align: "center",
               },
               {
+                label: "الشهر",
                 options: monthOptions,
                 value: month,
                 onChange: (v) => setMonth(Number(v)),
@@ -136,6 +149,7 @@ export default function DatePickerModal({
                 align: "center",
               },
               {
+                label: "السنة",
                 options: yearOptions,
                 value: year,
                 onChange: (v) => setYear(Number(v)),

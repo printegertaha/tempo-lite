@@ -1,4 +1,15 @@
 import { openDB, DBSchema, IDBPDatabase } from "idb";
+import type { OnboardingState } from "@/lib/onboarding";
+
+export interface LocalYouTubeMeta {
+  videoId: string;
+  url: string;
+  title: string;
+  channelName: string;
+  channelUrl?: string | null;
+  channelAvatar?: string | null;
+  thumbnailUrl: string;
+}
 
 export interface LocalTask {
   id: string;
@@ -19,6 +30,7 @@ export interface LocalTask {
   isRecurring: boolean;
   subtasks: Array<{ id: string; title: string; completed: boolean }>;
   tags: string[];
+  youtubeMeta?: LocalYouTubeMeta | LocalYouTubeMeta[] | null;
   sortOrder: number;
   version: number;
   isArchived: boolean;
@@ -32,6 +44,8 @@ export interface LocalTask {
 
 export type LocalEntityType =
   | "task"
+  | "task_session"
+  | "entity_revision"
   | "tracker"
   | "tracker_entry"
   | "daily_note"
@@ -40,9 +54,53 @@ export type LocalEntityType =
   | "life_area"
   | "gym_workout"
   | "meal_entry"
+  | "water_entry"
   | "expense_entry"
   | "prayer_record"
   | "user_settings";
+
+export interface LocalTaskSession {
+  id: string;
+  userId: string;
+  taskId: string;
+  trackerId?: string | null;
+  localDate: string;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationSeconds?: number | null;
+  status: "completed" | "interrupted" | "cancelled" | "legacy";
+  completionSource: "timer" | "checkbox" | "legacy";
+  isEstimated?: boolean;
+  completedCycles?: number;
+  taskTitleSnapshot: string;
+  taskDescriptionSnapshot?: string | null;
+  subtasksSnapshot?: Array<{ id: string; title: string; completed: boolean }>;
+  lifeAreaIdSnapshot?: string | null;
+  lifeAreaNameSnapshot?: string | null;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  clientUpdatedAt: number;
+  _syncStatus?: "synced" | "pending" | "conflict";
+}
+
+export interface LocalEntityRevision {
+  id: string;
+  userId: string;
+  entityType: string;
+  entityId: string;
+  localDate?: string | null;
+  revisionNumber: number;
+  previousValues: Record<string, any>;
+  newValues: Record<string, any>;
+  editedBy: string;
+  editedAt: string;
+  reason?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  clientUpdatedAt: number;
+  _syncStatus?: "synced" | "pending" | "conflict";
+}
 
 export interface LocalMutation {
   mutationId: string;
@@ -168,6 +226,14 @@ interface AtharDBSchema extends DBSchema {
       "by-user": string;
     };
   };
+  water_entries: {
+    key: string;
+    value: any;
+    indexes: {
+      "by-user-date": [string, string];
+      "by-user": string;
+    };
+  };
   life_areas: {
     key: string;
     value: any;
@@ -183,10 +249,28 @@ interface AtharDBSchema extends DBSchema {
       "by-user": string;
     };
   };
+  task_sessions: {
+    key: string;
+    value: LocalTaskSession;
+    indexes: {
+      "by-user": string;
+      "by-user-date": [string, string];
+      "by-task": string;
+    };
+  };
+  entity_revisions: {
+    key: string;
+    value: LocalEntityRevision;
+    indexes: {
+      "by-user": string;
+      "by-user-entity": [string, string, string];
+      "by-user-date": [string, string];
+    };
+  };
 }
 
 const DB_NAME = "athar_local_v2";
-const DB_VERSION = 4;
+const DB_VERSION = 6;
 export const MAX_OUTBOX_RETRIES = 5;
 
 function handleStorageWriteError(err: unknown) {
@@ -281,6 +365,16 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
             mealStore.createIndex("by-user" as any, "userId");
           }
         }
+        if (!db.objectStoreNames.contains("water_entries")) {
+          const waterStore = db.createObjectStore("water_entries", { keyPath: "id" });
+          waterStore.createIndex("by-user-date", ["userId", "date"]);
+          waterStore.createIndex("by-user", "userId");
+        } else {
+          const waterStore = transaction.objectStore("water_entries");
+          if (!waterStore.indexNames.contains("by-user")) {
+            waterStore.createIndex("by-user", "userId");
+          }
+        }
         if (!db.objectStoreNames.contains("expense_entries")) {
           const expenseStore = db.createObjectStore("expense_entries", { keyPath: "id" });
           expenseStore.createIndex("by-user-date", ["userId", "date"]);
@@ -306,6 +400,20 @@ export function getLocalDB(): Promise<IDBPDatabase<AtharDBSchema>> {
           const prayerStore = db.createObjectStore("prayer_records", { keyPath: "id" });
           prayerStore.createIndex("by-user", "userId");
           prayerStore.createIndex("by-user-date", ["userId", "date"]);
+        }
+
+        if (!db.objectStoreNames.contains("task_sessions")) {
+          const tsStore = db.createObjectStore("task_sessions", { keyPath: "id" });
+          tsStore.createIndex("by-user", "userId");
+          tsStore.createIndex("by-user-date", ["userId", "localDate"]);
+          tsStore.createIndex("by-task", "taskId");
+        }
+
+        if (!db.objectStoreNames.contains("entity_revisions")) {
+          const revStore = db.createObjectStore("entity_revisions", { keyPath: "id" });
+          revStore.createIndex("by-user", "userId");
+          revStore.createIndex("by-user-entity", ["userId", "entityType", "entityId"]);
+          revStore.createIndex("by-user-date", ["userId", "localDate"]);
         }
       },
     });
@@ -482,6 +590,11 @@ export const localTrackerRepo = {
 };
 
 export const localEntryRepo = {
+  async getById(id: string): Promise<any | undefined> {
+    const db = await getLocalDB();
+    return db.get("tracker_entries", id);
+  },
+
   async getByDate(userId: string, localDate: string): Promise<any[]> {
     const db = await getLocalDB();
     const rows = await db.getAllFromIndex("tracker_entries", "by-user-date", [userId, localDate]);
@@ -880,6 +993,24 @@ export const localSyncMetaRepo = {
   async saveBodyWeights(userId: string, weights: any[]): Promise<void> {
     await localMetadataRepo.set(`body_weights:${userId}`, weights);
   },
+
+  async getCachedNutritionFoods(): Promise<any[]> {
+    const val = await localMetadataRepo.get("nutrition_food_cache_v1");
+    return Array.isArray(val) ? val : [];
+  },
+
+  async saveCachedNutritionFoods(foods: any[]): Promise<void> {
+    await localMetadataRepo.set("nutrition_food_cache_v1", foods.slice(0, 250));
+  },
+
+  async getCustomFoods(userId: string): Promise<any[]> {
+    const val = await localMetadataRepo.get(`custom_foods:${userId}`);
+    return Array.isArray(val) ? val : [];
+  },
+
+  async saveCustomFoods(userId: string, foods: any[]): Promise<void> {
+    await localMetadataRepo.set(`custom_foods:${userId}`, foods);
+  },
 };
 
 export const localPrayerRepo = {
@@ -985,6 +1116,39 @@ export const localDomainRepo = {
     await db.delete("meal_entries", id);
   },
 
+  async getWaterEntries(userId: string): Promise<any[]> {
+    const db = await getLocalDB();
+    try {
+      return await db.getAllFromIndex("water_entries", "by-user", userId);
+    } catch {
+      const all = await db.getAll("water_entries");
+      return all.filter((w) => w.userId === userId);
+    }
+  },
+  async saveWaterEntry(entry: any): Promise<void> {
+    try {
+      const db = await getLocalDB();
+      await db.put("water_entries", entry);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+  async saveWaterBatch(entries: any[]): Promise<void> {
+    if (entries.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("water_entries", "readwrite");
+      for (const w of entries) await tx.store.put(w);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+  async deleteWaterEntry(id: string): Promise<void> {
+    const db = await getLocalDB();
+    await db.delete("water_entries", id);
+  },
+
   async getExpenseEntries(userId: string): Promise<any[]> {
     const db = await getLocalDB();
     try {
@@ -1016,6 +1180,217 @@ export const localDomainRepo = {
   async deleteExpenseEntry(id: string): Promise<void> {
     const db = await getLocalDB();
     await db.delete("expense_entries", id);
+  },
+};
+
+export const localTaskSessionRepo = {
+  async getById(id: string): Promise<LocalTaskSession | undefined> {
+    const db = await getLocalDB();
+    return db.get("task_sessions", id);
+  },
+
+  async getAllForUser(userId: string): Promise<LocalTaskSession[]> {
+    const db = await getLocalDB();
+    const rows = await db.getAllFromIndex("task_sessions", "by-user", userId);
+    return rows.sort((a, b) => {
+      const aTime = new Date(a.endedAt || a.startedAt || a.createdAt).getTime();
+      const bTime = new Date(b.endedAt || b.startedAt || b.createdAt).getTime();
+      return bTime - aTime;
+    });
+  },
+
+  async getByDate(userId: string, localDate: string): Promise<LocalTaskSession[]> {
+    const db = await getLocalDB();
+    const rows = await db.getAllFromIndex("task_sessions", "by-user-date", [userId, localDate]);
+    return rows.sort((a, b) => {
+      const aTime = new Date(a.endedAt || a.startedAt || a.createdAt).getTime();
+      const bTime = new Date(b.endedAt || b.startedAt || b.createdAt).getTime();
+      return bTime - aTime;
+    });
+  },
+
+  async getByTask(userId: string, taskId: string): Promise<LocalTaskSession[]> {
+    const db = await getLocalDB();
+    const rows = await db.getAllFromIndex("task_sessions", "by-task", taskId);
+    return rows.filter((r) => r.userId === userId);
+  },
+
+  async save(session: LocalTaskSession): Promise<void> {
+    try {
+      const db = await getLocalDB();
+      await db.put("task_sessions", session);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async saveBatch(sessions: LocalTaskSession[]): Promise<void> {
+    if (sessions.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("task_sessions", "readwrite");
+      for (const s of sessions) await tx.store.put(s);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getLocalDB();
+    await db.delete("task_sessions", id);
+  },
+
+  async deleteBatch(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await getLocalDB();
+    const tx = db.transaction("task_sessions", "readwrite");
+    for (const id of ids) await tx.store.delete(id);
+    await tx.done;
+  },
+
+  async deleteByTaskId(userId: string, taskId: string): Promise<string[]> {
+    const rows = await this.getByTask(userId, taskId);
+    const ids = rows.map((r) => r.id);
+    if (ids.length > 0) {
+      await this.deleteBatch(ids);
+    }
+    return ids;
+  },
+};
+
+export const localRevisionRepo = {
+  async getById(id: string): Promise<LocalEntityRevision | undefined> {
+    const db = await getLocalDB();
+    return db.get("entity_revisions", id);
+  },
+
+  async getAllForUser(userId: string): Promise<LocalEntityRevision[]> {
+    const db = await getLocalDB();
+    const rows = await db.getAllFromIndex("entity_revisions", "by-user", userId);
+    return rows.sort((a, b) => new Date(b.editedAt).getTime() - new Date(a.editedAt).getTime());
+  },
+
+  async getByEntity(
+    userId: string,
+    entityType: string,
+    entityId: string
+  ): Promise<LocalEntityRevision[]> {
+    const db = await getLocalDB();
+    const rows = await db.getAllFromIndex("entity_revisions", "by-user-entity", [
+      userId,
+      entityType,
+      entityId,
+    ]);
+    return rows.sort((a, b) => a.revisionNumber - b.revisionNumber);
+  },
+
+  async getByDate(userId: string, localDate: string): Promise<LocalEntityRevision[]> {
+    const db = await getLocalDB();
+    return db.getAllFromIndex("entity_revisions", "by-user-date", [userId, localDate]);
+  },
+
+  async save(revision: LocalEntityRevision): Promise<void> {
+    try {
+      const db = await getLocalDB();
+      await db.put("entity_revisions", revision);
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async saveBatch(revisions: LocalEntityRevision[]): Promise<void> {
+    if (revisions.length === 0) return;
+    try {
+      const db = await getLocalDB();
+      const tx = db.transaction("entity_revisions", "readwrite");
+      for (const r of revisions) await tx.store.put(r);
+      await tx.done;
+    } catch (err) {
+      handleStorageWriteError(err);
+    }
+  },
+
+  async delete(id: string): Promise<void> {
+    const db = await getLocalDB();
+    await db.delete("entity_revisions", id);
+  },
+
+  async deleteByEntity(userId: string, entityType: string, entityId: string): Promise<string[]> {
+    const rows = await this.getByEntity(userId, entityType, entityId);
+    const ids = rows.map((r) => r.id);
+    if (ids.length > 0) {
+      const db = await getLocalDB();
+      const tx = db.transaction("entity_revisions", "readwrite");
+      for (const id of ids) await tx.store.delete(id);
+      await tx.done;
+    }
+    return ids;
+  },
+
+  async deleteBatch(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+    const db = await getLocalDB();
+    const tx = db.transaction("entity_revisions", "readwrite");
+    for (const id of ids) await tx.store.delete(id);
+    await tx.done;
+  },
+};
+
+export const localOnboardingRepo = {
+  async get(ownerKey: string = "guest"): Promise<OnboardingState | null> {
+    const val = await localMetadataRepo.get(`onboarding_state:${ownerKey}`);
+    if (val && typeof val === "object") {
+      return val as OnboardingState;
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const ls = localStorage.getItem(`athar_onboarding_state:${ownerKey}`);
+        if (ls) {
+          const parsed = JSON.parse(ls) as OnboardingState;
+          await localMetadataRepo.set(`onboarding_state:${ownerKey}`, parsed).catch(() => {});
+          return parsed;
+        }
+      } catch {}
+    }
+    return null;
+  },
+
+  async save(state: OnboardingState): Promise<void> {
+    const key = state.ownerKey || "guest";
+    const nextState: OnboardingState = {
+      ...state,
+      ownerKey: key,
+      updatedAt: new Date().toISOString(),
+    };
+    await localMetadataRepo.set(`onboarding_state:${key}`, nextState);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`athar_onboarding_state:${key}`, JSON.stringify(nextState));
+      } catch {}
+    }
+  },
+
+  async hasLegacyGuestActivity(): Promise<boolean> {
+    try {
+      const summary = await localGuestManager.getSummary();
+      if (summary.hasData) return true;
+      if (typeof window !== "undefined") {
+        const legacyTimerRaw = localStorage.getItem("athar_timer_session_history_v1");
+        if (legacyTimerRaw) {
+          const arr = JSON.parse(legacyTimerRaw);
+          if (Array.isArray(arr) && arr.length > 0) return true;
+        }
+        const quranRaw = localStorage.getItem("athar_quran_memorization_v1");
+        if (quranRaw) {
+          const arr = JSON.parse(quranRaw);
+          if (Array.isArray(arr) && arr.length > 0) return true;
+        }
+      }
+      return false;
+    } catch {
+      return false;
+    }
   },
 };
 
@@ -1077,18 +1452,22 @@ function readLegacyLocalStorageGuestData() {
     if (rawNutrition) {
       const parsed = JSON.parse(rawNutrition);
       if (Array.isArray(parsed?.meals)) {
+        const DEMO_IDS = new Set(["m1", "m2", "m3", "m4"]);
         for (const m of parsed.meals) {
-          if (m && (m.title || m.name) && String(m.id || "").startsWith("m_")) {
+          if (m && (m.title || m.name) && !DEMO_IDS.has(String(m.id || "")) && String(m.id || "").startsWith("m_")) {
             mealEntries.push({
               id: `ls_meal_${m.id}`,
               userId: "guest",
               date: m.date || new Date().toISOString().split("T")[0],
+              time: m.time || null,
               mealType: m.mealType || "lunch",
               title: m.title || m.name,
               calories: Number(m.calories) || 0,
               protein: Number(m.protein) || 0,
               carbs: Number(m.carbs) || 0,
               fat: Number(m.fat) || 0,
+              items: Array.isArray(m.items) ? m.items : [],
+              dailyTargetsSnapshot: m.dailyTargetsSnapshot || null,
               notes: m.notes || null,
             });
           }
@@ -1144,6 +1523,8 @@ function readLegacyLocalStorageGuestData() {
 export interface GuestDataSummary {
   hasData: boolean;
   tasksCount: number;
+  taskSessionsCount: number;
+  revisionsCount: number;
   prayersCount: number;
   trackersCount: number;
   abstinenceCount: number;
@@ -1151,6 +1532,7 @@ export interface GuestDataSummary {
   notesCount: number;
   gymCount: number;
   mealsCount: number;
+  waterCount: number;
   expensesCount: number;
   totalRecords: number;
 }
@@ -1159,9 +1541,11 @@ export const localGuestManager = {
   async getSummary(): Promise<GuestDataSummary> {
     try {
       const db = await getLocalDB();
-      const [tasks, prayers, trackers, entries, abstinence, notes, gym, meals, expenses] =
+      const [tasks, taskSessions, revisions, prayers, trackers, entries, abstinence, notes, gym, meals, waters, expenses] =
         await Promise.all([
           db.getAllFromIndex("tasks", "by-user", "guest"),
+          db.getAllFromIndex("task_sessions", "by-user", "guest").catch(() => []),
+          db.getAllFromIndex("entity_revisions", "by-user", "guest").catch(() => []),
           db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
           db.getAllFromIndex("trackers", "by-user", "guest"),
           db.getAll("tracker_entries").catch(() => []),
@@ -1169,6 +1553,7 @@ export const localGuestManager = {
           db.getAll("daily_notes"),
           db.getAll("gym_workouts"),
           db.getAll("meal_entries"),
+          db.getAll("water_entries").catch(() => []),
           db.getAll("expense_entries"),
         ]);
 
@@ -1176,15 +1561,19 @@ export const localGuestManager = {
       const guestNotes = notes.filter((n: any) => n.userId === "guest");
       const idbGym = gym.filter((g: any) => g.userId === "guest");
       const idbMeals = meals.filter((m: any) => m.userId === "guest");
+      const idbWaters = waters.filter((w: any) => w.userId === "guest");
       const idbExpenses = expenses.filter((e: any) => e.userId === "guest");
 
       const legacy = readLegacyLocalStorageGuestData();
       const gymCount = idbGym.length + legacy.gymWorkouts.length;
       const mealsCount = idbMeals.length + legacy.mealEntries.length;
+      const waterCount = idbWaters.length;
       const expensesCount = idbExpenses.length + legacy.expenseEntries.length;
 
       const total =
         tasks.length +
+        taskSessions.length +
+        revisions.length +
         prayers.length +
         trackers.length +
         guestEntries.length +
@@ -1192,11 +1581,14 @@ export const localGuestManager = {
         guestNotes.length +
         gymCount +
         mealsCount +
+        waterCount +
         expensesCount;
 
       return {
         hasData: total > 0,
         tasksCount: tasks.length,
+        taskSessionsCount: taskSessions.length,
+        revisionsCount: revisions.length,
         prayersCount: prayers.length,
         trackersCount: trackers.length,
         abstinenceCount: abstinence.length,
@@ -1204,6 +1596,7 @@ export const localGuestManager = {
         notesCount: guestNotes.length,
         gymCount,
         mealsCount,
+        waterCount,
         expensesCount,
         totalRecords: total,
       };
@@ -1211,6 +1604,8 @@ export const localGuestManager = {
       return {
         hasData: false,
         tasksCount: 0,
+        taskSessionsCount: 0,
+        revisionsCount: 0,
         prayersCount: 0,
         trackersCount: 0,
         abstinenceCount: 0,
@@ -1218,6 +1613,7 @@ export const localGuestManager = {
         notesCount: 0,
         gymCount: 0,
         mealsCount: 0,
+        waterCount: 0,
         expensesCount: 0,
         totalRecords: 0,
       };
@@ -1226,6 +1622,8 @@ export const localGuestManager = {
 
   async getAllGuestPayload(): Promise<{
     tasks: any[];
+    taskSessions: any[];
+    entityRevisions: any[];
     prayers: any[];
     trackers: any[];
     trackerEntries: any[];
@@ -1234,13 +1632,17 @@ export const localGuestManager = {
     dailyNotes: any[];
     gymWorkouts: any[];
     mealEntries: any[];
+    waterEntries: any[];
     expenseEntries: any[];
     preferences?: any;
+    onboarding?: OnboardingState | null;
   }> {
     const db = await getLocalDB();
-    const [tasks, prayers, trackers, entries, abstinence, absSessions, notes, gym, meals, expenses] =
+    const [tasks, taskSessions, entityRevisions, prayers, trackers, entries, abstinence, absSessions, notes, gym, meals, waters, expenses, onboarding] =
       await Promise.all([
         db.getAllFromIndex("tasks", "by-user", "guest"),
+        db.getAllFromIndex("task_sessions", "by-user", "guest").catch(() => []),
+        db.getAllFromIndex("entity_revisions", "by-user", "guest").catch(() => []),
         db.getAllFromIndex("prayer_records", "by-user", "guest").catch(() => []),
         db.getAllFromIndex("trackers", "by-user", "guest"),
         db.getAll("tracker_entries").catch(() => []),
@@ -1249,7 +1651,9 @@ export const localGuestManager = {
         db.getAll("daily_notes"),
         db.getAll("gym_workouts"),
         db.getAll("meal_entries"),
+        db.getAll("water_entries").catch(() => []),
         db.getAll("expense_entries"),
+        localOnboardingRepo.get("guest").catch(() => null),
       ]);
 
     const legacy = readLegacyLocalStorageGuestData();
@@ -1265,6 +1669,8 @@ export const localGuestManager = {
 
     return {
       tasks: tasks.filter((t) => !t.isArchived),
+      taskSessions,
+      entityRevisions,
       prayers,
       trackers,
       trackerEntries: entries.filter((e: any) => e.userId === "guest"),
@@ -1279,11 +1685,13 @@ export const localGuestManager = {
         meals.filter((m: any) => m.userId === "guest"),
         legacy.mealEntries
       ),
+      waterEntries: waters.filter((w: any) => w.userId === "guest"),
       expenseEntries: mergeById(
         expenses.filter((e: any) => e.userId === "guest"),
         legacy.expenseEntries
       ),
       preferences: legacy.preferences || null,
+      onboarding: onboarding || null,
     };
   },
 
@@ -1366,6 +1774,17 @@ export const localGuestManager = {
     }
     await mealTx.done;
 
+    try {
+      const waters = await db.getAll("water_entries");
+      const waterTx = db.transaction("water_entries", "readwrite");
+      for (const w of waters) {
+        if ((w as any).userId === "guest") {
+          await waterTx.store.delete((w as any).id);
+        }
+      }
+      await waterTx.done;
+    } catch {}
+
     const expenses = await db.getAll("expense_entries");
     const expTx = db.transaction("expense_entries", "readwrite");
     for (const e of expenses) {
@@ -1374,5 +1793,23 @@ export const localGuestManager = {
       }
     }
     await expTx.done;
+
+    try {
+      const guestTaskSessions = await db.getAllFromIndex("task_sessions", "by-user", "guest");
+      const tsTx = db.transaction("task_sessions", "readwrite");
+      for (const s of guestTaskSessions) {
+        await tsTx.store.delete(s.id);
+      }
+      await tsTx.done;
+    } catch {}
+
+    try {
+      const guestRevs = await db.getAllFromIndex("entity_revisions", "by-user", "guest");
+      const revTx = db.transaction("entity_revisions", "readwrite");
+      for (const r of guestRevs) {
+        await revTx.store.delete(r.id);
+      }
+      await revTx.done;
+    } catch {}
   },
 };

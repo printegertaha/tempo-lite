@@ -44,6 +44,8 @@ export default function HomePrayerBar({
   userId,
   dateStr,
   initialPrayers = [],
+  pendingOnly = false,
+  onDisablePrayerTracking,
 }) {
   const isGuest = !userId || userId === "guest";
 
@@ -123,6 +125,11 @@ export default function HomePrayerBar({
         clientUpdatedAt: Date.now(),
       };
       await localPrayerRepo.save(localRec);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("athar_prayers_updated", { detail: { userId: effectiveUserId, dateStr } })
+        );
+      }
 
       if (isGuest) return;
 
@@ -205,9 +212,33 @@ export default function HomePrayerBar({
     [detailModalPrayer, persistPrayerLocalFirst]
   );
 
+  const displayedPrayers = pendingOnly
+    ? prayers.filter((p) => !p.isCompleted)
+    : prayers;
+
+  if (pendingOnly && displayedPrayers.length === 0) {
+    return null;
+  }
+
   return (
     <>
-      <div className="w-full p-3 sm:p-3.5 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md shadow-sm">
+      <div
+        className={`group relative w-full p-3 sm:p-3.5 ${
+          onDisablePrayerTracking ? "pr-9 sm:pr-10" : ""
+        } rounded-2xl bg-zinc-900/60 border border-zinc-800/80 backdrop-blur-md shadow-sm`}
+      >
+        {onDisablePrayerTracking && (
+          <button
+            type="button"
+            onClick={onDisablePrayerTracking}
+            data-testid="disable-prayer-tracker-btn"
+            aria-label="إخفاء متابعة الصلوات"
+            title="إخفاء متابعة الصلوات (يمكنك إعادة تفعيلها من الإعدادات)"
+            className="absolute top-2.5 right-2.5 p-1 rounded-lg text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800/70 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 transition-all cursor-pointer"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        )}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
           {/* Header & Counter & Mobile Accordion Toggle */}
           <div className="flex items-center justify-between gap-2.5">
@@ -215,7 +246,9 @@ export default function HomePrayerBar({
               <span className="flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                 <Compass className="w-3.5 h-3.5" />
               </span>
-              <span className="text-xs font-bold text-zinc-200">الصلوات الخمس</span>
+              <span className="text-xs font-bold text-zinc-200">
+                {pendingOnly ? "الصلوات المتبقية اليوم" : "الصلوات الخمس"}
+              </span>
 
               {/* Mobile toggleable accordion arrow to expand/show full prayer names */}
               <button
@@ -249,8 +282,8 @@ export default function HomePrayerBar({
           <div className="md:hidden">
             {!isMobileExpanded ? (
               /* Clean Numbered Pills/Circles 1 to 5 in order */
-              <div className="grid grid-cols-5 gap-2 pt-1">
-                {prayers.map((p) => {
+              <div className={`grid gap-2 pt-1 ${displayedPrayers.length <= 3 ? "grid-cols-3" : "grid-cols-5"}`}>
+                {displayedPrayers.map((p) => {
                   const num = PRAYER_NUMBERS[p.prayerKey];
                   const isDone = p.isCompleted;
 
@@ -286,7 +319,7 @@ export default function HomePrayerBar({
             ) : (
               /* Mobile Expanded View: Full prayer names with detail trigger */
               <div className="space-y-1.5 pt-1 animate-in fade-in slide-in-from-top-2 duration-150">
-                {prayers.map((p) => {
+                {displayedPrayers.map((p) => {
                   const num = PRAYER_NUMBERS[p.prayerKey];
                   const isDone = p.isCompleted;
 
@@ -342,8 +375,8 @@ export default function HomePrayerBar({
           </div>
 
           {/* 2. Desktop (md:flex): Full prayer names always visible */}
-          <div className="hidden md:grid md:grid-cols-5 gap-2">
-            {prayers.map((p) => {
+          <div className={`hidden md:grid gap-2 ${pendingOnly ? "md:grid-cols-5 flex-1" : "md:grid-cols-5"}`}>
+            {displayedPrayers.map((p) => {
               const isDone = p.isCompleted;
 
               return (

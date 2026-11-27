@@ -168,3 +168,27 @@ dialog::backdrop {
   overflow: hidden;
   overscroll-behavior: contain;
 }
+
+dialog.athar-modal::backdrop {
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(4px);
+}
+
+/* Global YouTube-style top navigation progress bar (compositor-only) */
+.athar-nav-progress-bar {
+  will-change: transform, opacity;
+  transition: opacity 120ms ease-out;
+}
+
+.athar-nav-progress-bar[data-status="completing"] {
+  transition:
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 220ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .athar-nav-progress-bar,
+  .athar-nav-progress-bar[data-status="completing"] {
+    transition: opacity 120ms ease-out;
+  }
+}

@@ -11,6 +11,13 @@ import {
 import { syncEngine } from "@/lib/sync/sync-engine";
 import { calculateAbstinenceDuration } from "@/lib/dates";
 import { slugify } from "@/lib/validations/life-area";
+import { recordRevisionIfOlderThanSevenDays } from "@/lib/history/revisions";
+import {
+  recordCheckboxCompletionSession,
+  removeCheckboxCompletionSessions,
+  resolveClientTimezone,
+} from "@/lib/tasks/task-lifecycle";
+import { activeTimerEngine } from "@/lib/timer/active-timer";
 
 async function queueMutation(
   userId: string,
@@ -61,6 +68,17 @@ export async function toggleBooleanEntryLocalFirst(
       valueBoolean: !existing.valueBoolean,
       occurredAt: new Date().toISOString(),
     };
+    await recordRevisionIfOlderThanSevenDays({
+      userId: effectiveUserId,
+      entityType: "tracker_entry",
+      entityId: updated.id,
+      recordDate: localDate,
+      previousRecord: existing,
+      nextRecord: updated,
+      candidateKeys: ["valueBoolean", "notes"],
+      editedBy: effectiveUserId,
+      timezone: resolveClientTimezone(effectiveUserId),
+    }).catch(() => {});
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
       trackerId: tracker.id,
@@ -177,6 +195,17 @@ export async function toggleChecklistItemLocalFirst(
       },
       occurredAt: new Date().toISOString(),
     };
+    await recordRevisionIfOlderThanSevenDays({
+      userId: effectiveUserId,
+      entityType: "tracker_entry",
+      entityId: updated.id,
+      recordDate: localDate,
+      previousRecord: existing,
+      nextRecord: updated,
+      candidateKeys: ["valueNumeric", "valueBoolean", "entryPayload"],
+      editedBy: effectiveUserId,
+      timezone: resolveClientTimezone(effectiveUserId),
+    }).catch(() => {});
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
       trackerId: tracker.id,
@@ -233,6 +262,17 @@ export async function logAvoidanceLocalFirst(
       notes: notes || existing.notes || null,
       occurredAt: new Date().toISOString(),
     };
+    await recordRevisionIfOlderThanSevenDays({
+      userId: effectiveUserId,
+      entityType: "tracker_entry",
+      entityId: updated.id,
+      recordDate: localDate,
+      previousRecord: existing,
+      nextRecord: updated,
+      candidateKeys: ["valueBoolean", "entryPayload", "notes"],
+      editedBy: effectiveUserId,
+      timezone: resolveClientTimezone(effectiveUserId),
+    }).catch(() => {});
     await localEntryRepo.save(updated);
     await queueMutation(effectiveUserId, "tracker_entry", updated.id, "update", {
       trackerId: tracker.id,
@@ -323,11 +363,29 @@ export async function saveTrackerLocalFirst(
 
   if (isEditing && existingId) {
     const existing = await localTrackerRepo.getById(existingId);
+    const nextVersion = (existing?.version || 1) + 1;
+    const prevHistory = Array.isArray(existing?.versions) ? existing.versions : [];
     const updated = {
       ...(existing || {}),
       ...trackerData,
       id: existingId,
       userId: effectiveUserId,
+      version: nextVersion,
+      versions: [
+        ...prevHistory,
+        {
+          versionNumber: nextVersion,
+          name: trackerData.name ?? existing?.name,
+          metricType: trackerData.metricType ?? existing?.metricType,
+          unit: trackerData.unit ?? existing?.unit ?? null,
+          targetValue: trackerData.targetValue ?? existing?.targetValue ?? null,
+          targetFrequency: trackerData.targetFrequency ?? existing?.targetFrequency ?? "DAILY",
+          scheduleConfig: trackerData.scheduleConfig ?? existing?.scheduleConfig ?? {},
+          trackerConfig: trackerData.trackerConfig ?? existing?.trackerConfig ?? {},
+          validFrom: nowIso,
+          validTo: null,
+        },
+      ],
       updatedAt: nowIso,
     };
     await localTrackerRepo.save(updated);
@@ -465,6 +523,8 @@ export async function toggleTaskCompletionLocalFirst(
   if (!target) return null;
 
   const nextStatus = target.status === "COMPLETED" ? "TODO" : "COMPLETED";
+  const hadActiveTimer =
+    nextStatus === "COMPLETED" && activeTimerEngine.hasActiveSessionForTask(taskId);
   const completedAt = nextStatus === "COMPLETED" ? new Date().toISOString() : null;
   const nowMs = Date.now();
 
@@ -505,6 +565,17 @@ export async function toggleTaskCompletionLocalFirst(
     { status: nextStatus, completedAt },
     target.version || 1
   );
+
+  if (nextStatus === "COMPLETED" && !hadActiveTimer && completedAt) {
+    await recordCheckboxCompletionSession({
+      task: target,
+      userId: effectiveUserId,
+      completedAtIso: completedAt,
+      timezone: resolveClientTimezone(effectiveUserId),
+    }).catch(() => {});
+  } else if (nextStatus === "TODO") {
+    await removeCheckboxCompletionSessions(taskId, effectiveUserId).catch(() => {});
+  }
 
   return updated;
 }

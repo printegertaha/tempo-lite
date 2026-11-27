@@ -69,38 +69,55 @@ export default function PrayersSection({
         </div>
 
         <div className="flex items-center gap-3 flex-wrap">
-          <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={Boolean(profile.prayerTrackingEnabled)}
-              onChange={(e) => onTogglePrayerTracking(e.target.checked)}
-              className="w-4 h-4 accent-emerald-500 rounded cursor-pointer"
-            />
-            <span className="text-xs font-bold text-zinc-200">
-              {profile.prayerTrackingEnabled ? "مفعّل" : "مخفي"}
-            </span>
-          </label>
-
-          {profile.prayerTrackingEnabled && (
+          <div
+            role="group"
+            aria-label="حالة عرض متابعة الصلوات"
+            className="inline-flex items-center p-1 rounded-xl bg-zinc-900 border border-zinc-800"
+          >
             <button
               type="button"
-              onClick={openPrayerScheduleModal}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer"
+              onClick={() => onTogglePrayerTracking(true)}
+              aria-pressed={Boolean(profile.prayerTrackingEnabled)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                profile.prayerTrackingEnabled
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                  : "text-zinc-400 hover:text-zinc-200 border border-transparent"
+              }`}
             >
-              <Clock className="w-3.5 h-3.5" />
-              <span>تعديل مواعيد الصلوات</span>
+              إظهار
             </button>
-          )}
+            <button
+              type="button"
+              onClick={() => onTogglePrayerTracking(false)}
+              aria-pressed={!profile.prayerTrackingEnabled}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                !profile.prayerTrackingEnabled
+                  ? "bg-zinc-800 text-zinc-100 border border-zinc-700"
+                  : "text-zinc-400 hover:text-zinc-200 border border-transparent"
+              }`}
+            >
+              إخفاء
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={openPrayerScheduleModal}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 text-xs font-bold transition-all cursor-pointer"
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>تعديل مواعيد الصلوات</span>
+          </button>
         </div>
       </div>
 
-      {!profile.prayerTrackingEnabled ? (
+      {!profile.prayerTrackingEnabled && (
         <div className="p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800/80 text-xs text-zinc-400 leading-relaxed">
-          متابعة الصلوات مخفية حالياً من الشاشة الرئيسية والتقارير وفقاً لتفضيلك. يتم الحفاظ على أي سجلات صلاة سابقة بأمان ويمكنك إعادة تفعيلها في أي وقت.
+          متابعة الصلوات مخفية حالياً من الشاشة الرئيسية والتقارير وفقاً لتفضيلك. يتم الحفاظ على أي سجلات صلاة سابقة بأمان ويمكنك تعديل المواعيد أو إعادة التفعيل في أي وقت.
         </div>
-      ) : (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+      )}
+
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
             {prayerPreviewList.map((p) => (
               <div
                 key={p.key}
@@ -171,8 +188,6 @@ export default function PrayersSection({
               <span>{isPending ? "جارٍ الحفظ..." : "حفظ إعدادات الصلوات"}</span>
             </button>
           </div>
-        </>
-      )}
     </form>
   );
 }

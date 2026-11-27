@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo } from "react";
 import {
   STORAGE_KEY,
   STORAGE_VERSION,
@@ -14,9 +14,22 @@ import {
   calculatePace,
 } from "../data/storage";
 import {
-  NUTRITION_DATA,
   INITIAL_JOURNAL_DATABASE,
 } from "../data/mockData";
+import { getLocalDateString as getTzLocalDateString } from "@/lib/dates";
+import {
+  calculateNutritionPlan,
+  createEmptyNutritionProfile,
+} from "@/lib/nutrition/calculations";
+import {
+  DEMO_MEAL_IDS,
+  EMPTY_NUTRITION_LOGGED,
+  filterRealMealsOnly,
+  isDemoMealRecord,
+  mergeBodyWeights,
+  normalizeMealRecord,
+  resolveTargetsForDate,
+} from "@/lib/nutrition/storage-helpers";
 import {
   buildDefaultLocalizationPreferences,
   formatCurrency,
@@ -125,6 +138,11 @@ function normalizeUserPreferences(rawSettings) {
   if (!rawSettings || typeof rawSettings !== "object") {
     return {
       ...defaults,
+      salutation: null,
+      religion: null,
+      onboardingCompleted: false,
+      onboardingStep: 1,
+      onboardingCompletedAt: null,
       prayerTrackingEnabled: false,
       prayerPreferenceConfigured: false,
     };
@@ -198,6 +216,18 @@ function normalizeUserPreferences(rawSettings) {
       cfg.prayerPreferenceConfigured !== undefined
         ? Boolean(cfg.prayerPreferenceConfigured)
         : true,
+    salutation: rawSettings.salutation ?? cfg.salutation ?? null,
+    religion: rawSettings.religion ?? cfg.religion ?? null,
+    onboardingCompleted:
+      rawSettings.onboardingCompleted !== undefined
+        ? Boolean(rawSettings.onboardingCompleted)
+        : cfg.onboardingCompleted !== undefined
+          ? Boolean(cfg.onboardingCompleted)
+          : false,
+    onboardingStep:
+      Number(rawSettings.onboardingStep ?? cfg.onboardingStep ?? 1) || 1,
+    onboardingCompletedAt:
+      rawSettings.onboardingCompletedAt ?? cfg.onboardingCompletedAt ?? null,
   };
 }
 
@@ -236,7 +266,8 @@ export function AtharProvider({ children }) {
 
   // Secondary domain states (Expenses, Nutrition, Journal, Gym presets) — genuinely clean initial states
   const [gymData, setGymData] = useState(EMPTY_GYM_DATA);
-  const [nutritionData, setNutritionData] = useState(NUTRITION_DATA);
+  const [allMeals, setAllMeals] = useState([]);
+  const [allWaterEntries, setAllWaterEntries] = useState([]);
   const [expensesData, setExpensesData] = useState(EMPTY_EXPENSES_DATA);
   const [journalData, setJournalData] = useState(INITIAL_JOURNAL_DATABASE);
   const [userPreferences, setUserPreferences] = useState(() =>
@@ -245,9 +276,6 @@ export function AtharProvider({ children }) {
   const loadedUserRef = useRef(null);
 
   const loadDomainsForUser = async (uid) => {
-    const today = getLocalDateString();
-    const currentMonthPrefix = today.slice(0, 7);
-
     // 1. User-scoped settings (IDB -> scoped localStorage -> guest legacy fallback)
     let resolvedSettings = await localSyncMetaRepo.getUserSettings(uid).catch(() => null);
     if (!resolvedSettings && typeof window !== "undefined") {
@@ -259,7 +287,15 @@ export function AtharProvider({ children }) {
       } catch {}
     }
     const activePrefs = normalizeUserPreferences(resolvedSettings);
+    const activeTz = activePrefs.timezone || "Africa/Cairo";
+    const today = getTzLocalDateString(new Date(), activeTz);
+    const currentMonthPrefix = today.slice(0, 7);
+
     setUserPreferences(activePrefs);
+    setSelectedDate((prev) => (prev === "2026-01-01" ? today : prev));
+    void activeTimerEngine
+      .migrateLegacyTimerHistory(uid, activePrefs.timezone)
+      .catch(() => {});
     if (typeof window !== "undefined") {
       try {
         localStorage.setItem(`athar_user_settings:${uid}`, JSON.stringify(activePrefs));
@@ -325,51 +361,65 @@ export function AtharProvider({ children }) {
       dailyAverageSpent: monthlySpent > 0 ? Math.round(monthlySpent / dayOfMonth) : 0,
     });
 
-    // 3. Meals (IndexedDB immediate source of truth per account)
-    const mealRows = await localDomainRepo.getMealEntries(uid).catch(() => []);
-    if (mealRows.length > 0) {
-      const todayMeals = mealRows.filter((m) => m.date === today);
-      setNutritionData((prev) => ({
-        ...prev,
-        meals: mealRows.map((m) => ({
-          id: m.id,
-          name: m.title || m.name,
-          title: m.title || m.name,
-          mealType: m.mealType,
-          date: m.date,
-          calories: m.calories,
-          protein: m.protein,
-          carbs: m.carbs,
-          fat: m.fat,
-          notes: m.notes,
-        })),
-        todayLogged: {
-          ...prev.todayLogged,
-          calories: todayMeals.reduce((s, m) => s + Number(m.calories || 0), 0),
-          protein: todayMeals.reduce((s, m) => s + Number(m.protein || 0), 0),
-          carbs: todayMeals.reduce((s, m) => s + Number(m.carbs || 0), 0),
-          fat: todayMeals.reduce((s, m) => s + Number(m.fat || 0), 0),
-        },
-      }));
-    } else if (uid === "guest" && typeof window !== "undefined") {
-      try {
-        const legacyNut = localStorage.getItem("athar_nutrition");
-        setNutritionData(legacyNut ? JSON.parse(legacyNut) : NUTRITION_DATA);
-      } catch {
-        setNutritionData(NUTRITION_DATA);
+    // 3. Meals (IndexedDB immediate source of truth per account — ZERO demo fallback)
+    const rawMealRows = await localDomainRepo.getMealEntries(uid).catch(() => []);
+    for (const m of rawMealRows) {
+      if (m?.id && DEMO_MEAL_IDS.has(String(m.id))) {
+        void localDomainRepo.deleteMealEntry(m.id).catch(() => {});
       }
-    } else {
-      setNutritionData(NUTRITION_DATA);
+    }
+    let cleanMeals = filterRealMealsOnly(rawMealRows);
+
+    // Migrate any real guest meals from legacy localStorage (never importing demo meals m1..m4)
+    if (uid === "guest" && typeof window !== "undefined") {
+      try {
+        const legacyRaw =
+          localStorage.getItem(`athar_nutrition:${uid}`) ||
+          localStorage.getItem("athar_nutrition");
+        if (legacyRaw) {
+          const parsedLegacy = JSON.parse(legacyRaw);
+          const realLegacyMeals = filterRealMealsOnly(parsedLegacy?.meals || []).map((m) => ({
+            ...m,
+            id: m.id || crypto.randomUUID(),
+            userId: "guest",
+            date: m.date || today,
+          }));
+          if (realLegacyMeals.length > 0 && cleanMeals.length === 0) {
+            await localDomainRepo.saveMealBatch(realLegacyMeals).catch(() => {});
+            cleanMeals = realLegacyMeals;
+          }
+          // Scrub legacy demo meals from localStorage so they never resurface
+          if (Array.isArray(parsedLegacy?.meals) && parsedLegacy.meals.some(isDemoMealRecord)) {
+            localStorage.removeItem("athar_nutrition");
+            localStorage.removeItem(`athar_nutrition:${uid}`);
+          }
+        }
+      } catch {}
     }
 
-    // 4. Body Weights + Gym Workouts (IndexedDB per account)
-    const [weights, gymRows] = await Promise.all([
+    cleanMeals.sort((a, b) => {
+      const dCmp = String(b.date || "").localeCompare(String(a.date || ""));
+      if (dCmp !== 0) return dCmp;
+      return String(b.createdAt || "").localeCompare(String(a.createdAt || ""));
+    });
+    setAllMeals(cleanMeals);
+
+    // 4. Water Entries (Canonical IndexedDB source of truth)
+    let waterRows = await localDomainRepo.getWaterEntries(uid).catch(() => []);
+
+    // 5. Body Weights + Gym Workouts (IndexedDB + synced UserSettings.dashboardConfig.bodyWeights)
+    const [idbWeights, gymRows] = await Promise.all([
       localSyncMetaRepo.getBodyWeights(uid).catch(() => []),
       localDomainRepo.getGymWorkouts(uid).catch(() => []),
     ]);
+    const syncedWeights = Array.isArray(activePrefs.bodyWeights) ? activePrefs.bodyWeights : [];
+    const mergedWeights = mergeBodyWeights(idbWeights, syncedWeights);
+    if (mergedWeights.length > 0) {
+      void localSyncMetaRepo.saveBodyWeights(uid, mergedWeights).catch(() => {});
+    }
     setGymData({
       ...EMPTY_GYM_DATA,
-      bodyWeights: Array.isArray(weights) ? weights : [],
+      bodyWeights: mergedWeights,
     });
 
     // Build scoped appState cleanly per user
@@ -385,6 +435,56 @@ export function AtharProvider({ children }) {
         baseAppState = { ...baseAppState, ...parsed };
       } catch {}
     }
+
+    // One-time non-destructive migration of real legacy waterCount records into canonical water_entries
+    if (
+      !baseAppState?.waterEntriesMigrated &&
+      baseAppState?.recordsByDate &&
+      typeof baseAppState.recordsByDate === "object"
+    ) {
+      const toMigrate = [];
+      const cleanedRecordsByDate = { ...baseAppState.recordsByDate };
+      for (const [dKey, dayObj] of Object.entries(baseAppState.recordsByDate)) {
+        const cups = Number(dayObj?.waterCount || 0);
+        if (cups > 0 && !waterRows.some((w) => w.date === dKey)) {
+          toMigrate.push({
+            id: `migrated_water_${uid}_${dKey}`,
+            userId: uid,
+            date: dKey,
+            amountMl: Math.round(cups * 250),
+            occurredAt: `${dKey}T12:00:00.000Z`,
+            source: "habit_water",
+            notes: null,
+          });
+        }
+        if (dayObj && "waterCount" in dayObj) {
+          const { waterCount: _legacyWater, ...restDay } = dayObj;
+          cleanedRecordsByDate[dKey] = restDay;
+        }
+      }
+      if (toMigrate.length > 0) {
+        await localDomainRepo.saveWaterBatch(toMigrate).catch(() => {});
+        waterRows = [...waterRows, ...toMigrate];
+      }
+      baseAppState = {
+        ...baseAppState,
+        recordsByDate: cleanedRecordsByDate,
+        waterEntriesMigrated: true,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(`${STORAGE_KEY}:${uid}`, JSON.stringify(baseAppState));
+          if (uid === "guest") persistState(baseAppState);
+        } catch {}
+      }
+    }
+    setAllWaterEntries(
+      waterRows.sort((a, b) =>
+        String(b.occurredAt || b.createdAt || "").localeCompare(
+          String(a.occurredAt || a.createdAt || "")
+        )
+      )
+    );
 
     if (gymRows.length > 0) {
       const nextRecords = { ...(baseAppState.recordsByDate || {}) };
@@ -476,13 +576,89 @@ export function AtharProvider({ children }) {
     }
   }, [expensesData, isMounted, activeUserId]);
 
+  const activeTimezone = userPreferences?.timezone || "Africa/Cairo";
+  const todayLocalDate = isMounted
+    ? getTzLocalDateString(new Date(), activeTimezone)
+    : "2026-01-01";
+  const activeNutritionDate =
+    selectedDate && selectedDate !== "2026-01-01" ? selectedDate : todayLocalDate;
+
+  const nutritionBreakdown = useMemo(
+    () => calculateNutritionPlan(userPreferences?.nutritionProfile),
+    [userPreferences?.nutritionProfile]
+  );
+
+  const nutritionData = useMemo(() => {
+    const dateMeals = allMeals.filter((m) => m.date === activeNutritionDate);
+    const dateWater = allWaterEntries.filter((w) => w.date === activeNutritionDate);
+    const waterMl = dateWater.reduce((s, w) => s + Number(w.amountMl || 0), 0);
+    const waterLiters = Math.round((waterMl / 1000) * 100) / 100;
+
+    const todayLogged = {
+      calories: Math.round(dateMeals.reduce((s, m) => s + Number(m.calories || 0), 0)),
+      protein: Math.round(dateMeals.reduce((s, m) => s + Number(m.protein || 0), 0) * 10) / 10,
+      carbs: Math.round(dateMeals.reduce((s, m) => s + Number(m.carbs || 0), 0) * 10) / 10,
+      fat: Math.round(dateMeals.reduce((s, m) => s + Number(m.fat || 0), 0) * 10) / 10,
+      waterMl,
+      waterLiters,
+    };
+
+    const dailyTargets = resolveTargetsForDate({
+      dateStr: activeNutritionDate,
+      todayStr: todayLocalDate,
+      currentTargets: nutritionBreakdown.targets,
+      targetSnapshots: userPreferences?.nutritionTargetSnapshots,
+      mealsForDate: dateMeals,
+    });
+
+    return {
+      activeDate: activeNutritionDate,
+      todayDate: todayLocalDate,
+      dailyTargets,
+      todayLogged,
+      meals: dateMeals,
+      allMeals,
+      waterEntries: dateWater,
+      allWaterEntries,
+      breakdown: nutritionBreakdown,
+      profile: userPreferences?.nutritionProfile || createEmptyNutritionProfile(),
+      nutritionPlans: Array.isArray(userPreferences?.nutritionPlans)
+        ? userPreferences.nutritionPlans
+        : [],
+      favoriteMeals: Array.isArray(userPreferences?.favoriteMeals)
+        ? userPreferences.favoriteMeals
+        : [],
+      customFoods: Array.isArray(userPreferences?.customFoods)
+        ? userPreferences.customFoods
+        : [],
+    };
+  }, [
+    allMeals,
+    allWaterEntries,
+    activeNutritionDate,
+    todayLocalDate,
+    nutritionBreakdown,
+    userPreferences?.nutritionProfile,
+    userPreferences?.nutritionTargetSnapshots,
+    userPreferences?.nutritionPlans,
+    userPreferences?.favoriteMeals,
+    userPreferences?.customFoods,
+  ]);
+
   useEffect(() => {
     if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
       try {
-        localStorage.setItem(`athar_nutrition:${activeUserId}`, JSON.stringify(nutritionData));
+        localStorage.setItem(
+          `athar_nutrition:${activeUserId}`,
+          JSON.stringify({
+            dailyTargets: nutritionData.dailyTargets,
+            todayLogged: nutritionData.todayLogged,
+            meals: allMeals,
+          })
+        );
       } catch {}
     }
-  }, [nutritionData, isMounted, activeUserId]);
+  }, [nutritionData.dailyTargets, nutritionData.todayLogged, allMeals, isMounted, activeUserId]);
 
   useEffect(() => {
     if (isMounted && typeof window !== "undefined" && loadedUserRef.current === activeUserId) {
@@ -526,8 +702,18 @@ export function AtharProvider({ children }) {
 
   // Helper: get or initialize record structure for any date
   const getDayRecords = (dateStr = selectedDate) => {
+    const dayWaterMl = allWaterEntries
+      .filter((w) => w.date === dateStr)
+      .reduce((s, w) => s + Number(w.amountMl || 0), 0);
+    const unifiedWaterCups = Math.round(dayWaterMl / 250);
+
     const records = appState.recordsByDate[dateStr];
-    if (records) return records;
+    if (records) {
+      return {
+        ...records,
+        waterCount: unifiedWaterCups,
+      };
+    }
 
     const schedule = appState.prayerSchedule || DEFAULT_PRAYER_SCHEDULE;
     return {
@@ -543,7 +729,7 @@ export function AtharProvider({ children }) {
       runningSessions: [],
       socialMediaSessions: [],
       smokingEvents: [],
-      waterCount: 0,
+      waterCount: unifiedWaterCups,
       customLogs: [],
     };
   };
@@ -1038,22 +1224,138 @@ export function AtharProvider({ children }) {
   };
 
   // ----------------------------------------------------
-  // 7. WATER / COUNTERS
+  // 7. WATER / HYDRATION (Unified Canonical WaterEntry Store)
   // ----------------------------------------------------
-  const addWaterCup = (cups = 1, dateStr = selectedDate) => {
-    const day = getDayRecords(dateStr);
-    const newCount = Math.max(0, (day.waterCount || 0) + cups);
-    setAppState((prev) => ({
-      ...prev,
-      recordsByDate: {
-        ...prev.recordsByDate,
-        [dateStr]: {
-          ...day,
-          waterCount: newCount,
-        },
-      },
-    }));
-    showToast(`+${cups * 250} مل ماء 💧 (الإجمالي: ${(newCount * 0.25).toFixed(2)} لتر)`, "success");
+  const addWaterMl = (amountMlInput = 250, dateStr = activeNutritionDate, source = "nutrition") => {
+    const amountMl = Math.round(Number(amountMlInput));
+    if (!Number.isFinite(amountMl) || amountMl <= 0) return null;
+
+    const targetDate = dateStr || todayLocalDate;
+    const entryId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+    const waterPayload = {
+      id: entryId,
+      userId: activeUserId,
+      date: targetDate,
+      amountMl,
+      occurredAt: nowIso,
+      source,
+      notes: null,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    setAllWaterEntries((prev) => [waterPayload, ...prev]);
+    localDomainRepo
+      .saveWaterEntry(waterPayload)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "water_entry",
+              entityId: entryId,
+              action: "create",
+              payload: waterPayload,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+
+    const nextDayTotalMl =
+      allWaterEntries
+        .filter((w) => w.date === targetDate)
+        .reduce((s, w) => s + Number(w.amountMl || 0), 0) + amountMl;
+    showToast(
+      `+${amountMl} مل ماء 💧 (إجمالي ${targetDate === todayLocalDate ? "اليوم" : targetDate}: ${(nextDayTotalMl / 1000).toFixed(2)} لتر)`,
+      "success"
+    );
+    return waterPayload;
+  };
+
+  const updateWaterEntry = (id, amountMlInput) => {
+    const amountMl = Math.round(Number(amountMlInput));
+    if (!Number.isFinite(amountMl) || amountMl <= 0) return;
+
+    const existing = allWaterEntries.find((w) => w.id === id);
+    if (!existing) return;
+    const updated = {
+      ...existing,
+      amountMl,
+      updatedAt: new Date().toISOString(),
+    };
+    setAllWaterEntries((prev) => prev.map((w) => (w.id === id ? updated : w)));
+
+    localDomainRepo
+      .saveWaterEntry(updated)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "water_entry",
+              entityId: id,
+              action: "update",
+              payload: { amountMl, date: existing.date },
+              baseUpdatedAt: existing.updatedAt,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+    showToast("تم تعديل كمية الماء", "success");
+  };
+
+  const deleteWaterEntry = (id) => {
+    const existing = allWaterEntries.find((w) => w.id === id);
+    if (!existing) return;
+    setAllWaterEntries((prev) => prev.filter((w) => w.id !== id));
+
+    localDomainRepo
+      .deleteWaterEntry(id)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "water_entry",
+              entityId: id,
+              action: "delete",
+              payload: {},
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+    showToast("تم حذف سجل الماء", "info");
+  };
+
+  const addWaterCup = (cups = 1, dateStr = activeNutritionDate) => {
+    if (cups > 0) {
+      addWaterMl(Math.round(cups * 250), dateStr, "habit_water");
+    } else if (cups < 0) {
+      const targetDate = dateStr || todayLocalDate;
+      const latestForDay = allWaterEntries.find((w) => w.date === targetDate);
+      if (latestForDay) {
+        deleteWaterEntry(latestForDay.id);
+      }
+    }
   };
 
   // ----------------------------------------------------
@@ -1136,6 +1438,11 @@ export function AtharProvider({ children }) {
             currency: nextPrefs.currency,
             currencyAuto: nextPrefs.currencyAuto,
             prayerTrackingEnabled: nextPrefs.prayerTrackingEnabled,
+            salutation: nextPrefs.salutation ?? null,
+            religion: nextPrefs.religion ?? null,
+            onboardingCompleted: Boolean(nextPrefs.onboardingCompleted),
+            onboardingStep: Number(nextPrefs.onboardingStep || 1),
+            onboardingCompletedAt: nextPrefs.onboardingCompletedAt ?? null,
             dashboardConfig: nextPrefs,
             profileName: nextPrefs.profileName,
           },
@@ -1156,12 +1463,13 @@ export function AtharProvider({ children }) {
     const entry = {
       id: generateId("bw"),
       weightKg: numeric,
-      date: dateStr || getLocalDateString(),
+      date: dateStr || todayLocalDate,
       createdAt: new Date().toISOString(),
     };
     setGymData((prev) => {
-      const nextWeights = [entry, ...(Array.isArray(prev.bodyWeights) ? prev.bodyWeights : [])];
+      const nextWeights = mergeBodyWeights([entry], prev.bodyWeights || []);
       void localSyncMetaRepo.saveBodyWeights(activeUserId, nextWeights).catch(() => {});
+      void updatePreferences({ bodyWeights: nextWeights }).catch(() => {});
       return {
         ...prev,
         bodyWeights: nextWeights,
@@ -1174,6 +1482,7 @@ export function AtharProvider({ children }) {
     setGymData((prev) => {
       const nextWeights = (prev.bodyWeights || []).filter((w) => w.id !== id);
       void localSyncMetaRepo.saveBodyWeights(activeUserId, nextWeights).catch(() => {});
+      void updatePreferences({ bodyWeights: nextWeights }).catch(() => {});
       return {
         ...prev,
         bodyWeights: nextWeights,
@@ -1317,54 +1626,100 @@ export function AtharProvider({ children }) {
     showToast("تم حذف المصروف", "info");
   };
 
-  const addWater = (amountLiters = 0.25) => {
-    addWaterCup(Math.round(amountLiters / 0.25));
-    setNutritionData((prev) => {
-      const current = prev.todayLogged.waterLiters;
-      const newWater = parseFloat((current + amountLiters).toFixed(2));
-      return {
-        ...prev,
-        todayLogged: {
-          ...prev.todayLogged,
-          waterLiters: Math.min(newWater, 6.0),
-        }
-      };
+  const addWater = (amountLiters = 0.25, dateStr = activeNutritionDate) => {
+    const ml = Math.round(Number(amountLiters) * 1000);
+    return addWaterMl(ml, dateStr, "nutrition");
+  };
+
+  const saveNutritionProfile = async (profilePatch, options = {}) => {
+    const currentProfile = userPreferences?.nutritionProfile || createEmptyNutritionProfile();
+    const nextProfile = {
+      ...currentProfile,
+      ...profilePatch,
+      updatedAt: new Date().toISOString(),
+    };
+    const nextPlan = calculateNutritionPlan(nextProfile);
+    const nextSnapshots = {
+      ...(userPreferences?.nutritionTargetSnapshots || {}),
+      ...(nextPlan.targets ? { [todayLocalDate]: nextPlan.targets } : {}),
+    };
+
+    await updatePreferences({
+      nutritionProfile: nextProfile,
+      nutritionTargetSnapshots: nextSnapshots,
     });
+
+    if (options.syncWeightToGym && Number(nextProfile.weightKg) > 0) {
+      const latestGym = gymData?.bodyWeights?.[0];
+      if (!latestGym || Math.abs(Number(latestGym.weightKg) - Number(nextProfile.weightKg)) >= 0.05) {
+        const entry = {
+          id: generateId("bw"),
+          weightKg: Number(nextProfile.weightKg),
+          date: todayLocalDate,
+          createdAt: new Date().toISOString(),
+        };
+        const nextWeights = mergeBodyWeights([entry], gymData?.bodyWeights || []);
+        setGymData((prev) => ({ ...prev, bodyWeights: nextWeights }));
+        void localSyncMetaRepo.saveBodyWeights(activeUserId, nextWeights).catch(() => {});
+        void updatePreferences({
+          nutritionProfile: nextProfile,
+          nutritionTargetSnapshots: nextSnapshots,
+          bodyWeights: nextWeights,
+        }).catch(() => {});
+      }
+    }
+
+    showToast("تم حفظ الملف الغذائي وتحديث الأهداف اليومية", "success");
+    return nextPlan;
+  };
+
+  const saveNutritionPlans = async (nextPlans) => {
+    await updatePreferences({ nutritionPlans: nextPlans });
+    showToast("تم حفظ خطة الوجبات", "success");
+  };
+
+  const saveFavoriteMeals = async (nextFavorites) => {
+    await updatePreferences({ favoriteMeals: nextFavorites });
+    showToast("تم تحديث الوجبات المفضلة", "success");
+  };
+
+  const saveCustomFoods = async (nextCustomFoods) => {
+    await updatePreferences({ customFoods: nextCustomFoods });
+    void localSyncMetaRepo.saveCustomFoods(activeUserId, nextCustomFoods).catch(() => {});
+    showToast("تم حفظ الطعام المخصص (مُعرّف كمُدخل يدوي)", "success");
   };
 
   const addMeal = (meal) => {
     const mealId = crypto.randomUUID();
-    const mealDate = selectedDate || getLocalDateString();
-    setNutritionData((prev) => {
-      const updatedMeals = [
-        { ...meal, id: mealId, date: mealDate },
-        ...prev.meals,
-      ];
-      return {
-        ...prev,
-        meals: updatedMeals,
-        todayLogged: {
-          ...prev.todayLogged,
-          calories: prev.todayLogged.calories + Number(meal.calories || 0),
-          protein: prev.todayLogged.protein + Number(meal.protein || 0),
-          carbs: prev.todayLogged.carbs + Number(meal.carbs || 0),
-          fat: prev.todayLogged.fat + Number(meal.fat || 0),
-        }
-      };
+    const mealDate = meal.date || activeNutritionDate || todayLocalDate;
+    const nowIso = new Date().toISOString();
+    const activeSnapshot = resolveTargetsForDate({
+      dateStr: mealDate,
+      todayStr: todayLocalDate,
+      currentTargets: nutritionBreakdown.targets,
+      targetSnapshots: userPreferences?.nutritionTargetSnapshots,
     });
 
-    const mealPayload = {
+    const mealPayload = normalizeMealRecord({
       id: mealId,
       userId: activeUserId,
       date: mealDate,
+      time: meal.time || "",
       mealType: meal.mealType || "lunch",
       title: meal.name || meal.title || "وجبة",
-      calories: Number(meal.calories) || 0,
+      calories: Math.round(Number(meal.calories) || 0),
       protein: Number(meal.protein) || 0,
       carbs: Number(meal.carbs) || 0,
       fat: Number(meal.fat) || 0,
+      items: Array.isArray(meal.items) ? meal.items : [],
+      dailyTargetsSnapshot: meal.dailyTargetsSnapshot || activeSnapshot || null,
       notes: meal.notes || null,
-    };
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    });
+
+    setAllMeals((prev) => [mealPayload, ...prev]);
+
     localDomainRepo
       .saveMealEntry(mealPayload)
       .then(() => {
@@ -1387,6 +1742,84 @@ export function AtharProvider({ children }) {
       })
       .catch(() => {});
     showToast("تم تسجيل الوجبة بنجاح 🥗", "success");
+    return mealPayload;
+  };
+
+  const updateMeal = (mealId, updates) => {
+    const existing = allMeals.find((m) => m.id === mealId);
+    if (!existing) return null;
+
+    const nowIso = new Date().toISOString();
+    const updatedMeal = normalizeMealRecord({
+      ...existing,
+      ...updates,
+      id: mealId,
+      userId: activeUserId,
+      title: updates.name || updates.title || existing.title,
+      calories: Math.round(Number(updates.calories ?? existing.calories) || 0),
+      protein: Number(updates.protein ?? existing.protein) || 0,
+      carbs: Number(updates.carbs ?? existing.carbs) || 0,
+      fat: Number(updates.fat ?? existing.fat) || 0,
+      items: Array.isArray(updates.items) ? updates.items : existing.items,
+      updatedAt: nowIso,
+    });
+
+    setAllMeals((prev) => prev.map((m) => (m.id === mealId ? updatedMeal : m)));
+
+    localDomainRepo
+      .saveMealEntry(updatedMeal)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "meal_entry",
+              entityId: mealId,
+              action: "update",
+              payload: updatedMeal,
+              baseUpdatedAt: existing.updatedAt,
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+    showToast("تم تحديث الوجبة بنجاح", "success");
+    return updatedMeal;
+  };
+
+  const deleteMeal = (mealId) => {
+    const existing = allMeals.find((m) => m.id === mealId);
+    if (!existing) return;
+
+    setAllMeals((prev) => prev.filter((m) => m.id !== mealId));
+
+    localDomainRepo
+      .deleteMealEntry(mealId)
+      .then(() => {
+        if (!isGuestUser) {
+          return localOutboxRepo
+            .add({
+              mutationId: crypto.randomUUID(),
+              userId: activeUserId,
+              entityType: "meal_entry",
+              entityId: mealId,
+              action: "delete",
+              payload: {},
+              clientTimestamp: Date.now(),
+              version: 1,
+              status: "pending",
+              retryCount: 0,
+            })
+            .then(() => syncEngine.scheduleSync(500));
+        }
+      })
+      .catch(() => {});
+    showToast("تم حذف الوجبة", "info");
   };
 
   const toggleGymSet = (exerciseId, setNumber) => {
@@ -1559,7 +1992,16 @@ export function AtharProvider({ children }) {
         // Nutrition Domain
         nutritionData,
         addWater,
+        addWaterMl,
+        updateWaterEntry,
+        deleteWaterEntry,
         addMeal,
+        updateMeal,
+        deleteMeal,
+        saveNutritionProfile,
+        saveNutritionPlans,
+        saveFavoriteMeals,
+        saveCustomFoods,
 
         // Journal Domain
         journalData,

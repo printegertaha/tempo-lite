@@ -112,6 +112,7 @@ export type TaskCountAggregateOutputType = {
   subtasks: number
   version: number
   tags: number
+  youtubeMeta: number
   sortOrder: number
   isArchived: number
   archivedAt: number
@@ -207,6 +208,7 @@ export type TaskCountAggregateInputType = {
   subtasks?: true
   version?: true
   tags?: true
+  youtubeMeta?: true
   sortOrder?: true
   isArchived?: true
   archivedAt?: true
@@ -321,6 +323,7 @@ export type TaskGroupByOutputType = {
   subtasks: runtime.JsonValue
   version: number
   tags: runtime.JsonValue
+  youtubeMeta: runtime.JsonValue | null
   sortOrder: number
   isArchived: boolean
   archivedAt: Date | null
@@ -371,6 +374,7 @@ export type TaskWhereInput = {
   subtasks?: Prisma.JsonFilter<"Task">
   version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
+  youtubeMeta?: Prisma.JsonNullableFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
   archivedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
@@ -401,6 +405,7 @@ export type TaskOrderByWithRelationInput = {
   subtasks?: Prisma.SortOrder
   version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
+  youtubeMeta?: Prisma.SortOrderInput | Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -434,6 +439,7 @@ export type TaskWhereUniqueInput = Prisma.AtLeast<{
   subtasks?: Prisma.JsonFilter<"Task">
   version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
+  youtubeMeta?: Prisma.JsonNullableFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
   archivedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
@@ -464,6 +470,7 @@ export type TaskOrderByWithAggregationInput = {
   subtasks?: Prisma.SortOrder
   version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
+  youtubeMeta?: Prisma.SortOrderInput | Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrderInput | Prisma.SortOrder
@@ -499,6 +506,7 @@ export type TaskScalarWhereWithAggregatesInput = {
   subtasks?: Prisma.JsonWithAggregatesFilter<"Task">
   version?: Prisma.IntWithAggregatesFilter<"Task"> | number
   tags?: Prisma.JsonWithAggregatesFilter<"Task">
+  youtubeMeta?: Prisma.JsonNullableWithAggregatesFilter<"Task">
   sortOrder?: Prisma.IntWithAggregatesFilter<"Task"> | number
   isArchived?: Prisma.BoolWithAggregatesFilter<"Task"> | boolean
   archivedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Task"> | Date | string | null
@@ -523,6 +531,7 @@ export type TaskCreateInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -553,6 +562,7 @@ export type TaskUncheckedCreateInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -577,6 +587,7 @@ export type TaskUpdateInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -607,6 +618,7 @@ export type TaskUncheckedUpdateInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -634,6 +646,7 @@ export type TaskCreateManyInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -658,6 +671,7 @@ export type TaskUpdateManyMutationInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -685,6 +699,7 @@ export type TaskUncheckedUpdateManyInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -722,6 +737,7 @@ export type TaskCountOrderByAggregateInput = {
   subtasks?: Prisma.SortOrder
   version?: Prisma.SortOrder
   tags?: Prisma.SortOrder
+  youtubeMeta?: Prisma.SortOrder
   sortOrder?: Prisma.SortOrder
   isArchived?: Prisma.SortOrder
   archivedAt?: Prisma.SortOrder
@@ -946,6 +962,7 @@ export type TaskCreateWithoutUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -974,6 +991,7 @@ export type TaskUncheckedCreateWithoutUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1030,6 +1048,7 @@ export type TaskScalarWhereInput = {
   subtasks?: Prisma.JsonFilter<"Task">
   version?: Prisma.IntFilter<"Task"> | number
   tags?: Prisma.JsonFilter<"Task">
+  youtubeMeta?: Prisma.JsonNullableFilter<"Task">
   sortOrder?: Prisma.IntFilter<"Task"> | number
   isArchived?: Prisma.BoolFilter<"Task"> | boolean
   archivedAt?: Prisma.DateTimeNullableFilter<"Task"> | Date | string | null
@@ -1054,6 +1073,7 @@ export type TaskCreateWithoutLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1082,6 +1102,7 @@ export type TaskUncheckedCreateWithoutLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1132,6 +1153,7 @@ export type TaskCreateWithoutTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1160,6 +1182,7 @@ export type TaskUncheckedCreateWithoutTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1212,6 +1235,7 @@ export type TaskCreateManyUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1236,6 +1260,7 @@ export type TaskUpdateWithoutUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1264,6 +1289,7 @@ export type TaskUncheckedUpdateWithoutUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1290,6 +1316,7 @@ export type TaskUncheckedUpdateManyWithoutUserInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1316,6 +1343,7 @@ export type TaskCreateManyLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1340,6 +1368,7 @@ export type TaskUpdateWithoutLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1368,6 +1397,7 @@ export type TaskUncheckedUpdateWithoutLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1394,6 +1424,7 @@ export type TaskUncheckedUpdateManyWithoutLifeAreaInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1420,6 +1451,7 @@ export type TaskCreateManyTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: number
   isArchived?: boolean
   archivedAt?: Date | string | null
@@ -1444,6 +1476,7 @@ export type TaskUpdateWithoutTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1472,6 +1505,7 @@ export type TaskUncheckedUpdateWithoutTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1498,6 +1532,7 @@ export type TaskUncheckedUpdateManyWithoutTrackerInput = {
   subtasks?: Prisma.JsonNullValueInput | runtime.InputJsonValue
   version?: Prisma.IntFieldUpdateOperationsInput | number
   tags?: Prisma.JsonNullValueInput | runtime.InputJsonValue
+  youtubeMeta?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   sortOrder?: Prisma.IntFieldUpdateOperationsInput | number
   isArchived?: Prisma.BoolFieldUpdateOperationsInput | boolean
   archivedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
@@ -1527,6 +1562,7 @@ export type TaskSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   subtasks?: boolean
   version?: boolean
   tags?: boolean
+  youtubeMeta?: boolean
   sortOrder?: boolean
   isArchived?: boolean
   archivedAt?: boolean
@@ -1557,6 +1593,7 @@ export type TaskSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   subtasks?: boolean
   version?: boolean
   tags?: boolean
+  youtubeMeta?: boolean
   sortOrder?: boolean
   isArchived?: boolean
   archivedAt?: boolean
@@ -1587,6 +1624,7 @@ export type TaskSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensio
   subtasks?: boolean
   version?: boolean
   tags?: boolean
+  youtubeMeta?: boolean
   sortOrder?: boolean
   isArchived?: boolean
   archivedAt?: boolean
@@ -1617,6 +1655,7 @@ export type TaskSelectScalar = {
   subtasks?: boolean
   version?: boolean
   tags?: boolean
+  youtubeMeta?: boolean
   sortOrder?: boolean
   isArchived?: boolean
   archivedAt?: boolean
@@ -1624,7 +1663,7 @@ export type TaskSelectScalar = {
   updatedAt?: boolean
 }
 
-export type TaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "lifeAreaId" | "trackerId" | "title" | "description" | "dueDate" | "startTime" | "durationMinutes" | "priority" | "status" | "completedAt" | "isPomodoro" | "workCycle" | "breakCycle" | "isRecurring" | "subtasks" | "version" | "tags" | "sortOrder" | "isArchived" | "archivedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["task"]>
+export type TaskOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "lifeAreaId" | "trackerId" | "title" | "description" | "dueDate" | "startTime" | "durationMinutes" | "priority" | "status" | "completedAt" | "isPomodoro" | "workCycle" | "breakCycle" | "isRecurring" | "subtasks" | "version" | "tags" | "youtubeMeta" | "sortOrder" | "isArchived" | "archivedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["task"]>
 export type TaskInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   lifeArea?: boolean | Prisma.Task$lifeAreaArgs<ExtArgs>
@@ -1668,6 +1707,7 @@ export type $TaskPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
     subtasks: runtime.JsonValue
     version: number
     tags: runtime.JsonValue
+    youtubeMeta: runtime.JsonValue | null
     sortOrder: number
     isArchived: boolean
     archivedAt: Date | null
@@ -2118,6 +2158,7 @@ export interface TaskFieldRefs {
   readonly subtasks: Prisma.FieldRef<"Task", 'Json'>
   readonly version: Prisma.FieldRef<"Task", 'Int'>
   readonly tags: Prisma.FieldRef<"Task", 'Json'>
+  readonly youtubeMeta: Prisma.FieldRef<"Task", 'Json'>
   readonly sortOrder: Prisma.FieldRef<"Task", 'Int'>
   readonly isArchived: Prisma.FieldRef<"Task", 'Boolean'>
   readonly archivedAt: Prisma.FieldRef<"Task", 'DateTime'>

@@ -25,8 +25,10 @@ export default function TimePickerModal({
     let m = 0;
     if (value && value.includes(":")) {
       const [hStr, mStr] = value.split(":");
-      h24 = parseInt(hStr, 10) || 9;
-      m = parseInt(mStr, 10) || 0;
+      const parsedH = parseInt(hStr, 10);
+      const parsedM = parseInt(mStr, 10);
+      if (!isNaN(parsedH)) h24 = Math.max(0, Math.min(23, parsedH));
+      if (!isNaN(parsedM)) m = Math.max(0, Math.min(59, parsedM));
     }
     const isPm = h24 >= 12;
     let h12 = h24 % 12;
@@ -48,7 +50,6 @@ export default function TimePickerModal({
     }
   }
 
-  /* ── Options ──────────────────────────────────────────────── */
   const hourOptions = useMemo(
     () =>
       Array.from({ length: 12 }, (_, i) => ({
@@ -58,7 +59,6 @@ export default function TimePickerModal({
     []
   );
 
-  // Every minute 00 → 59
   const minuteOptions = useMemo(
     () =>
       Array.from({ length: 60 }, (_, i) => ({
@@ -73,7 +73,6 @@ export default function TimePickerModal({
     { value: "PM" as const, label: "م" },
   ];
 
-  /* ── Apply ────────────────────────────────────────────────── */
   const handleApply = () => {
     let h24 = Number(hour);
     if (period === "PM" && h24 < 12) h24 += 12;
@@ -82,14 +81,19 @@ export default function TimePickerModal({
     onClose();
   };
 
+  const previewText = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")} ${period === "AM" ? "صباحاً" : "مساءً"}`;
+
   return (
     <Modal isOpen={isOpen} onClose={onClose} maxWidth="sm" showCloseButton={false}>
-      <div className="space-y-5">
+      <div className="space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between pb-1">
           <div className="flex items-center gap-2.5">
             <Clock className="w-5 h-5 text-indigo-400" />
-            <h3 className="text-base font-bold text-zinc-100">{title}</h3>
+            <div>
+              <h3 className="text-base font-bold text-zinc-100">{title}</h3>
+              <p className="text-[11px] font-mono text-indigo-300 mt-0.5">{previewText}</p>
+            </div>
           </div>
           <button
             type="button"
@@ -101,35 +105,37 @@ export default function TimePickerModal({
           </button>
         </div>
 
-        {/*
-          Apple-style unified picker
-          Columns: Hour | Minute | ص/م
-        */}
-        <AppleWheelPicker
-          columns={[
-            {
-              options: hourOptions,
-              value: hour,
-              onChange: (v) => setHour(Number(v)),
-              flex: 1,
-              align: "center",
-            },
-            {
-              options: minuteOptions,
-              value: minute,
-              onChange: (v) => setMinute(Number(v)),
-              flex: 1,
-              align: "center",
-            },
-            {
-              options: periodOptions,
-              value: period,
-              onChange: (v) => setPeriod(v as "AM" | "PM"),
-              flex: 0.7,
-              align: "center",
-            },
-          ]}
-        />
+        {/* Columns (RTL): Period (right) | Minute (center) | Hour (left) */}
+        <div dir="rtl">
+          <AppleWheelPicker
+            columns={[
+              {
+                label: "الفترة",
+                options: periodOptions,
+                value: period,
+                onChange: (v) => setPeriod(v as "AM" | "PM"),
+                flex: 0.75,
+                align: "center",
+              },
+              {
+                label: "الدقيقة",
+                options: minuteOptions,
+                value: minute,
+                onChange: (v) => setMinute(Number(v)),
+                flex: 1,
+                align: "center",
+              },
+              {
+                label: "الساعة",
+                options: hourOptions,
+                value: hour,
+                onChange: (v) => setHour(Number(v)),
+                flex: 1,
+                align: "center",
+              },
+            ]}
+          />
+        </div>
 
         {/* Actions */}
         <div className="flex items-center gap-3 pt-1">

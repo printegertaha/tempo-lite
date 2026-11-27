@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import {
   Plus,
   Search,
@@ -18,9 +18,12 @@ import {
   Volume2,
   VolumeX,
   Trash2,
+  ChevronDown,
+  Check,
 } from "lucide-react";
 import TaskCard from "./TaskCard";
 import TaskModal from "./TaskModal";
+import ConfirmDialog from "@/components/ui/ConfirmDialog";
 import { activeTimerEngine } from "@/lib/timer/active-timer";
 import { useActiveTimer } from "@/hooks/useActiveTimer";
 import SyncStatusBadge from "@/components/sync/SyncStatusBadge";
@@ -41,6 +44,7 @@ export default function TasksView({
   initialTrackers = [],
 }) {
   const { userPreferences } = useAthar();
+  const [showControls, setShowControls] = useState(false);
   const { userId: sessionUserId, isGuest: sessionIsGuest } = useLocalSession();
   const userId = propUserId || sessionUserId || "guest";
   const isGuest = propUserId ? (!propUserId || propUserId === "guest") : sessionIsGuest;
@@ -96,8 +100,28 @@ export default function TasksView({
   }, [userId, initialLifeAreas.length, initialTrackers.length]);
 
   // Filters & Tabs
-  const [activeTab, setActiveTab] = useState("today"); // "today" | "overdue" | "upcoming" | "completed" | "all" | "archived"
+  const [activeTab, setActiveTab] = useState("today"); // "today" | "all" | "overdue" | "upcoming" | "completed" | "archived"
   const [selectedAreaId, setSelectedAreaId] = useState("");
+  const [areaDropdownOpen, setAreaDropdownOpen] = useState(false);
+  const areaDropdownRef = useRef(null);
+
+  useEffect(() => {
+    if (!areaDropdownOpen) return;
+    const onOutside = (e) => {
+      if (areaDropdownRef.current && !areaDropdownRef.current.contains(e.target)) {
+        setAreaDropdownOpen(false);
+      }
+    };
+    const onEsc = (e) => {
+      if (e.key === "Escape") setAreaDropdownOpen(false);
+    };
+    document.addEventListener("mousedown", onOutside);
+    document.addEventListener("keydown", onEsc);
+    return () => {
+      document.removeEventListener("mousedown", onOutside);
+      document.removeEventListener("keydown", onEsc);
+    };
+  }, [areaDropdownOpen]);
   const [selectedTrackerId, setSelectedTrackerId] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [localDate, setLocalDate] = useState(
@@ -117,7 +141,6 @@ export default function TasksView({
   // Modal State
   const [modalOpen, setModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState(null);
-  const [confirmDeleteAll, setConfirmDeleteAll] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   // Sound toggle state
@@ -253,17 +276,17 @@ export default function TasksView({
     });
   }, [uniqueTaskList, activeTab, selectedAreaId, selectedTrackerId, searchQuery, todayStr]);
 
+  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+
   // Handle Delete All Tasks
-  const handleDeleteAll = async () => {
-    if (!confirmDeleteAll) {
-      setConfirmDeleteAll(true);
-      setTimeout(() => setConfirmDeleteAll(false), 4000);
-      return;
-    }
+  const handleConfirmDeleteAll = async () => {
     setIsDeletingAll(true);
-    await deleteAllTasks();
-    setIsDeletingAll(false);
-    setConfirmDeleteAll(false);
+    try {
+      await deleteAllTasks();
+      setDeleteAllDialogOpen(false);
+    } finally {
+      setIsDeletingAll(false);
+    }
   };
 
   // Handle Modal Save (both Create and Edit)
@@ -272,6 +295,9 @@ export default function TasksView({
       await updateTask(editingTask.id, data);
     } else {
       await addTask(data);
+      if (!data.dueDate || !data.startTime) {
+        setActiveTab("all");
+      }
     }
     setModalOpen(false);
     setEditingTask(null);
@@ -295,7 +321,7 @@ export default function TasksView({
     });
   };
 
-  // Tabs Configuration for Unified Header
+  // Tabs Configuration for Unified Header (اليوم -> الكل -> المتأخرة -> القادمة -> المكتملة -> الأرشيف)
   const FILTER_TABS = [
     {
       id: "today",
@@ -304,6 +330,14 @@ export default function TasksView({
       icon: Calendar,
       activeColor: "bg-violet-600/20 text-violet-300 border-violet-500/40 shadow-sm",
       badgeColor: "bg-violet-500/25 text-violet-200",
+    },
+    {
+      id: "all",
+      label: "الكل",
+      count: stats.allActiveCount,
+      icon: ListTodo,
+      activeColor: "bg-zinc-800 text-zinc-100 border-zinc-700 shadow-sm",
+      badgeColor: "bg-zinc-850 text-zinc-300",
     },
     {
       id: "overdue",
@@ -330,14 +364,6 @@ export default function TasksView({
       badgeColor: "bg-emerald-500/25 text-emerald-200",
     },
     {
-      id: "all",
-      label: "الكل",
-      count: stats.allActiveCount,
-      icon: ListTodo,
-      activeColor: "bg-zinc-800 text-zinc-100 border-zinc-700 shadow-sm",
-      badgeColor: "bg-zinc-850 text-zinc-300",
-    },
-    {
       id: "archived",
       label: "الأرشيف",
       count: stats.archivedCount,
@@ -349,135 +375,202 @@ export default function TasksView({
 
   return (
     <div className="space-y-5 select-none">
-      {/* 1. Sleek Compact Top Bar: Sync Status, Sound Toggle & New Task Button */}
-      <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
-        <div className="flex items-center gap-3">
-          <SyncStatusBadge />
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={toggleSound}
-            className={`p-2 rounded-xl border transition-colors cursor-pointer ${
-              soundEnabled
-                ? "bg-violet-500/10 border-violet-500/30 text-violet-300"
-                : "bg-zinc-900 border-zinc-800 text-zinc-500"
+      {/* Page Header: Clickable "إدارة المهام والأولويات" toggle + "+" Quick Add button */}
+      <div className="flex items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+        <button
+          type="button"
+          onClick={() => setShowControls((prev) => !prev)}
+          aria-expanded={showControls}
+          className="group flex items-center gap-2 text-right cursor-pointer focus:outline-none"
+        >
+          <h1 className="text-xl sm:text-3xl font-extrabold text-zinc-100 group-hover:text-violet-300 transition-colors tracking-tight">
+            إدارة المهام والأولويات
+          </h1>
+          <ChevronDown
+            className={`w-5 h-5 text-zinc-400 group-hover:text-violet-300 transition-transform duration-200 ${
+              showControls ? "rotate-180" : ""
             }`}
-            title={soundEnabled ? "كتم الأصوات" : "تفعيل الأصوات التفاعلية"}
-          >
-            {soundEnabled ? (
-              <Volume2 className="w-4 h-4" />
-            ) : (
-              <VolumeX className="w-4 h-4" />
-            )}
-          </button>
+          />
+        </button>
 
-          <button
-            type="button"
-            onClick={handleDeleteAll}
-            disabled={isDeletingAll || uniqueTaskList.length === 0}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
-              confirmDeleteAll
-                ? "bg-red-600 hover:bg-red-500 text-white border-red-500 shadow-lg shadow-red-600/30 animate-pulse"
-                : "bg-zinc-900 hover:bg-red-900/40 text-zinc-400 hover:text-red-300 border-zinc-800 hover:border-red-800"
-            }`}
-            title={confirmDeleteAll ? "اضغط مجدداً للتأكيد والحذف النهائي" : "حذف جميع المهام"}
-          >
-            {isDeletingAll ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <Trash2 className="w-4 h-4" />
-            )}
-            <span className="hidden sm:inline">
-              {confirmDeleteAll ? "تأكيد الحذف؟" : "حذف الكل"}
-            </span>
-          </button>
+        <button
+          type="button"
+          onClick={() => {
+            setEditingTask(null);
+            setModalOpen(true);
+          }}
+          aria-label="إضافة مهمة جديدة"
+          title="إضافة مهمة جديدة"
+          className="p-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
+        >
+          <Plus className="w-5 h-5" />
+        </button>
+      </div>
 
-          <button
-            type="button"
-            onClick={() => {
-              setEditingTask(null);
-              setModalOpen(true);
-            }}
-            className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>مهمة جديدة</span>
-          </button>
-        </div>
+      {showControls && (
+        <div className="space-y-4">
+          {/* 1. Sleek Compact Top Bar: New Task on far right, Delete All on far left */}
+          <div className="flex items-center justify-between gap-3 p-3.5 sm:p-4 rounded-2xl bg-[#0c0e17]/90 border border-zinc-800/80 shadow-xl backdrop-blur-xl">
+        <button
+          type="button"
+          onClick={() => {
+            setEditingTask(null);
+            setModalOpen(true);
+          }}
+          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>مهمة جديدة</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setDeleteAllDialogOpen(true)}
+          disabled={isDeletingAll || uniqueTaskList.length === 0}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all active:scale-95 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed bg-zinc-900 hover:bg-rose-500/15 text-zinc-400 hover:text-rose-300 border-zinc-800 hover:border-rose-500/35"
+          title="حذف جميع المهام"
+        >
+          {isDeletingAll ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Trash2 className="w-4 h-4" />
+          )}
+          <span className="hidden sm:inline">حذف الكل</span>
+        </button>
       </div>
 
       {/* 10. Unified Compact Interactive Filter Bar (Replaces redundant stat cards & horizontal tabs) */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
-        {/* Unified Filter Tabs Bar (Horizontal scroll on mobile, 6-col grid on sm+) */}
-        <div
-          role="tablist"
-          aria-label="تصفية المهام"
-          className="flex sm:grid sm:grid-cols-6 gap-1.5 p-1 rounded-2xl bg-zinc-950/80 border border-zinc-800/80 overflow-x-auto sm:overflow-visible no-scrollbar snap-x snap-proximity"
-        >
-          {FILTER_TABS.map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
+        {/* Outer padded container -> Inner scrollable tabs div with ultra-thin hairline scrollbar */}
+        <div className="p-1.5 rounded-2xl bg-zinc-950/80 border border-zinc-800/80">
+          <div
+            role="tablist"
+            aria-label="تصفية المهام"
+            style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(161,161,170,0.22) transparent" }}
+            className="flex sm:grid sm:grid-cols-6 gap-1.5 pb-1 sm:pb-0 overflow-x-auto sm:overflow-visible snap-x snap-proximity [&::-webkit-scrollbar]:h-[2px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-zinc-600/40"
+          >
+            {FILTER_TABS.map((tab) => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
 
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                onClick={(e) => {
-                  setActiveTab(tab.id);
-                  soundManager.playClick();
-                  e.currentTarget.scrollIntoView({
-                    block: "nearest",
-                    inline: "nearest",
-                    behavior: "smooth",
-                  });
-                }}
-                className={`shrink-0 sm:shrink snap-start flex items-center justify-center gap-1.5 px-3 sm:px-2.5 py-2 rounded-xl border transition-all text-xs font-semibold cursor-pointer whitespace-nowrap ${
-                  isActive
-                    ? tab.activeColor
-                    : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
-                }`}
-              >
-                <Icon
-                  className={`w-3.5 h-3.5 ${
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={isActive}
+                  onClick={(e) => {
+                    setActiveTab(tab.id);
+                    soundManager.playClick();
+                    e.currentTarget.scrollIntoView({
+                      block: "nearest",
+                      inline: "nearest",
+                      behavior: "smooth",
+                    });
+                  }}
+                  className={`shrink-0 sm:shrink snap-start flex items-center justify-center gap-1.5 px-3 sm:px-2.5 py-2 rounded-xl border transition-all text-xs font-semibold cursor-pointer whitespace-nowrap ${
                     isActive
-                      ? ""
-                      : tab.id === "overdue" && tab.count > 0
-                      ? "text-red-400"
-                      : "text-zinc-500"
-                  }`}
-                />
-                <span className="truncate">{tab.label}</span>
-                <span
-                  className={`px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold ${
-                    isActive ? tab.badgeColor : "text-zinc-500 bg-zinc-900"
+                      ? tab.activeColor
+                      : "border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60"
                   }`}
                 >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
+                  <Icon
+                    className={`w-3.5 h-3.5 ${
+                      isActive
+                        ? ""
+                        : tab.id === "overdue" && tab.count > 0
+                        ? "text-red-400"
+                        : "text-zinc-500"
+                    }`}
+                  />
+                  <span className="truncate">{tab.label}</span>
+                  <span
+                    className={`px-1.5 py-0.2 rounded-md font-mono text-[10px] font-bold ${
+                      isActive ? tab.badgeColor : "text-zinc-500 bg-zinc-900"
+                    }`}
+                  >
+                    {tab.count}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
-        {/* Filter by Life Area & Instant Search */}
+        {/* Filter by Life Area (Custom Dropdown) & Instant Search */}
         <div className="flex items-center gap-2">
           {lifeAreas.length > 0 && (
-            <select
-              value={selectedAreaId}
-              onChange={(e) => setSelectedAreaId(e.target.value)}
-              className="px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 focus:outline-none shrink-0 cursor-pointer"
-            >
-              <option value="">جميع المجالات</option>
-              {lifeAreas.map((a) => (
-                <option key={a.id} value={a.id}>
-                  {a.name}
-                </option>
-              ))}
-            </select>
+            <div className="relative shrink-0" ref={areaDropdownRef}>
+              <button
+                type="button"
+                onClick={() => setAreaDropdownOpen((v) => !v)}
+                aria-expanded={areaDropdownOpen}
+                aria-haspopup="listbox"
+                className={`flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+                  selectedAreaId
+                    ? "bg-violet-600/15 border-violet-500/40 text-violet-200"
+                    : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:border-zinc-700"
+                }`}
+              >
+                <Folder className="w-3.5 h-3.5 text-violet-400 shrink-0" />
+                <span className="max-w-[110px] truncate">
+                  {lifeAreas.find((a) => a.id === selectedAreaId)?.name || "جميع المجالات"}
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-zinc-400 transition-transform duration-150 ${
+                    areaDropdownOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+
+              {areaDropdownOpen && (
+                <div
+                  role="listbox"
+                  className="absolute right-0 sm:left-0 sm:right-auto top-full mt-1.5 min-w-[180px] max-h-60 overflow-y-auto p-1.5 rounded-2xl bg-[#0c0e17]/98 border border-zinc-800 shadow-2xl backdrop-blur-2xl z-40 space-y-0.5 animate-in fade-in slide-in-from-top-1 duration-150"
+                >
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={!selectedAreaId}
+                    onClick={() => {
+                      setSelectedAreaId("");
+                      setAreaDropdownOpen(false);
+                    }}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                      !selectedAreaId
+                        ? "bg-violet-600/20 text-violet-200"
+                        : "text-zinc-300 hover:bg-zinc-800/70"
+                    }`}
+                  >
+                    <span>جميع المجالات</span>
+                    {!selectedAreaId && <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />}
+                  </button>
+                  {lifeAreas.map((a) => {
+                    const isSelected = selectedAreaId === a.id;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setSelectedAreaId(a.id);
+                          setAreaDropdownOpen(false);
+                        }}
+                        className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-colors cursor-pointer ${
+                          isSelected
+                            ? "bg-violet-600/20 text-violet-200"
+                            : "text-zinc-300 hover:bg-zinc-800/70"
+                        }`}
+                      >
+                        <span className="truncate">{a.name}</span>
+                        {isSelected && <Check className="w-3.5 h-3.5 text-violet-400 shrink-0" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           <div className="relative flex-1 md:w-48">
@@ -492,6 +585,8 @@ export default function TasksView({
           </div>
         </div>
       </div>
+        </div>
+      )}
 
       {/* 2. Tasks Content Cards: Starts Immediately without scrolling */}
       {!isLoaded ? (
@@ -577,6 +672,19 @@ export default function TasksView({
         trackers={trackers}
         todayStr={todayStr}
         onSave={handleModalSave}
+      />
+
+      {/* Confirm Delete All Tasks Modal */}
+      <ConfirmDialog
+        isOpen={deleteAllDialogOpen}
+        onClose={() => !isDeletingAll && setDeleteAllDialogOpen(false)}
+        onConfirm={handleConfirmDeleteAll}
+        title="هل تريد حذف جميع المهام؟"
+        description="تحذير: سيتم حذف كافة المهام نهائياً بما فيها المهام المكتملة والمؤرشفة، ولا يمكن التراجع عن هذا الإجراء."
+        confirmLabel="حذف"
+        cancelLabel="إلغاء"
+        isDestructive={true}
+        isLoading={isDeletingAll}
       />
     </div>
   );

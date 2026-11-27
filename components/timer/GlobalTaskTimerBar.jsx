@@ -11,13 +11,17 @@ import {
   Maximize2,
   Minimize2,
   PictureInPicture2,
-  Sparkles,
+  Info,
+  Trash2,
 } from "lucide-react";
 import { useActiveTimer } from "@/hooks/useActiveTimer";
 import { formatTimerDuration } from "@/lib/timer/active-timer";
 import { loadBubblePrefs, saveBubblePrefs } from "@/lib/timer/bubble-physics";
+import { soundManager } from "@/lib/audio";
+import { normalizeYouTubeMetaList } from "@/components/tasks/YouTubePreviewCard";
 import FloatingTaskBubble from "@/components/timer/FloatingTaskBubble";
 import ZenFocusModal from "@/components/timer/ZenFocusModal";
+import TaskTimerInfoModal from "@/components/timer/TaskTimerInfoModal";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
 const emptySubscribe = () => () => {};
@@ -68,9 +72,35 @@ export default function GlobalTaskTimerBar() {
   const [isExtendingOpen, setIsExtendingOpen] = useState(false);
   const [isConfirmCancelOpen, setIsConfirmCancelOpen] = useState(false);
   const [isStopwatchFullscreen, setIsStopwatchFullscreen] = useState(false);
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [isMinimized, setIsMinimized] = useState(() => loadBubblePrefs().isMinimized);
   const [isCollapsingToBubble, setIsCollapsingToBubble] = useState(false);
   const collapseTimerRef = useRef(null);
+  const tickAccentRef = useRef(false);
+
+  const isSessionRunningForAudio = Boolean(
+    session && session.status === "running" && session.isRunning
+  );
+
+  // Subtle mechanical clock tick sound every second while a task timer is running
+  useEffect(() => {
+    if (!isSessionRunningForAudio) return;
+    const interval = setInterval(() => {
+      tickAccentRef.current = !tickAccentRef.current;
+      soundManager.playClockTick(tickAccentRef.current);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [isSessionRunningForAudio]);
+
+  // Lock background scroll in Fullscreen Stopwatch Mode
+  useEffect(() => {
+    if (!isStopwatchFullscreen || !session || session?.mode === "zen_pomodoro") return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [isStopwatchFullscreen, session]);
   const clearNoticeRef = useRef(clearNotice);
   const dismissCompletedRef = useRef(dismissCompleted);
   useEffect(() => {
@@ -101,8 +131,15 @@ export default function GlobalTaskTimerBar() {
   if (!mounted) return null;
 
   const isZenOpen = session?.mode === "zen_pomodoro";
+  const sessionLinks = normalizeYouTubeMetaList(session?.youtubeMeta);
+  const sessionSubtasks = Array.isArray(session?.subtasks) ? session.subtasks : [];
+  const showInfoButton = sessionLinks.length > 0 && sessionSubtasks.length > 0;
   const plannedSeconds = (session?.plannedDurationMinutes || 0) * 60;
-  const isOvertime = plannedSeconds > 0 && elapsedSeconds > plannedSeconds;
+  const isCountdown = plannedSeconds > 0;
+  const displaySeconds = isCountdown
+    ? Math.max(0, plannedSeconds - elapsedSeconds)
+    : elapsedSeconds;
+  const isOvertime = isCountdown && elapsedSeconds > plannedSeconds;
 
   const handleMinimize = () => {
     if (isMinimized || isCollapsingToBubble) return;
@@ -183,32 +220,56 @@ export default function GlobalTaskTimerBar() {
         >
           {showActiveBar && session ? (
             <div className="max-w-4xl mx-auto flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              {/* Task Info */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-300 shrink-0">
-                  <Timer
-                    className={`w-5 h-5 ${session.isRunning ? "motion-safe:animate-pulse" : ""}`}
-                  />
-                  {session.isRunning && (
-                    <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-zinc-950 motion-safe:animate-ping" />
-                  )}
-                </div>
-
-                <div className="space-y-0.5 text-right min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] sm:text-xs text-violet-400 font-bold uppercase tracking-wider">
-                      {session.isRunning ? "المهمة الجارية الآن" : "المؤقت متوقف مؤقتاً"}
-                    </span>
-                    {isOvertime && (
-                      <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30">
-                        +{Math.floor((elapsedSeconds - plannedSeconds) / 60)}د إضافي
-                      </span>
+              {/* Task Info + Mobile Top-Left Secondary Actions (PiP & Cancel) */}
+              <div className="flex items-center justify-between gap-2.5 min-w-0">
+                <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                  <div className="relative flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-violet-600/20 border border-violet-500/40 text-violet-300 shrink-0">
+                    <Timer
+                      className={`w-4 h-4 sm:w-5 sm:h-5 ${session.isRunning ? "motion-safe:animate-pulse" : ""}`}
+                    />
+                    {session.isRunning && (
+                      <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-emerald-400 ring-2 ring-zinc-950 motion-safe:animate-ping" />
                     )}
                   </div>
 
-                  <h3 className="text-xs sm:text-sm font-extrabold text-white truncate max-w-[200px] sm:max-w-xs md:max-w-md">
-                    {session.taskTitle}
-                  </h3>
+                  <div className="space-y-0.5 text-right min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] sm:text-xs text-violet-400 font-bold uppercase tracking-wider truncate">
+                        {session.isRunning ? "المهمة الجارية الآن" : "المؤقت متوقف مؤقتاً"}
+                      </span>
+                      {isOvertime && (
+                        <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30 shrink-0">
+                          +{Math.floor((elapsedSeconds - plannedSeconds) / 60)}د إضافي
+                        </span>
+                      )}
+                    </div>
+
+                    <h3 className="text-xs sm:text-sm font-extrabold text-white truncate">
+                      {session.taskTitle}
+                    </h3>
+                  </div>
+                </div>
+
+                {/* Mobile-only PiP & Cancel moved to Row 1 to prevent Row 2 crowding */}
+                <div className="flex sm:hidden items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleMinimize}
+                    className="p-2 rounded-xl bg-zinc-800/90 hover:bg-violet-600/25 border border-zinc-700/70 text-zinc-300 hover:text-violet-200 transition-all cursor-pointer"
+                    title="تصغير إلى فقاعة عائمة"
+                    aria-label="تصغير شريط المهمة إلى فقاعة عائمة"
+                  >
+                    <PictureInPicture2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsConfirmCancelOpen(true)}
+                    className="p-2 rounded-xl text-zinc-400 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    title="إلغاء المؤقت"
+                    aria-label="إلغاء المؤقت"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -216,9 +277,13 @@ export default function GlobalTaskTimerBar() {
               <div className="flex items-center justify-between sm:justify-end gap-2 w-full sm:w-auto">
                 <div
                   dir="ltr"
-                  className="font-mono text-xl sm:text-2xl font-black text-white tracking-tight tabular-nums px-3 py-1 rounded-xl bg-zinc-950/80 border border-zinc-800"
+                  className={`font-mono text-xl sm:text-2xl font-black tracking-tight tabular-nums px-3 py-1 rounded-xl bg-zinc-950/80 border ${
+                    isOvertime
+                      ? "text-amber-300 border-amber-500/40"
+                      : "text-white border-zinc-800"
+                  }`}
                 >
-                  {formatTimerDuration(elapsedSeconds)}
+                  {formatTimerDuration(displaySeconds)}
                 </div>
 
                 <div className="flex items-center gap-1.5">
@@ -303,6 +368,18 @@ export default function GlobalTaskTimerBar() {
                   </div>
 
                   {/* Fullscreen Stopwatch Mode */}
+                  {showInfoButton && (
+                    <button
+                      type="button"
+                      onClick={() => setIsInfoOpen(true)}
+                      className="p-2 rounded-xl bg-zinc-800 hover:bg-zinc-750 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                      title="الروابط والمهام الفرعية"
+                      aria-label="الروابط والمهام الفرعية"
+                    >
+                      <Info className="w-4 h-4" />
+                    </button>
+                  )}
+
                   <button
                     type="button"
                     onClick={() => setIsStopwatchFullscreen(true)}
@@ -313,23 +390,23 @@ export default function GlobalTaskTimerBar() {
                     <Maximize2 className="w-4 h-4" />
                   </button>
 
-                  {/* Minimize to Floating Physics Bubble */}
+                  {/* Minimize to Floating Physics Bubble (Desktop; on mobile it's in Row 1) */}
                   <button
                     type="button"
                     data-testid="minimize-task-bar"
                     onClick={handleMinimize}
-                    className="p-2 rounded-xl bg-zinc-800/90 hover:bg-violet-600/25 border border-zinc-700/70 hover:border-violet-500/40 text-zinc-300 hover:text-violet-200 transition-all cursor-pointer"
+                    className="hidden sm:inline-flex p-2 rounded-xl bg-zinc-800/90 hover:bg-violet-600/25 border border-zinc-700/70 hover:border-violet-500/40 text-zinc-300 hover:text-violet-200 transition-all cursor-pointer"
                     title="تصغير إلى فقاعة عائمة"
                     aria-label="تصغير شريط المهمة إلى فقاعة عائمة"
                   >
                     <PictureInPicture2 className="w-4 h-4" />
                   </button>
 
-                  {/* Cancel */}
+                  {/* Cancel (Desktop; on mobile it's in Row 1) */}
                   <button
                     type="button"
                     onClick={() => setIsConfirmCancelOpen(true)}
-                    className="p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
+                    className="hidden sm:inline-flex p-2 rounded-xl text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors cursor-pointer"
                     title="إلغاء المؤقت"
                     aria-label="إلغاء المؤقت"
                   >
@@ -426,15 +503,29 @@ export default function GlobalTaskTimerBar() {
               <span className="w-2.5 h-2.5 rounded-full bg-violet-500 motion-safe:animate-ping" />
               <span>وضع التركيز العميق</span>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsStopwatchFullscreen(false)}
-              className="p-3 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
-              title="تصغير"
-              aria-label="تصغير وضع ملء الشاشة"
-            >
-              <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              {showInfoButton && (
+                <button
+                  type="button"
+                  onClick={() => setIsInfoOpen(true)}
+                  className="p-3 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-zinc-300 hover:text-white transition-all cursor-pointer"
+                  title="الروابط والمهام الفرعية"
+                  aria-label="الروابط والمهام الفرعية"
+                >
+                  <Info className="w-5 h-5 sm:w-6 sm:h-6" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsStopwatchFullscreen(false)}
+                className="p-3 rounded-2xl bg-zinc-900/90 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-white transition-all cursor-pointer"
+                title="تصغير"
+                aria-label="تصغير وضع ملء الشاشة"
+              >
+                <Minimize2 className="w-5 h-5 sm:w-6 sm:h-6" />
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 flex flex-col items-center justify-center text-center max-w-3xl mx-auto space-y-8 my-auto w-full px-4">
@@ -449,9 +540,11 @@ export default function GlobalTaskTimerBar() {
 
             <div
               dir="ltr"
-              className="font-mono text-6xl sm:text-8xl md:text-9xl font-black text-white tracking-tight tabular-nums drop-shadow-2xl select-none"
+              className={`font-mono text-6xl sm:text-8xl md:text-9xl font-black tracking-tight tabular-nums drop-shadow-2xl select-none ${
+                isOvertime ? "text-amber-300" : "text-white"
+              }`}
             >
-              {formatTimerDuration(elapsedSeconds)}
+              {formatTimerDuration(displaySeconds)}
             </div>
 
             {isOvertime && (
@@ -501,7 +594,7 @@ export default function GlobalTaskTimerBar() {
               title="إلغاء المؤقت"
               aria-label="إلغاء المؤقت"
             >
-              <X className="w-5 h-5" />
+              <Trash2 className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -512,13 +605,27 @@ export default function GlobalTaskTimerBar() {
         <ZenFocusModal
           isOpen={true}
           onClose={() => setMode("stopwatch")}
+          onRequestCancel={() => setIsConfirmCancelOpen(true)}
           task={{
             id: session.taskId,
             title: session.taskTitle,
             description: session.taskDescription,
             workCycle: session.workCycleMinutes,
             breakCycle: session.breakCycleMinutes,
+            isPomodoro: session.isPomodoro,
+            subtasks: session.subtasks,
+            youtubeMeta: session.youtubeMeta,
           }}
+        />
+      )}
+
+      {showInfoButton && session && (
+        <TaskTimerInfoModal
+          isOpen={isInfoOpen}
+          onClose={() => setIsInfoOpen(false)}
+          taskTitle={session.taskTitle}
+          links={sessionLinks}
+          subtasks={sessionSubtasks}
         />
       )}
 
@@ -534,8 +641,8 @@ export default function GlobalTaskTimerBar() {
           }}
           title="إلغاء المؤقت"
           description="هل أنت متأكد من إلغاء جلسة المؤقت الحالية؟ سيتم تسجيل الجلسة كملغاة."
-          confirmLabel="نعم، إلغاء"
-          cancelLabel="متابعة العمل"
+          confirmLabel="موافق"
+          cancelLabel="إلغاء"
           isDestructive={true}
         />
       )}

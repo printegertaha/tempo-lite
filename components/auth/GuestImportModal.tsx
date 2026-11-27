@@ -213,6 +213,12 @@ export default function GuestImportModal() {
                     <span>{summary.mealsCount} وجبة</span>
                   </div>
                 )}
+                {summary.waterCount > 0 && (
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
+                    <ArrowRight className="w-4 h-4 text-teal-400" />
+                    <span>{summary.waterCount} سجل ماء</span>
+                  </div>
+                )}
                 {summary.abstinenceCount > 0 && (
                   <div className="flex items-center gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-zinc-300">
                     <ShieldCheck className="w-4 h-4 text-rose-400" />

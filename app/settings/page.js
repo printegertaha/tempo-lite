@@ -2,7 +2,8 @@
 
 import { Suspense, useState, useEffect, useTransition } from "react";
 import Link from "next/link";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useProgressRouter } from "@/hooks/useProgressRouter";
 import { useAthar } from "@/components/context/AtharContext";
 import { authClient } from "@/lib/auth-client";
 import { useLocalSession } from "@/hooks/useLocalSession";
@@ -18,6 +19,8 @@ import {
   getLocalDB,
   clearAllLocalIndexedDB,
   localTaskRepo,
+  localTaskSessionRepo,
+  localRevisionRepo,
   localTrackerRepo,
   localEntryRepo,
   localNoteRepo,
@@ -27,7 +30,13 @@ import {
   localDomainRepo,
   localSyncMetaRepo,
   localOutboxRepo,
+  localOnboardingRepo,
 } from "@/lib/local-db";
+import {
+  isIslamicFeatureVisible,
+  normalizeSalutation,
+  normalizeReligion,
+} from "@/lib/onboarding";
 import LifeAreasManager from "@/components/settings/LifeAreasManager";
 import SettingsSidebar, {
   SETTINGS_SECTIONS,
@@ -47,6 +56,7 @@ import {
   AlertTriangle,
   Loader2,
   LogIn,
+  X,
 } from "lucide-react";
 
 async function resizeAvatarImage(file) {
@@ -172,13 +182,36 @@ function mapSettingsRecordToProfile(rawSettings, prev, userObj) {
     dailyQuote: cfg.dailyQuote ?? rawSettings.dailyQuote ?? prev.dailyQuote,
     tagline: cfg.tagline || rawSettings.tagline || prev.tagline,
     role: cfg.role || rawSettings.role || prev.role,
+    salutation:
+      normalizeSalutation(rawSettings.salutation) ??
+      normalizeSalutation(cfg.salutation) ??
+      prev.salutation ??
+      null,
+    religion:
+      normalizeReligion(rawSettings.religion) ??
+      normalizeReligion(cfg.religion) ??
+      prev.religion ??
+      null,
+    onboardingCompleted:
+      rawSettings.onboardingCompleted !== undefined
+        ? Boolean(rawSettings.onboardingCompleted)
+        : cfg.onboardingCompleted !== undefined
+          ? Boolean(cfg.onboardingCompleted)
+          : prev.onboardingCompleted ?? true,
+    onboardingStep:
+      Number(rawSettings.onboardingStep ?? cfg.onboardingStep ?? prev.onboardingStep ?? 3) || 3,
+    onboardingCompletedAt:
+      rawSettings.onboardingCompletedAt ??
+      cfg.onboardingCompletedAt ??
+      prev.onboardingCompletedAt ??
+      null,
     preferencesUpdatedAt:
       cfg.preferencesUpdatedAt || rawSettings.preferencesUpdatedAt || prev.preferencesUpdatedAt,
   };
 }
 
 function SettingsWorkspace() {
-  const router = useRouter();
+  const router = useProgressRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
@@ -210,8 +243,24 @@ function SettingsWorkspace() {
   const [isExporting, setIsExporting] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [lifeAreas, setLifeAreas] = useState([]);
+  const [guestBannerDismissed, setGuestBannerDismissed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      return localStorage.getItem("athar_settings_guest_banner_dismissed") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const handleDismissGuestBanner = () => {
+    setGuestBannerDismissed(true);
+    try {
+      localStorage.setItem("athar_settings_guest_banner_dismissed", "1");
+    } catch {}
+  };
 
   // User Profile & System Preferences State
+  const [profileHydrated, setProfileHydrated] = useState(false);
   const [profile, setProfile] = useState(() => ({
     name: "مستخدم أثـر",
     tagline: "باحث عن الأثر الحقيقي وعمارة الوقت",
@@ -342,6 +391,10 @@ function SettingsWorkspace() {
         }
       } catch (err) {
         console.error("Error hydrating settings locally:", err);
+      } finally {
+        if (!isCancelled) {
+          setProfileHydrated(true);
+        }
       }
     }
 
@@ -369,12 +422,22 @@ function SettingsWorkspace() {
     const trimmedName = (nextProfile.name || "").trim() || "مستخدم أثـر";
     const nextImage = nextProfile.image || null;
     const nowIso = new Date().toISOString();
+    const resolvedReligion = normalizeReligion(nextProfile.religion) || nextProfile.religion || null;
+    const resolvedSalutation = normalizeSalutation(nextProfile.salutation) || nextProfile.salutation || null;
     const cleanProfile = {
       ...nextProfile,
       name: trimmedName,
       image: nextImage,
       profileName: trimmedName,
       profileImage: nextImage,
+      salutation: resolvedSalutation,
+      religion: resolvedReligion,
+      onboardingCompleted:
+        nextProfile.onboardingCompleted !== undefined
+          ? Boolean(nextProfile.onboardingCompleted)
+          : true,
+      onboardingStep: Number(nextProfile.onboardingStep || 3) || 3,
+      onboardingCompletedAt: nextProfile.onboardingCompletedAt || nowIso,
       monthlySalary: Number(nextProfile.monthlySalary || 0) || 0,
       preferencesUpdatedAt: nowIso,
     };
@@ -382,6 +445,19 @@ function SettingsWorkspace() {
     setProfile(cleanProfile);
     broadcastPreferencesLocally(cleanProfile, activeUserId);
     await localSyncMetaRepo.saveUserSettings(activeUserId, cleanProfile).catch(() => {});
+    await localOnboardingRepo
+      .save({
+        ownerKey: activeUserId,
+        salutation: resolvedSalutation,
+        guestName: trimmedName,
+        religion: resolvedReligion,
+        currentStep: 3,
+        completed: Boolean(cleanProfile.onboardingCompleted),
+        sawAtheistHumor: resolvedReligion === "atheist",
+        completedAt: cleanProfile.onboardingCompletedAt,
+        updatedAt: nowIso,
+      })
+      .catch(() => {});
 
     if (!isGuest) {
       const settingsPayload = {
@@ -392,10 +468,16 @@ function SettingsWorkspace() {
         currency: cleanProfile.currency,
         currencyAuto: Boolean(cleanProfile.currencyAuto),
         prayerTrackingEnabled: Boolean(cleanProfile.prayerTrackingEnabled),
+        salutation: resolvedSalutation,
+        religion: resolvedReligion,
+        onboardingCompleted: Boolean(cleanProfile.onboardingCompleted),
+        onboardingStep: cleanProfile.onboardingStep,
+        onboardingCompletedAt: cleanProfile.onboardingCompletedAt,
         language: "ar",
         weekStartDay: Number(cleanProfile.weekStartDay),
         themeAccent: cleanProfile.themeAccent,
         profileName: trimmedName,
+        forceProfileNameUpdate: true,
         profileImage: nextImage,
         dashboardConfig: {
           density: cleanProfile.density,
@@ -411,6 +493,9 @@ function SettingsWorkspace() {
           monthlySalary: cleanProfile.monthlySalary,
           prayerTrackingEnabled: Boolean(cleanProfile.prayerTrackingEnabled),
           prayerPreferenceConfigured: Boolean(cleanProfile.prayerPreferenceConfigured),
+          salutation: resolvedSalutation,
+          religion: resolvedReligion,
+          onboardingCompleted: Boolean(cleanProfile.onboardingCompleted),
           preferencesUpdatedAt: nowIso,
           prayerCalc: cleanProfile.prayerCalc,
           asrMethod: cleanProfile.asrMethod,
@@ -470,12 +555,7 @@ function SettingsWorkspace() {
       prayerPreferenceConfigured: true,
     };
     setProfile(next);
-    persistProfileSnapshot(
-      next,
-      enabled
-        ? "تم تفعيل تتبع الصلوات ✨"
-        : "تم إخفاء تتبع الصلوات مع الحفاظ على جميع سجلاتك السابقة"
-    );
+    persistProfileSnapshot(next);
   };
 
   // Export all user records across EVERY supported domain (Cloud + Local IDB + Quran)
@@ -495,6 +575,8 @@ function SettingsWorkspace() {
       if (!domainSnapshot) {
         const [
           tasks,
+          taskSessions,
+          entityRevisions,
           prayerRecords,
           trackers,
           trackerEntries,
@@ -503,10 +585,13 @@ function SettingsWorkspace() {
           absSessions,
           gymWorkouts,
           mealEntries,
+          waterEntries,
           expenseEntries,
           localAreasList,
         ] = await Promise.all([
           localTaskRepo.getAllForUser(effectiveUid, true).catch(() => []),
+          localTaskSessionRepo.getAllForUser(effectiveUid).catch(() => []),
+          localRevisionRepo.getAllForUser(effectiveUid).catch(() => []),
           localPrayerRepo.getAllForUser(effectiveUid).catch(() => []),
           localTrackerRepo.getAllForUser(effectiveUid, true).catch(() => []),
           localEntryRepo.getAllForUser(effectiveUid).catch(() => []),
@@ -515,6 +600,7 @@ function SettingsWorkspace() {
           localAbstinenceRepo.getAllSessions(effectiveUid).catch(() => []),
           localDomainRepo.getGymWorkouts(effectiveUid).catch(() => []),
           localDomainRepo.getMealEntries(effectiveUid).catch(() => []),
+          localDomainRepo.getWaterEntries(effectiveUid).catch(() => []),
           localDomainRepo.getExpenseEntries(effectiveUid).catch(() => []),
           localLifeAreaRepo.getAllForUser(effectiveUid, true).catch(() => lifeAreas),
         ]);
@@ -532,11 +618,14 @@ function SettingsWorkspace() {
           trackers,
           trackerEntries,
           tasks,
+          taskSessions,
+          entityRevisions,
           dailyNotes,
           prayerRecords,
           abstinenceTrackers,
           gymWorkouts,
           mealEntries,
+          waterEntries,
           expenseEntries,
         };
       }
@@ -628,12 +717,15 @@ function SettingsWorkspace() {
         };
 
         await putAll("tasks", parsed.tasks);
+        await putAll("task_sessions", parsed.taskSessions);
+        await putAll("entity_revisions", parsed.entityRevisions);
         await putAll("trackers", parsed.trackers);
         await putAll("tracker_entries", parsed.trackerEntries);
         await putAll("daily_notes", parsed.dailyNotes);
         await putAll("prayer_records", parsed.prayerRecords);
         await putAll("gym_workouts", parsed.gymWorkouts);
         await putAll("meal_entries", parsed.mealEntries);
+        await putAll("water_entries", parsed.waterEntries);
         await putAll("expense_entries", parsed.expenseEntries);
 
         if (Array.isArray(parsed.abstinenceTrackers)) {
@@ -715,11 +807,23 @@ function SettingsWorkspace() {
     }
   };
 
+  const isProfileLoading = sessionPending || !profileHydrated;
+
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
       {/* Guest Mode Banner */}
-      {!sessionPending && isGuest && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300">
+      {!sessionPending && isGuest && !guestBannerDismissed && (
+        <div className="group relative flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 pr-10 rounded-2xl bg-amber-500/10 border border-amber-500/25 text-amber-300">
+          <button
+            type="button"
+            onClick={handleDismissGuestBanner}
+            aria-label="إخفاء التنبيه"
+            title="إخفاء التنبيه"
+            data-testid="dismiss-guest-settings-banner-btn"
+            className="absolute top-2.5 right-2.5 p-1 rounded-lg text-amber-300/80 hover:text-amber-100 hover:bg-amber-500/20 lg:opacity-0 lg:group-hover:opacity-100 lg:focus-visible:opacity-100 transition-all cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
           <div className="flex items-center gap-2.5">
             <AlertTriangle className="w-5 h-5 shrink-0 text-amber-400" />
             <span className="text-xs font-medium">
@@ -728,7 +832,7 @@ function SettingsWorkspace() {
           </div>
           <Link
             href="/login?returnTo=/settings"
-            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors shrink-0"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-500/30 text-xs font-bold transition-colors shrink-0 self-end sm:self-auto"
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>تسجيل الدخول</span>
@@ -737,25 +841,38 @@ function SettingsWorkspace() {
       )}
 
       {/* 2. Sidebar + Active Section Workspace */}
+      {(() => {
+        const showIslamic = isIslamicFeatureVisible(profile);
+        const effectiveSection =
+          activeSection === "prayers" && !showIslamic ? "profile" : activeSection;
+        const effectiveMeta =
+          SETTINGS_SECTIONS.find((s) => s.id === effectiveSection) || activeSectionMeta;
+        return (
       <div className="flex flex-col lg:flex-row items-stretch lg:items-start gap-6">
         <SettingsSidebar
-          activeSection={activeSection}
+          activeSection={effectiveSection}
           onSelectSection={handleSelectSection}
           profile={profile}
           isCloudUser={!isGuest}
+          isProfileLoading={isProfileLoading}
         />
 
         <section
-          aria-label={activeSectionMeta.label}
+          aria-label={effectiveMeta.label}
           className="flex-1 min-w-0"
         >
-          {activeSection === "profile" && (
+          {effectiveSection === "profile" && (
             <ProfileSection
               profile={profile}
               sessionUser={localUser}
               isPending={isPending}
-              onSaveProfile={({ name, image }) => {
+              isProfileLoading={isProfileLoading}
+              onSaveProfile={({ name, image, salutation, religion }) => {
                 startTransition(async () => {
+                  const prevReligion = normalizeReligion(profile.religion);
+                  const nextReligion = normalizeReligion(religion) || profile.religion;
+                  const unlockedIslam =
+                    nextReligion === "muslim" && prevReligion && prevReligion !== "muslim";
                   await persistProfileSnapshot(
                     {
                       ...profile,
@@ -763,6 +880,14 @@ function SettingsWorkspace() {
                       image,
                       profileName: name,
                       profileImage: image,
+                      salutation: salutation ?? profile.salutation,
+                      religion: nextReligion,
+                      ...(unlockedIslam
+                        ? {
+                            prayerTrackingEnabled: true,
+                            prayerPreferenceConfigured: true,
+                          }
+                        : {}),
                     },
                     !isGuest
                       ? "تم حفظ الإعدادات وتحديثها بنجاح ✨"
@@ -775,7 +900,7 @@ function SettingsWorkspace() {
             />
           )}
 
-          {activeSection === "life-areas" && (
+          {effectiveSection === "life-areas" && (
             <LifeAreasManager
               areas={lifeAreas}
               onAreasChange={setLifeAreas}
@@ -783,7 +908,7 @@ function SettingsWorkspace() {
             />
           )}
 
-          {activeSection === "localization" && (
+          {effectiveSection === "localization" && (
             <LocalizationSection
               profile={profile}
               setProfile={setProfile}
@@ -792,7 +917,7 @@ function SettingsWorkspace() {
             />
           )}
 
-          {activeSection === "prayers" && (
+          {effectiveSection === "prayers" && showIslamic && (
             <PrayersSection
               profile={profile}
               setProfile={setProfile}
@@ -804,7 +929,7 @@ function SettingsWorkspace() {
             />
           )}
 
-          {activeSection === "preferences" && (
+          {effectiveSection === "preferences" && (
             <PreferencesSection
               profile={profile}
               setProfile={setProfile}
@@ -813,7 +938,7 @@ function SettingsWorkspace() {
             />
           )}
 
-          {activeSection === "data" && (
+          {effectiveSection === "data" && (
             <DataSection
               isCloudUser={!isGuest}
               isExporting={isExporting}
@@ -828,6 +953,8 @@ function SettingsWorkspace() {
           )}
         </section>
       </div>
+        );
+      })()}
 
       {/* Confirmation Modal for Resetting Local or Cloud Data */}
       {resetModalOpen && (
@@ -921,12 +1048,72 @@ function SettingsWorkspace() {
   );
 }
 
-function SettingsFallback() {
+function SettingsSkeleton() {
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="h-14 lg:h-96 lg:w-[280px] rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 animate-pulse shrink-0" />
-        <div className="flex-1 h-96 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 animate-pulse" />
+    <div
+      className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6"
+      aria-busy="true"
+      aria-label="جاري تحميل الإعدادات"
+    >
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-start gap-6">
+        {/* Sidebar Skeleton */}
+        <aside className="w-full lg:w-[272px] shrink-0 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 p-4 space-y-4 animate-pulse">
+          <div className="flex items-center gap-3 pb-3 border-b border-zinc-800/80">
+            <div className="w-11 h-11 rounded-2xl bg-zinc-800/80 shrink-0" />
+            <div className="flex-1 space-y-2">
+              <div className="h-3.5 w-24 rounded-md bg-zinc-800" />
+              <div className="h-2.5 w-32 rounded-md bg-zinc-800/60" />
+            </div>
+          </div>
+
+          <div className="flex lg:flex-col gap-2 overflow-hidden">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-10 flex-1 lg:flex-none rounded-xl bg-zinc-900/90 border border-zinc-800/60 flex items-center gap-2.5 px-3"
+              >
+                <div className="w-4 h-4 rounded-md bg-zinc-800 shrink-0" />
+                <div className="h-3 w-20 rounded bg-zinc-800/80 hidden sm:block" />
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        {/* Main Section Skeleton */}
+        <div className="flex-1 min-w-0 rounded-3xl bg-[#0c0e17]/90 border border-zinc-800/80 p-5 sm:p-7 space-y-6 animate-pulse">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4 pb-4 border-b border-zinc-800/80">
+            <div className="space-y-2">
+              <div className="h-5 w-40 rounded-lg bg-zinc-800" />
+              <div className="h-3 w-64 rounded-md bg-zinc-800/60" />
+            </div>
+            <div className="h-9 w-24 rounded-xl bg-zinc-800/70 shrink-0" />
+          </div>
+
+          {/* Avatar + Identity Card */}
+          <div className="flex items-center gap-4 p-4 rounded-2xl bg-zinc-900/50 border border-zinc-800/60">
+            <div className="w-16 h-16 rounded-2xl bg-zinc-800 shrink-0" />
+            <div className="space-y-2 flex-1">
+              <div className="h-4 w-32 rounded-md bg-zinc-800" />
+              <div className="h-3 w-48 rounded-md bg-zinc-800/60" />
+            </div>
+          </div>
+
+          {/* Form Fields Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="space-y-2">
+                <div className="h-3 w-24 rounded bg-zinc-800/70" />
+                <div className="h-10 w-full rounded-xl bg-zinc-900/80 border border-zinc-800/60" />
+              </div>
+            ))}
+          </div>
+
+          {/* Footer Save Button */}
+          <div className="flex justify-end pt-2">
+            <div className="h-10 w-36 rounded-xl bg-violet-600/30 border border-violet-500/20" />
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -934,7 +1121,7 @@ function SettingsFallback() {
 
 export default function SettingsPage() {
   return (
-    <Suspense fallback={<SettingsFallback />}>
+    <Suspense fallback={<SettingsSkeleton />}>
       <SettingsWorkspace />
     </Suspense>
   );

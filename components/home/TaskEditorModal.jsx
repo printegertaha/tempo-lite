@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import Modal from "@/components/ui/Modal";
 import DatePickerModal from "@/components/ui/DatePickerModal";
 import TimePickerModal from "@/components/ui/TimePickerModal";
+import YouTubePreviewCard, {
+  isValidHttpUrl,
+  normalizeYouTubeMetaList,
+} from "@/components/tasks/YouTubePreviewCard";
+import PomodoroConfigPicker from "@/components/tasks/PomodoroConfigPicker";
+import DurationStepper from "@/components/tasks/DurationStepper";
+import HorizontalFormCarousel from "@/components/ui/HorizontalFormCarousel";
 import {
   Calendar,
   Clock,
@@ -13,6 +20,13 @@ import {
   Check,
   Repeat,
   Moon,
+  Video,
+  Loader2,
+  Plus,
+  GripVertical,
+  ArrowUp,
+  ArrowDown,
+  X,
 } from "lucide-react";
 
 export default function TaskEditorModal({
@@ -28,8 +42,11 @@ export default function TaskEditorModal({
   const [priority, setPriority] = useState("MEDIUM");
   const [dueDate, setDueDate] = useState(todayStr);
   const [startTime, setStartTime] = useState(null);
-  const [durationMinutes, setDurationMinutes] = useState(25);
-  const [lifeAreaId, setLifeAreaId] = useState("");
+  const [durationMinutes, setDurationMinutes] = useState(60);
+  const [youtubeUrlInput, setYoutubeUrlInput] = useState("");
+  const [youtubeVideos, setYoutubeVideos] = useState([]);
+  const [isFetchingYoutube, setIsFetchingYoutube] = useState(false);
+  const [youtubeError, setYoutubeError] = useState("");
   const [isPomodoro, setIsPomodoro] = useState(false);
   const [workCycle, setWorkCycle] = useState(25);
   const [breakCycle, setBreakCycle] = useState(5);
@@ -47,6 +64,9 @@ export default function TaskEditorModal({
     })()
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [jumpToSlide, setJumpToSlide] = useState(null);
+  const titleInputRef = useRef(null);
+  const youtubeInputRef = useRef(null);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   const [prevTaskId, setPrevTaskId] = useState(task?.id);
 
@@ -56,11 +76,12 @@ export default function TaskEditorModal({
     if (task) {
       setTitle(task.title || "");
       setDescription(task.description || "");
-      setPriority(task.priority || "MEDIUM");
+      setPriority(task.priority === "URGENT" ? "HIGH" : task.priority || "MEDIUM");
       setDueDate(task.dueDate || todayStr);
       setStartTime(task.startTime || null);
-      setDurationMinutes(task.durationMinutes || 25);
-      setLifeAreaId(task.lifeAreaId || "");
+      setDurationMinutes(task.durationMinutes || 60);
+      setYoutubeVideos(normalizeYouTubeMetaList(task.youtubeMeta));
+      setYoutubeUrlInput("");
       setIsPomodoro(Boolean(task.isPomodoro));
       setWorkCycle(task.workCycle || 25);
       setBreakCycle(task.breakCycle || 5);
@@ -72,8 +93,9 @@ export default function TaskEditorModal({
       setPriority("MEDIUM");
       setDueDate(todayStr);
       setStartTime(null);
-      setDurationMinutes(25);
-      setLifeAreaId("");
+      setDurationMinutes(60);
+      setYoutubeVideos([]);
+      setYoutubeUrlInput("");
       setIsPomodoro(false);
       setWorkCycle(25);
       setBreakCycle(5);
@@ -81,6 +103,40 @@ export default function TaskEditorModal({
       setSubtasks([]);
     }
   }
+
+  useEffect(() => {
+    const trimmed = youtubeUrlInput.trim();
+    if (!trimmed) {
+      setYoutubeError("");
+      return;
+    }
+    if (!/(youtube\.com|youtu\.be)/i.test(trimmed)) {
+      setYoutubeError("");
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsFetchingYoutube(true);
+      setYoutubeError("");
+      try {
+        const res = await fetch(`/api/youtube/metadata?url=${encodeURIComponent(trimmed)}`);
+        const json = await res.json();
+        if (json.success && json.data) {
+          const item = json.data;
+          setYoutubeVideos((prev) =>
+            prev.some((v) => v.videoId === item.videoId) ? prev : [...prev, item]
+          );
+          setYoutubeUrlInput("");
+        } else {
+          setYoutubeError(json.error || "تعذر جلب بيانات الفيديو");
+        }
+      } catch {
+        setYoutubeError("تعذر الاتصال لجلب بيانات الفيديو");
+      } finally {
+        setIsFetchingYoutube(false);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [youtubeUrlInput]);
 
   const handleAddSubtask = () => {
     if (!newSubtaskTitle.trim()) return;
@@ -105,9 +161,25 @@ export default function TaskEditorModal({
     setSubtasks((prev) => prev.filter((s) => s.id !== id));
   };
 
+  const handleMoveSubtask = (index, direction) => {
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= subtasks.length) return;
+    setSubtasks((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(index, 1);
+      next.splice(targetIndex, 0, moved);
+      return next;
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!title.trim() || isSaving) return;
+    if (isSaving) return;
+    if (!title.trim()) {
+      setJumpToSlide({ index: 0, nonce: Date.now() });
+      setTimeout(() => titleInputRef.current?.focus({ preventScroll: true }), 140);
+      return;
+    }
 
     setIsSaving(true);
     try {
@@ -119,7 +191,12 @@ export default function TaskEditorModal({
         dueDate: dueDate || null,
         startTime: startTime || null,
         durationMinutes: durationMinutes ? Number(durationMinutes) : null,
-        lifeAreaId: lifeAreaId || null,
+        youtubeMeta:
+          youtubeVideos.length === 0
+            ? null
+            : youtubeVideos.length === 1
+              ? youtubeVideos[0]
+              : youtubeVideos,
         isPomodoro,
         workCycle: Number(workCycle),
         breakCycle: Number(breakCycle),
@@ -141,232 +218,355 @@ export default function TaskEditorModal({
         title={task ? "تعديل تفاصيل المهمة" : "إنشاء مهمة جديدة"}
       >
         <form onSubmit={handleSubmit} className="space-y-4 text-right">
-          {/* Title */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-zinc-300">عنوان المهمة *</label>
-            <input
-              type="text"
-              required
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="مثال: مراجعة وثيقة معمارية النظام، حل تمارين الفيزياء..."
-              maxLength={200}
-              className="w-full px-3.5 py-2.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
-            />
-          </div>
+          <HorizontalFormCarousel
+            resetKey={`${isOpen}-${task?.id || "new"}`}
+            jumpToSlide={jumpToSlide}
+            onSlideChange={(idx) => {
+              if (idx === 0) {
+                setTimeout(() => titleInputRef.current?.focus({ preventScroll: true }), 120);
+              } else if (idx === 3) {
+                setTimeout(() => youtubeInputRef.current?.focus({ preventScroll: true }), 120);
+              }
+            }}
+            sections={[
+              { id: "basics", title: "اسم المهمة والوصف" },
+              { id: "schedule", title: "الميعاد والوقت والمدة" },
+              { id: "priority-subtasks", title: "الأولوية وبومودورو والمهام الفرعية" },
+              { id: "links", title: "الروابط والفيديوهات" },
+            ]}
+          >
+            {/* Slide 1: Title & Description */}
+            <div className="space-y-4">
+              <div className="space-y-1">
+                <label className="inline-block mb-2 text-xs font-bold text-zinc-300">عنوان المهمة *</label>
+                <input
+                  ref={titleInputRef}
+                  type="text"
+                  required
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="مثال: مراجعة وثيقة معمارية النظام، حل تمارين الفيزياء..."
+                  maxLength={200}
+                  className="w-full px-3.5 py-2.5 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs sm:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
+                />
+              </div>
 
-          {/* Description */}
-          <div className="space-y-1">
-            <label className="text-xs font-bold text-zinc-300">الوصف أو الملاحظات (اختياري)</label>
-            <textarea
-              rows={2}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="تفاصيل إضافية، روابط، متطلبات الإنجاز..."
-              className="w-full px-3.5 py-2 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500 resize-none"
-            />
-          </div>
-
-          {/* Date, Time, Duration Row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            {/* Due Date Trigger */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-300">التاريخ</label>
-              <button
-                type="button"
-                onClick={() => setIsDatePickerOpen(true)}
-                className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 hover:border-zinc-700 transition-colors"
-              >
-                <span className="truncate">{dueDate || "بدون موعد"}</span>
-                <Calendar className="w-4 h-4 text-zinc-400 shrink-0" />
-              </button>
+              <div className="space-y-1">
+                <label className="text-xs font-bold text-zinc-300 mb-2 inline-block">الوصف أو الملاحظات (اختياري)</label>
+                <textarea
+                  rows={14}
+                  value={description}
+                  onChange={(e) => setDescription(e.target.value)}
+                  placeholder="تفاصيل إضافية، روابط، متطلبات الإنجاز..."
+                  className="w-full px-3.5 py-2 rounded-2xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500 resize-none"
+                />
+              </div>
             </div>
 
-            {/* Start Time Trigger */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-300">وقت البدء المجدول</label>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setIsTimePickerOpen(true)}
-                  className="flex-1 flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 hover:border-zinc-700 transition-colors"
-                >
-                  <span className="truncate">{startTime || "غير محدد"}</span>
-                  <Clock className="w-4 h-4 text-zinc-400 shrink-0" />
-                </button>
-                {startTime && (
+            {/* Slide 2: Date, Start Time, Duration, Pomodoro & Recurrence */}
+            <div className="space-y-3.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300">التاريخ</label>
                   <button
                     type="button"
-                    onClick={() => setStartTime(null)}
-                    className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
-                    title="مسح وقت البدء"
+                    onClick={() => setIsDatePickerOpen(true)}
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 hover:border-zinc-700 transition-colors"
                   >
-                    ✕
+                    <span className="truncate">{dueDate || "بدون موعد"}</span>
+                    <Calendar className="w-4 h-4 text-zinc-400 shrink-0" />
                   </button>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-zinc-300">وقت البدء المجدول</label>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setIsTimePickerOpen(true)}
+                      className="flex-1 flex items-center justify-between px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 hover:border-zinc-700 transition-colors"
+                    >
+                      <span className="truncate">{startTime || "غير محدد"}</span>
+                      <Clock className="w-4 h-4 text-zinc-400 shrink-0" />
+                    </button>
+                    {startTime && (
+                      <button
+                        type="button"
+                        onClick={() => setStartTime(null)}
+                        className="p-2 rounded-xl bg-zinc-900 border border-zinc-800 text-zinc-500 hover:text-red-400 hover:border-red-500/40 transition-colors"
+                        title="مسح وقت البدء"
+                      >
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {isSleepConflict && (
+                    <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px]">
+                      <Moon className="w-3 h-3 text-amber-400 shrink-0" />
+                      <span>تنبيه: وقت البدء يقع ضمن ساعات النوم المعتادة (١١ م - ٦ ص).</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <DurationStepper
+                value={durationMinutes}
+                onChange={(mins) => setDurationMinutes(mins)}
+              />
+
+              <label className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800 cursor-pointer">
+                <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
+                  <Repeat className="w-4 h-4 text-emerald-400" />
+                  <span>تكرار أسبوعي</span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={isRecurring}
+                  onChange={(e) => setIsRecurring(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-emerald-500"
+                />
+              </label>
+            </div>
+
+            {/* Slide 3: Priority, Pomodoro & Subtasks */}
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-300">الأولوية</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "LOW", label: "منخفضة" },
+                    { id: "MEDIUM", label: "متوسطة" },
+                    { id: "HIGH", label: "عالية" },
+                  ].map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setPriority(p.id)}
+                      className={`py-2 px-2 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                        priority === p.id
+                          ? "bg-violet-600/20 border-violet-500/50 text-violet-200"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200"
+                      }`}
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <PomodoroConfigPicker
+                isPomodoro={isPomodoro}
+                onToggle={setIsPomodoro}
+                workCycle={workCycle}
+                breakCycle={breakCycle}
+                onSelectPreset={(w, b) => {
+                  setWorkCycle(w);
+                  setBreakCycle(b);
+                }}
+                durationMinutes={durationMinutes}
+              />
+
+              <div className="p-3.5 rounded-2xl bg-zinc-900/50 border border-zinc-800/80 space-y-3">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-zinc-200">المهام الفرعية</span>
+                  <span className="font-mono text-zinc-400">{subtasks.length}</span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newSubtaskTitle}
+                    onChange={(e) => setNewSubtaskTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSubtask())}
+                    placeholder="أضف خطوة صغيرة"
+                    className="flex-1 px-3.5 py-2 rounded-xl bg-zinc-950/70 border border-zinc-700/80 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-zinc-500"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSubtask}
+                    disabled={!newSubtaskTitle.trim()}
+                    aria-label="إضافة خطوة فرعية"
+                    className="w-9 h-9 rounded-xl bg-lime-400 hover:bg-lime-300 disabled:opacity-40 disabled:cursor-not-allowed text-zinc-950 flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4 stroke-[2.5]" />
+                  </button>
+                </div>
+
+                {subtasks.length > 0 && (
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pt-1">
+                    {subtasks.map((st, idx) => (
+                      <div
+                        key={st.id}
+                        className="flex items-center justify-between gap-2 py-1.5 px-1 text-xs"
+                      >
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <GripVertical className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                          <span
+                            onClick={() => handleToggleSubtask(st.id)}
+                            className={`truncate cursor-pointer ${
+                              st.completed ? "line-through text-zinc-500" : "text-zinc-200"
+                            }`}
+                          >
+                            {st.title}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSubtask(idx, "up")}
+                            disabled={idx === 0}
+                            aria-label="تحريك لأعلى"
+                            className="p-1 text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSubtask(idx, "down")}
+                            disabled={idx === subtasks.length - 1}
+                            aria-label="تحريك لأسفل"
+                            className="p-1 text-zinc-500 hover:text-zinc-200 disabled:opacity-25 cursor-pointer"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSubtask(st.id)}
+                            aria-label="حذف المهمة الفرعية"
+                            className="p-1 text-zinc-500 hover:text-red-400 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
-              {isSleepConflict && (
-                <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px]">
-                  <Moon className="w-3 h-3 text-amber-400 shrink-0" />
-                  <span>تنبيه: وقت البدء يقع ضمن ساعات النوم المعتادة (١١ م - ٦ ص).</span>
+            </div>
+
+            {/* Slide 4: YouTube Links */}
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                <Video className="w-4 h-4 text-red-400" />
+                <span>روابط فيديو يوتيوب (اختياري)</span>
+              </label>
+              <div className="relative">
+                <input
+                  ref={youtubeInputRef}
+                  type="url"
+                  dir="ltr"
+                  value={youtubeUrlInput}
+                  onChange={(e) => setYoutubeUrlInput(e.target.value)}
+                  placeholder="الصق رابط يوتيوب أو أي رابط هنا..."
+                  className="w-full pr-10 pl-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-red-500/50 text-left"
+                />
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const trimmed = youtubeUrlInput.trim();
+                    if (!isValidHttpUrl(trimmed)) {
+                      setYoutubeError("يرجى إدخال رابط صالح");
+                      return;
+                    }
+                    if (!/(youtube\.com|youtu\.be)/i.test(trimmed)) {
+                      try {
+                        const parsed = new URL(trimmed);
+                        const linkItem = {
+                          videoId: `link-${crypto.randomUUID().slice(0, 8)}`,
+                          url: trimmed,
+                          title: parsed.hostname.replace(/^www\./, ""),
+                          channelName: trimmed,
+                          thumbnailUrl: "",
+                        };
+                        setYoutubeVideos((prev) =>
+                          prev.some((v) => v.url === trimmed) ? prev : [...prev, linkItem]
+                        );
+                        setYoutubeUrlInput("");
+                        setYoutubeError("");
+                      } catch {
+                        setYoutubeError("يرجى إدخال رابط صالح");
+                      }
+                      return;
+                    }
+                    setIsFetchingYoutube(true);
+                    setYoutubeError("");
+                    try {
+                      const res = await fetch(`/api/youtube/metadata?url=${encodeURIComponent(trimmed)}`);
+                      const json = await res.json();
+                      if (json.success && json.data) {
+                        const item = json.data;
+                        setYoutubeVideos((prev) =>
+                          prev.some((v) => v.videoId === item.videoId) ? prev : [...prev, item]
+                        );
+                        setYoutubeUrlInput("");
+                      } else {
+                        setYoutubeError(json.error || "تعذر جلب بيانات الفيديو");
+                      }
+                    } catch {
+                      setYoutubeError("تعذر الاتصال لجلب بيانات الفيديو");
+                    } finally {
+                      setIsFetchingYoutube(false);
+                    }
+                  }}
+                  disabled={isFetchingYoutube || !isValidHttpUrl(youtubeUrlInput)}
+                  aria-label="إضافة الرابط"
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 w-6 h-6 rounded-lg border flex items-center justify-center transition-colors ${
+                    isValidHttpUrl(youtubeUrlInput) && !isFetchingYoutube
+                      ? "bg-emerald-600/25 hover:bg-emerald-600/40 border-emerald-500/50 text-emerald-300 cursor-pointer"
+                      : "bg-zinc-800/50 border-zinc-700/50 text-zinc-500 opacity-50 cursor-not-allowed"
+                  }`}
+                >
+                  {isFetchingYoutube ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
+                  ) : (
+                    <Check className="w-3.5 h-3.5" />
+                  )}
+                </button>
+              </div>
+              {youtubeError && <p className="text-[11px] text-red-400">{youtubeError}</p>}
+              {youtubeVideos.length > 0 && (
+                <div className="space-y-1.5">
+                  {youtubeVideos.map((yt) => (
+                    <YouTubePreviewCard
+                      key={yt.videoId}
+                      meta={yt}
+                      compact
+                      readOnly
+                      onRemove={() => {
+                        setYoutubeVideos((prev) =>
+                          prev.filter((v) => v.videoId !== yt.videoId)
+                        );
+                      }}
+                    />
+                  ))}
                 </div>
               )}
             </div>
-
-            {/* Duration Minutes */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-300">المدة المخططة (دقيقة)</label>
-              <input
-                type="number"
-                min={1}
-                max={1440}
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-violet-500"
-              />
-            </div>
-          </div>
-
-          {/* Priority & Category */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            {/* Priority */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-300">الأولوية</label>
-              <select
-                value={priority}
-                onChange={(e) => setPriority(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-violet-500"
-              >
-                <option value="LOW">منخفضة</option>
-                <option value="MEDIUM">متوسطة</option>
-                <option value="HIGH">عالية</option>
-                <option value="URGENT">قصوى ⚡</option>
-              </select>
-            </div>
-
-            {/* Life Area */}
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-zinc-300">التصنيف / مجال الحياة</label>
-              <select
-                value={lifeAreaId}
-                onChange={(e) => setLifeAreaId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-200 focus:outline-none focus:border-violet-500"
-              >
-                <option value="">بدون تصنيف</option>
-                {lifeAreas.map((area) => (
-                  <option key={area.id} value={area.id}>
-                    {area.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Subtasks Section */}
-          <div className="space-y-2 pt-1 border-t border-zinc-850">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-zinc-200">
-                <ListTree className="w-3.5 h-3.5 text-violet-400" />
-                <span>المهام الفرعية ({subtasks.length})</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), handleAddSubtask())}
-                placeholder="إضافة خطوة فرعية..."
-                className="flex-1 px-3 py-1.5 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none"
-              />
-              <button
-                type="button"
-                onClick={handleAddSubtask}
-                className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-white text-xs font-semibold"
-              >
-                إضافة
-              </button>
-            </div>
-
-            {subtasks.length > 0 && (
-              <div className="space-y-1.5 max-h-36 overflow-y-auto pt-1">
-                {subtasks.map((st) => (
-                  <div
-                    key={st.id}
-                    className="flex items-center justify-between gap-2 p-2 rounded-xl bg-zinc-950/60 border border-zinc-850 text-xs"
-                  >
-                    <label className="flex items-center gap-2 flex-1 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={st.completed}
-                        onChange={() => handleToggleSubtask(st.id)}
-                        className="rounded text-violet-600 focus:ring-violet-500 border-zinc-700 bg-zinc-800"
-                      />
-                      <span className={st.completed ? "line-through text-zinc-500" : "text-zinc-200"}>
-                        {st.title}
-                      </span>
-                    </label>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteSubtask(st.id)}
-                      className="text-zinc-600 hover:text-red-400 p-0.5"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Pomodoro & Recurrence Toggles */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-zinc-850">
-            <label className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800 cursor-pointer">
-              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-                <Timer className="w-4 h-4 text-indigo-400" />
-                <span>جلسات بومودورو</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={isPomodoro}
-                onChange={(e) => setIsPomodoro(e.target.checked)}
-                className="rounded text-indigo-600 focus:ring-indigo-500"
-              />
-            </label>
-
-            <label className="flex items-center justify-between p-2.5 rounded-xl bg-zinc-900/50 border border-zinc-800 cursor-pointer">
-              <div className="flex items-center gap-2 text-xs font-semibold text-zinc-200">
-                <Repeat className="w-4 h-4 text-emerald-400" />
-                <span>تكرار أسبوعي</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={isRecurring}
-                onChange={(e) => setIsRecurring(e.target.checked)}
-                className="rounded text-emerald-600 focus:ring-emerald-500"
-              />
-            </label>
-          </div>
+          </HorizontalFormCarousel>
 
           {/* Submit Actions */}
-          <div className="flex items-center gap-3 pt-3">
+          <div className="flex items-center justify-start gap-2.5 pt-3 border-t border-zinc-800/80">
+            <button
+              type="submit"
+              aria-disabled={!title.trim() || isSaving}
+              className={`py-2.5 px-5 rounded-xl bg-violet-600 text-white text-xs max-[400px]:text-[11px] font-bold transition-all flex items-center justify-center gap-1.5 whitespace-nowrap shrink-0 ${
+                !title.trim() || isSaving
+                  ? "opacity-45 cursor-not-allowed shadow-none"
+                  : "hover:bg-violet-500 shadow-lg shadow-violet-600/25 cursor-pointer"
+              }`}
+            >
+              <Check className="w-4 h-4 shrink-0" />
+              <span>{task ? "حفظ التعديلات" : "إنشاء المهمة"}</span>
+            </button>
             <button
               type="button"
               onClick={onClose}
               disabled={isSaving}
-              className="flex-1 py-2.5 px-4 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-xs font-semibold hover:bg-zinc-850 hover:text-white transition-colors cursor-pointer"
+              className="py-2.5 px-4 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-xs max-[400px]:text-[11px] font-semibold hover:bg-zinc-850 hover:text-white transition-colors cursor-pointer whitespace-nowrap shrink-0"
             >
               إلغاء
-            </button>
-            <button
-              type="submit"
-              disabled={!title.trim() || isSaving}
-              className="flex-1 py-2.5 px-4 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/25 transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>{task ? "حفظ التعديلات" : "إنشاء المهمة"}</span>
             </button>
           </div>
         </form>

@@ -54,7 +54,11 @@ export default function ConfirmDialog({
             type="button"
             onClick={onClose}
             disabled={isLoading}
-            className="flex-1 py-2.5 px-4 rounded-xl border border-zinc-800 bg-zinc-900 text-zinc-300 text-xs font-semibold hover:bg-zinc-850 hover:text-white transition-colors cursor-pointer"
+            className={`flex-1 py-2.5 px-4 rounded-xl border text-xs transition-all cursor-pointer ${
+              isDestructive
+                ? "bg-zinc-800/90 hover:bg-zinc-700 border-zinc-600/70 text-zinc-100 font-bold shadow-sm"
+                : "bg-zinc-900 hover:bg-zinc-850 border-zinc-800 text-zinc-300 hover:text-white font-semibold"
+            }`}
           >
             {cancelLabel}
           </button>
@@ -62,10 +66,10 @@ export default function ConfirmDialog({
             type="button"
             onClick={onConfirm}
             disabled={isLoading}
-            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all shadow-lg cursor-pointer ${
+            className={`flex-1 py-2.5 px-4 rounded-xl text-xs font-bold transition-all cursor-pointer ${
               isDestructive
-                ? "bg-red-600 hover:bg-red-500 text-white shadow-red-600/20"
-                : "bg-violet-600 hover:bg-violet-500 text-white shadow-violet-600/20"
+                ? "bg-rose-500/12 hover:bg-rose-600 border border-rose-500/35 hover:border-rose-500 text-rose-300 hover:text-white"
+                : "bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/20"
             }`}
           >
             {isLoading ? "جاري التنفيذ..." : confirmLabel}

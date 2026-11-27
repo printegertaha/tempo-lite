@@ -15,6 +15,8 @@ import { createAbstinenceTracker } from "@/actions/abstinence";
 import { getLocalDateString, parseLocalDateTimeToUtc } from "@/lib/dates";
 import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
+import DatePickerField from "@/components/ui/DatePickerField";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 const POPULAR_BEHAVIORS = [
   "مشاهدة الإباحية والمحتوى المثير",
@@ -213,24 +215,22 @@ export default function CreateAbstinenceModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-400 block">تاريخ البداية:</label>
-                <input
-                  type="date"
+                <DatePickerField
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-rose-500"
-                  required
+                  onChange={(d) => setStartDate(d)}
+                  title="تحديد تاريخ البداية"
+                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-400 block">ساعة ودقيقة البداية:</label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="time"
+                  <TimePickerField
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-rose-500 font-mono"
-                    required
+                    onChange={(t) => setStartTime(t)}
+                    title="تحديد وقت البداية"
+                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                   />
                   <button
                     type="button"

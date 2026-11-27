@@ -111,6 +111,11 @@ export async function updateUserSettings(
       currency,
       currencyAuto,
       prayerTrackingEnabled,
+      salutation,
+      religion,
+      onboardingCompleted,
+      onboardingStep,
+      onboardingCompletedAt,
       language,
       weekStartDay,
       themeAccent,
@@ -119,7 +124,7 @@ export async function updateUserSettings(
 
     const existingSettings = await prisma.userSettings.findUnique({
       where: { userId },
-      select: { dashboardConfig: true },
+      select: { dashboardConfig: true, onboardingCompletedAt: true },
     });
     const prevConfig =
       existingSettings?.dashboardConfig && typeof existingSettings.dashboardConfig === "object"
@@ -143,18 +148,40 @@ export async function updateUserSettings(
     if (prayerTrackingEnabled !== undefined) {
       mergedDashboardConfig.prayerTrackingEnabled = prayerTrackingEnabled;
     }
+    if (salutation !== undefined) mergedDashboardConfig.salutation = salutation;
+    if (religion !== undefined) mergedDashboardConfig.religion = religion;
+    if (onboardingCompleted !== undefined) {
+      mergedDashboardConfig.onboardingCompleted = onboardingCompleted;
+    }
+    if (onboardingStep !== undefined) mergedDashboardConfig.onboardingStep = onboardingStep;
+
+    const resolvedCompletedAt =
+      onboardingCompletedAt !== undefined
+        ? onboardingCompletedAt
+          ? new Date(onboardingCompletedAt)
+          : null
+        : onboardingCompleted === true && !existingSettings?.onboardingCompletedAt
+          ? new Date()
+          : undefined;
 
     const updated = await prisma.userSettings.upsert({
       where: { userId },
       create: {
         userId,
         timezone: timezone || DEFAULT_TECHNICAL_SETTINGS.timezone,
-        countryCode: countryCode ?? null,
-        governorate: governorate ?? null,
+        countryCode: countryCode ?? DEFAULT_TECHNICAL_SETTINGS.countryCode,
+        governorate: governorate ?? DEFAULT_TECHNICAL_SETTINGS.governorate,
         city: city ?? null,
-        currency: currency ? currency.toUpperCase() : null,
+        currency: currency ? currency.toUpperCase() : DEFAULT_TECHNICAL_SETTINGS.currency,
         currencyAuto: currencyAuto ?? true,
-        prayerTrackingEnabled: prayerTrackingEnabled ?? true,
+        prayerTrackingEnabled:
+          prayerTrackingEnabled ?? (religion === "muslim" ? true : false),
+        salutation: salutation ?? null,
+        religion: religion ?? null,
+        onboardingCompleted: onboardingCompleted ?? false,
+        onboardingStep: onboardingStep ?? 1,
+        onboardingCompletedAt:
+          resolvedCompletedAt ?? (onboardingCompleted ? new Date() : null),
         language: language || DEFAULT_TECHNICAL_SETTINGS.language,
         weekStartDay: weekStartDay ?? DEFAULT_TECHNICAL_SETTINGS.weekStartDay,
         themeAccent: themeAccent || DEFAULT_TECHNICAL_SETTINGS.themeAccent,
@@ -168,6 +195,13 @@ export async function updateUserSettings(
         ...(currency !== undefined ? { currency: currency ? currency.toUpperCase() : null } : {}),
         ...(currencyAuto !== undefined ? { currencyAuto } : {}),
         ...(prayerTrackingEnabled !== undefined ? { prayerTrackingEnabled } : {}),
+        ...(salutation !== undefined ? { salutation } : {}),
+        ...(religion !== undefined ? { religion } : {}),
+        ...(onboardingCompleted !== undefined ? { onboardingCompleted } : {}),
+        ...(onboardingStep !== undefined ? { onboardingStep } : {}),
+        ...(resolvedCompletedAt !== undefined
+          ? { onboardingCompletedAt: resolvedCompletedAt }
+          : {}),
         ...(language !== undefined ? { language } : {}),
         ...(weekStartDay !== undefined ? { weekStartDay } : {}),
         ...(themeAccent !== undefined ? { themeAccent } : {}),
@@ -177,6 +211,10 @@ export async function updateUserSettings(
 
     revalidatePath("/settings");
     revalidatePath("/expenses");
+    revalidatePath("/journal");
+    revalidatePath("/calendar");
+    revalidatePath("/quran");
+    revalidatePath("/welcome");
     revalidatePath("/");
 
     return { success: true, data: updated };

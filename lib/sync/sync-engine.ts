@@ -1,6 +1,8 @@
 import {
   localOutboxRepo,
   localTaskRepo,
+  localTaskSessionRepo,
+  localRevisionRepo,
   localTrackerRepo,
   localEntryRepo,
   localNoteRepo,
@@ -494,20 +496,6 @@ class SyncEngine {
     const cursor = await localSyncMetaRepo.getCursor(userId);
     const sinceParam = cursor && cursor > 0 ? cursor : 0;
 
-    const res = await fetch(`/api/sync/pull?since=${sinceParam}`, {
-      method: "GET",
-      cache: "no-store",
-      credentials: "same-origin",
-    });
-
-    if (!res.ok) {
-      if (res.status === 401) return;
-      throw new Error(`HTTP_${res.status}_PULL_FAILURE`);
-    }
-
-    const payload = await res.json();
-    if (!payload?.success || !payload?.changes) return;
-
     const [pendingMutations, existingConflicts] = await Promise.all([
       localOutboxRepo.getPending(userId, false),
       localSyncMetaRepo.getConflicts(userId),
@@ -522,245 +510,408 @@ class SyncEngine {
     }
 
     const changedTypes = new Set<string>();
-    const { changes, deletions = [], serverTimestamp, isFullSync } = payload;
+    const seenTaskIds = new Set<string>();
+    const seenTaskSessionIds = new Set<string>();
+    const seenLifeAreaIds = new Set<string>();
+    const seenTrackerIds = new Set<string>();
+    const seenGymIds = new Set<string>();
+    const seenMealIds = new Set<string>();
+    const seenWaterIds = new Set<string>();
+    const seenExpenseIds = new Set<string>();
 
-    // 1. Apply remote deletions safely (never deleting pending/conflicted local items)
-    for (const del of deletions) {
-      const key = `${del.entityType}:${del.entityId}`;
-      if (protectedEntityKeys.has(key)) continue;
-      changedTypes.add(del.entityType);
-      if (del.entityType === "task") await localTaskRepo.delete(del.entityId);
-      else if (del.entityType === "tracker") await localTrackerRepo.delete(del.entityId);
-      else if (del.entityType === "tracker_entry") await localEntryRepo.delete(del.entityId);
-      else if (del.entityType === "daily_note") await localNoteRepo.delete(del.entityId);
-      else if (del.entityType === "life_area") await localLifeAreaRepo.delete(del.entityId);
-      else if (del.entityType === "gym_workout") await localDomainRepo.deleteGymWorkout(del.entityId);
-      else if (del.entityType === "meal_entry") await localDomainRepo.deleteMealEntry(del.entityId);
-      else if (del.entityType === "expense_entry") await localDomainRepo.deleteExpenseEntry(del.entityId);
-      else if (del.entityType === "prayer_record") await localPrayerRepo.delete(del.entityId);
-      else if (del.entityType === "abstinence") await localAbstinenceRepo.deleteTracker(del.entityId);
-    }
+    let nextCursors: Record<string, string> | null = null;
+    let isFullSync = sinceParam <= 0;
+    let snapshotTimestamp: number | null = null;
+    let completeSnapshot = false;
+    let pageCount = 0;
+    const MAX_PULL_PAGES = 250;
 
-    // 2. Tasks merge
-    if (Array.isArray(changes.tasks)) {
-      const toSave: any[] = [];
-      for (const t of changes.tasks) {
-        if (!t?.id || protectedEntityKeys.has(`task:${t.id}`)) continue;
-        toSave.push({
-          ...t,
-          userId,
-          completedAt: toOptionalIso(t.completedAt),
-          archivedAt: toOptionalIso(t.archivedAt),
-          createdAt: toIsoStringSafe(t.createdAt),
-          updatedAt: toIsoStringSafe(t.updatedAt),
-          subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
-          tags: Array.isArray(t.tags) ? t.tags : [],
-          version: t.version || 1,
-          clientUpdatedAt: Date.now(),
-          _syncStatus: "synced",
-        });
+    while (pageCount < MAX_PULL_PAGES) {
+      pageCount += 1;
+      const params = new URLSearchParams({
+        since: String(sinceParam),
+        limit: "400",
+      });
+      if (nextCursors) {
+        params.set("cursors", JSON.stringify(nextCursors));
       }
-      if (toSave.length > 0) {
-        await localTaskRepo.saveBatch(toSave);
-        changedTypes.add("task");
+
+      const res = await fetch(`/api/sync/pull?${params.toString()}`, {
+        method: "GET",
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) return;
+        throw new Error(`HTTP_${res.status}_PULL_FAILURE`);
       }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.tasks.map((t: any) => t.id));
-        const localAll = await localTaskRepo.getAllForUser(userId, true);
-        const staleIds = localAll
-          .filter((l) => !remoteIds.has(l.id) && !protectedEntityKeys.has(`task:${l.id}`))
-          .map((l) => l.id);
-        if (staleIds.length > 0) {
-          await localTaskRepo.deleteBatch(staleIds);
+
+      const payload = await res.json();
+      if (!payload?.success || !payload?.changes) return;
+
+      if (snapshotTimestamp === null && typeof payload.serverTimestamp === "number") {
+        snapshotTimestamp = payload.serverTimestamp;
+      }
+      isFullSync = Boolean(payload.isFullSync);
+
+      const { changes, deletions = [] } = payload;
+
+      // 1. Apply remote deletions safely (never deleting pending/conflicted local items)
+      for (const del of deletions) {
+        const key = `${del.entityType}:${del.entityId}`;
+        if (protectedEntityKeys.has(key)) continue;
+        changedTypes.add(del.entityType);
+        if (del.entityType === "task") {
+          await localTaskRepo.delete(del.entityId);
+          await localTaskSessionRepo.deleteByTaskId(userId, del.entityId).catch(() => {});
+          await localRevisionRepo.deleteByEntity(userId, "task", del.entityId).catch(() => {});
+        } else if (del.entityType === "task_session") {
+          await localTaskSessionRepo.delete(del.entityId);
+          await localRevisionRepo.deleteByEntity(userId, "task_session", del.entityId).catch(() => {});
+        } else if (del.entityType === "entity_revision") {
+          await localRevisionRepo.delete(del.entityId);
+        } else if (del.entityType === "tracker") {
+          await localTrackerRepo.delete(del.entityId);
+        } else if (del.entityType === "tracker_entry") {
+          await localEntryRepo.delete(del.entityId);
+        } else if (del.entityType === "daily_note") {
+          await localNoteRepo.delete(del.entityId);
+        } else if (del.entityType === "life_area") {
+          await localLifeAreaRepo.delete(del.entityId);
+        } else if (del.entityType === "gym_workout") {
+          await localDomainRepo.deleteGymWorkout(del.entityId);
+        } else if (del.entityType === "meal_entry") {
+          await localDomainRepo.deleteMealEntry(del.entityId);
+        } else if (del.entityType === "water_entry") {
+          await localDomainRepo.deleteWaterEntry(del.entityId);
+        } else if (del.entityType === "expense_entry") {
+          await localDomainRepo.deleteExpenseEntry(del.entityId);
+        } else if (del.entityType === "prayer_record") {
+          await localPrayerRepo.delete(del.entityId);
+        } else if (del.entityType === "abstinence") {
+          await localAbstinenceRepo.deleteTracker(del.entityId);
+        }
+      }
+
+      // 2. Tasks merge
+      if (Array.isArray(changes.tasks)) {
+        const toSave: any[] = [];
+        for (const t of changes.tasks) {
+          if (!t?.id) continue;
+          seenTaskIds.add(t.id);
+          if (protectedEntityKeys.has(`task:${t.id}`)) continue;
+          toSave.push({
+            ...t,
+            userId,
+            completedAt: toOptionalIso(t.completedAt),
+            archivedAt: toOptionalIso(t.archivedAt),
+            createdAt: toIsoStringSafe(t.createdAt),
+            updatedAt: toIsoStringSafe(t.updatedAt),
+            subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
+            tags: Array.isArray(t.tags) ? t.tags : [],
+            version: t.version || 1,
+            clientUpdatedAt: Date.now(),
+            _syncStatus: "synced",
+          });
+        }
+        if (toSave.length > 0) {
+          await localTaskRepo.saveBatch(toSave);
           changedTypes.add("task");
         }
       }
-    }
 
-    // 3. Life Areas merge
-    if (Array.isArray(changes.lifeAreas)) {
-      const toSave = changes.lifeAreas
-        .filter((a: any) => a?.id && !protectedEntityKeys.has(`life_area:${a.id}`))
-        .map((a: any) => ({ ...a, userId, _syncStatus: "synced" }));
-      if (toSave.length > 0) {
-        await localLifeAreaRepo.saveBatch(toSave);
-        changedTypes.add("life_area");
+      // 2b. Task Sessions merge
+      if (Array.isArray(changes.taskSessions)) {
+        const toSave: any[] = [];
+        for (const s of changes.taskSessions) {
+          if (!s?.id) continue;
+          seenTaskSessionIds.add(s.id);
+          if (protectedEntityKeys.has(`task_session:${s.id}`)) continue;
+          toSave.push({
+            ...s,
+            userId,
+            startedAt: toOptionalIso(s.startedAt),
+            endedAt: toOptionalIso(s.endedAt),
+            createdAt: toIsoStringSafe(s.createdAt),
+            updatedAt: toIsoStringSafe(s.updatedAt),
+            subtasksSnapshot: Array.isArray(s.subtasksSnapshot) ? s.subtasksSnapshot : [],
+            clientUpdatedAt: Date.now(),
+            _syncStatus: "synced",
+          });
+        }
+        if (toSave.length > 0) {
+          await localTaskSessionRepo.saveBatch(toSave);
+          changedTypes.add("task_session");
+        }
       }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.lifeAreas.map((a: any) => a.id));
-        const localAll = await localLifeAreaRepo.getAllForUser(userId, true);
-        const staleIds = localAll
-          .filter((l) => !remoteIds.has(l.id) && !protectedEntityKeys.has(`life_area:${l.id}`))
-          .map((l) => l.id);
-        if (staleIds.length > 0) {
-          await localLifeAreaRepo.deleteBatch(staleIds);
+
+      // 2c. Entity Revisions merge
+      if (Array.isArray(changes.entityRevisions) && changes.entityRevisions.length > 0) {
+        const toSave = changes.entityRevisions
+          .filter((r: any) => r?.id && !protectedEntityKeys.has(`entity_revision:${r.id}`))
+          .map((r: any) => ({
+            ...r,
+            userId,
+            editedAt: toIsoStringSafe(r.editedAt),
+            createdAt: toIsoStringSafe(r.createdAt),
+            updatedAt: toIsoStringSafe(r.updatedAt),
+            clientUpdatedAt: Date.now(),
+            _syncStatus: "synced",
+          }));
+        if (toSave.length > 0) {
+          await localRevisionRepo.saveBatch(toSave);
+          changedTypes.add("entity_revision");
+        }
+      }
+
+      // 3. Life Areas merge
+      if (Array.isArray(changes.lifeAreas)) {
+        const toSave: any[] = [];
+        for (const a of changes.lifeAreas) {
+          if (!a?.id) continue;
+          seenLifeAreaIds.add(a.id);
+          if (protectedEntityKeys.has(`life_area:${a.id}`)) continue;
+          toSave.push({ ...a, userId, _syncStatus: "synced" });
+        }
+        if (toSave.length > 0) {
+          await localLifeAreaRepo.saveBatch(toSave);
           changedTypes.add("life_area");
         }
       }
-    }
 
-    // 4. Trackers merge
-    if (Array.isArray(changes.trackers)) {
-      const toSave = changes.trackers
-        .filter((t: any) => t?.id && !protectedEntityKeys.has(`tracker:${t.id}`))
-        .map((t: any) => ({ ...t, userId, _syncStatus: "synced" }));
-      if (toSave.length > 0) {
-        await localTrackerRepo.saveBatch(toSave);
-        changedTypes.add("tracker");
-      }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.trackers.map((t: any) => t.id));
-        const localAll = await localTrackerRepo.getAllForUser(userId, true);
-        const staleIds = localAll
-          .filter((l) => !remoteIds.has(l.id) && !protectedEntityKeys.has(`tracker:${l.id}`))
-          .map((l) => l.id);
-        if (staleIds.length > 0) {
-          await localTrackerRepo.deleteBatch(staleIds);
+      // 4. Trackers merge (including TrackerVersion history snapshots)
+      if (Array.isArray(changes.trackers)) {
+        const toSave: any[] = [];
+        for (const t of changes.trackers) {
+          if (!t?.id) continue;
+          seenTrackerIds.add(t.id);
+          if (protectedEntityKeys.has(`tracker:${t.id}`)) continue;
+          toSave.push({ ...t, userId, _syncStatus: "synced" });
+        }
+        if (toSave.length > 0) {
+          await localTrackerRepo.saveBatch(toSave);
           changedTypes.add("tracker");
         }
       }
-    }
 
-    // 5. Tracker entries merge
-    if (Array.isArray(changes.trackerEntries) && changes.trackerEntries.length > 0) {
-      const toSave = changes.trackerEntries
-        .filter((e: any) => e?.id && !protectedEntityKeys.has(`tracker_entry:${e.id}`))
-        .map((e: any) => ({
-          ...e,
-          userId,
-          occurredAt: toIsoStringSafe(e.occurredAt),
-        }));
-      if (toSave.length > 0) {
-        await localEntryRepo.saveBatch(toSave);
-        changedTypes.add("tracker_entry");
-      }
-    }
-
-    // 6. Daily notes merge
-    if (Array.isArray(changes.dailyNotes) && changes.dailyNotes.length > 0) {
-      const toSave = changes.dailyNotes
-        .filter((n: any) => n?.id && !protectedEntityKeys.has(`daily_note:${n.id}`))
-        .map((n: any) => ({
-          ...n,
-          userId,
-          updatedAt: toIsoStringSafe(n.updatedAt),
-        }));
-      if (toSave.length > 0) {
-        await localNoteRepo.saveBatch(toSave);
-        changedTypes.add("daily_note");
-      }
-    }
-
-    // 7. Prayer records merge
-    if (Array.isArray(changes.prayerRecords) && changes.prayerRecords.length > 0) {
-      const toSave = changes.prayerRecords
-        .filter((p: any) => p?.id && !protectedEntityKeys.has(`prayer_record:${p.id}`))
-        .map((p: any) => ({
-          ...p,
-          userId,
-          completedAt: toOptionalIso(p.completedAt),
-          clientUpdatedAt: Date.now(),
-        }));
-      if (toSave.length > 0) {
-        await localPrayerRepo.saveBatch(toSave);
-        changedTypes.add("prayer_record");
-      }
-    }
-
-    // 8. Abstinence trackers & sessions
-    if (Array.isArray(changes.abstinenceTrackers) && changes.abstinenceTrackers.length > 0) {
-      for (const a of changes.abstinenceTrackers) {
-        if (a?.id && !protectedEntityKeys.has(`abstinence:${a.id}`)) {
-          await localAbstinenceRepo.saveTracker({ ...a, userId });
-          changedTypes.add("abstinence");
-        }
-      }
-    }
-    if (Array.isArray(changes.abstinenceSessions) && changes.abstinenceSessions.length > 0) {
-      for (const s of changes.abstinenceSessions) {
-        if (s?.id && !protectedEntityKeys.has(`abstinence_session:${s.id}`)) {
-          await localAbstinenceRepo.saveSession({
-            ...s,
-            trackerId: s.abstinenceTrackerId,
+      // 5. Tracker entries merge
+      if (Array.isArray(changes.trackerEntries) && changes.trackerEntries.length > 0) {
+        const toSave = changes.trackerEntries
+          .filter((e: any) => e?.id && !protectedEntityKeys.has(`tracker_entry:${e.id}`))
+          .map((e: any) => ({
+            ...e,
             userId,
-            startedAt: toIsoStringSafe(s.startedAt),
-            endedAt: toOptionalIso(s.endedAt),
-          });
-          changedTypes.add("abstinence_session");
+            occurredAt: toIsoStringSafe(e.occurredAt),
+          }));
+        if (toSave.length > 0) {
+          await localEntryRepo.saveBatch(toSave);
+          changedTypes.add("tracker_entry");
         }
       }
-    }
 
-    // 9. Gym, Meals, Expenses
-    if (Array.isArray(changes.gymWorkouts)) {
-      const toSave = changes.gymWorkouts
-        .filter((g: any) => g?.id && !protectedEntityKeys.has(`gym_workout:${g.id}`))
-        .map((g: any) => ({ ...g, userId }));
-      if (toSave.length > 0) {
-        await localDomainRepo.saveGymBatch(toSave);
-        changedTypes.add("gym_workout");
+      // 6. Daily notes merge
+      if (Array.isArray(changes.dailyNotes) && changes.dailyNotes.length > 0) {
+        const toSave = changes.dailyNotes
+          .filter((n: any) => n?.id && !protectedEntityKeys.has(`daily_note:${n.id}`))
+          .map((n: any) => ({
+            ...n,
+            userId,
+            updatedAt: toIsoStringSafe(n.updatedAt),
+          }));
+        if (toSave.length > 0) {
+          await localNoteRepo.saveBatch(toSave);
+          changedTypes.add("daily_note");
+        }
       }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.gymWorkouts.map((g: any) => g.id));
-        const localAll = await localDomainRepo.getGymWorkouts(userId);
-        for (const l of localAll) {
-          if (!remoteIds.has(l.id) && !protectedEntityKeys.has(`gym_workout:${l.id}`)) {
-            await localDomainRepo.deleteGymWorkout(l.id);
-            changedTypes.add("gym_workout");
+
+      // 7. Prayer records merge
+      if (Array.isArray(changes.prayerRecords) && changes.prayerRecords.length > 0) {
+        const toSave = changes.prayerRecords
+          .filter((p: any) => p?.id && !protectedEntityKeys.has(`prayer_record:${p.id}`))
+          .map((p: any) => ({
+            ...p,
+            userId,
+            completedAt: toOptionalIso(p.completedAt),
+            clientUpdatedAt: Date.now(),
+          }));
+        if (toSave.length > 0) {
+          await localPrayerRepo.saveBatch(toSave);
+          changedTypes.add("prayer_record");
+        }
+      }
+
+      // 8. Abstinence trackers & sessions
+      if (Array.isArray(changes.abstinenceTrackers) && changes.abstinenceTrackers.length > 0) {
+        for (const a of changes.abstinenceTrackers) {
+          if (a?.id && !protectedEntityKeys.has(`abstinence:${a.id}`)) {
+            await localAbstinenceRepo.saveTracker({ ...a, userId });
+            changedTypes.add("abstinence");
           }
         }
       }
+      if (Array.isArray(changes.abstinenceSessions) && changes.abstinenceSessions.length > 0) {
+        for (const s of changes.abstinenceSessions) {
+          if (s?.id && !protectedEntityKeys.has(`abstinence_session:${s.id}`)) {
+            await localAbstinenceRepo.saveSession({
+              ...s,
+              trackerId: s.abstinenceTrackerId,
+              userId,
+              startedAt: toIsoStringSafe(s.startedAt),
+              endedAt: toOptionalIso(s.endedAt),
+            });
+            changedTypes.add("abstinence_session");
+          }
+        }
+      }
+
+      // 9. Gym, Meals, Expenses
+      if (Array.isArray(changes.gymWorkouts)) {
+        const toSave: any[] = [];
+        for (const g of changes.gymWorkouts) {
+          if (!g?.id) continue;
+          seenGymIds.add(g.id);
+          if (protectedEntityKeys.has(`gym_workout:${g.id}`)) continue;
+          toSave.push({ ...g, userId });
+        }
+        if (toSave.length > 0) {
+          await localDomainRepo.saveGymBatch(toSave);
+          changedTypes.add("gym_workout");
+        }
+      }
+
+      if (Array.isArray(changes.mealEntries)) {
+        const toSave: any[] = [];
+        for (const m of changes.mealEntries) {
+          if (!m?.id) continue;
+          seenMealIds.add(m.id);
+          if (protectedEntityKeys.has(`meal_entry:${m.id}`)) continue;
+          toSave.push({ ...m, userId });
+        }
+        if (toSave.length > 0) {
+          await localDomainRepo.saveMealBatch(toSave);
+          changedTypes.add("meal_entry");
+        }
+      }
+
+      if (Array.isArray(changes.waterEntries)) {
+        const toSave: any[] = [];
+        for (const w of changes.waterEntries) {
+          if (!w?.id) continue;
+          seenWaterIds.add(w.id);
+          if (protectedEntityKeys.has(`water_entry:${w.id}`)) continue;
+          toSave.push({ ...w, userId });
+        }
+        if (toSave.length > 0) {
+          await localDomainRepo.saveWaterBatch(toSave);
+          changedTypes.add("water_entry");
+        }
+      }
+
+      if (Array.isArray(changes.expenseEntries)) {
+        const toSave: any[] = [];
+        for (const e of changes.expenseEntries) {
+          if (!e?.id) continue;
+          seenExpenseIds.add(e.id);
+          if (protectedEntityKeys.has(`expense_entry:${e.id}`)) continue;
+          toSave.push({ ...e, userId });
+        }
+        if (toSave.length > 0) {
+          await localDomainRepo.saveExpenseBatch(toSave);
+          changedTypes.add("expense_entry");
+        }
+      }
+
+      // 10. User Settings (returned on page 1)
+      if (changes.userSettings && !protectedEntityKeys.has(`user_settings:${userId}`)) {
+        await localSyncMetaRepo.saveUserSettings(userId, changes.userSettings);
+        changedTypes.add("user_settings");
+      }
+
+      if (payload.hasMore && payload.nextCursors) {
+        nextCursors = payload.nextCursors;
+      } else {
+        completeSnapshot = payload.completeSnapshot !== false;
+        break;
+      }
     }
 
-    if (Array.isArray(changes.mealEntries)) {
-      const toSave = changes.mealEntries
-        .filter((m: any) => m?.id && !protectedEntityKeys.has(`meal_entry:${m.id}`))
-        .map((m: any) => ({ ...m, userId }));
-      if (toSave.length > 0) {
-        await localDomainRepo.saveMealBatch(toSave);
-        changedTypes.add("meal_entry");
+    // ONLY prune stale local records after ALL paginated pages of a full snapshot completed cleanly!
+    if (isFullSync && completeSnapshot) {
+      const localTasks = await localTaskRepo.getAllForUser(userId, true);
+      const staleTaskIds = localTasks
+        .filter((l) => !seenTaskIds.has(l.id) && !protectedEntityKeys.has(`task:${l.id}`))
+        .map((l) => l.id);
+      if (staleTaskIds.length > 0) {
+        await localTaskRepo.deleteBatch(staleTaskIds);
+        changedTypes.add("task");
       }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.mealEntries.map((m: any) => m.id));
-        const localAll = await localDomainRepo.getMealEntries(userId);
-        for (const l of localAll) {
-          if (!remoteIds.has(l.id) && !protectedEntityKeys.has(`meal_entry:${l.id}`)) {
-            await localDomainRepo.deleteMealEntry(l.id);
-            changedTypes.add("meal_entry");
-          }
+
+      const localTaskSessions = await localTaskSessionRepo.getAllForUser(userId).catch(() => []);
+      const staleSessionIds = localTaskSessions
+        .filter(
+          (l) => !seenTaskSessionIds.has(l.id) && !protectedEntityKeys.has(`task_session:${l.id}`)
+        )
+        .map((l) => l.id);
+      if (staleSessionIds.length > 0) {
+        await localTaskSessionRepo.deleteBatch(staleSessionIds);
+        changedTypes.add("task_session");
+      }
+
+      const localAreas = await localLifeAreaRepo.getAllForUser(userId, true);
+      const staleAreaIds = localAreas
+        .filter((l) => !seenLifeAreaIds.has(l.id) && !protectedEntityKeys.has(`life_area:${l.id}`))
+        .map((l) => l.id);
+      if (staleAreaIds.length > 0) {
+        await localLifeAreaRepo.deleteBatch(staleAreaIds);
+        changedTypes.add("life_area");
+      }
+
+      const localTrackers = await localTrackerRepo.getAllForUser(userId, true);
+      const staleTrackerIds = localTrackers
+        .filter((l) => !seenTrackerIds.has(l.id) && !protectedEntityKeys.has(`tracker:${l.id}`))
+        .map((l) => l.id);
+      if (staleTrackerIds.length > 0) {
+        await localTrackerRepo.deleteBatch(staleTrackerIds);
+        changedTypes.add("tracker");
+      }
+
+      const localGym = await localDomainRepo.getGymWorkouts(userId);
+      for (const l of localGym) {
+        if (!seenGymIds.has(l.id) && !protectedEntityKeys.has(`gym_workout:${l.id}`)) {
+          await localDomainRepo.deleteGymWorkout(l.id);
+          changedTypes.add("gym_workout");
+        }
+      }
+
+      const localMeals = await localDomainRepo.getMealEntries(userId);
+      for (const l of localMeals) {
+        if (!seenMealIds.has(l.id) && !protectedEntityKeys.has(`meal_entry:${l.id}`)) {
+          await localDomainRepo.deleteMealEntry(l.id);
+          changedTypes.add("meal_entry");
+        }
+      }
+
+      const localWaters = await localDomainRepo.getWaterEntries(userId);
+      for (const l of localWaters) {
+        if (!seenWaterIds.has(l.id) && !protectedEntityKeys.has(`water_entry:${l.id}`)) {
+          await localDomainRepo.deleteWaterEntry(l.id);
+          changedTypes.add("water_entry");
+        }
+      }
+
+      const localExpenses = await localDomainRepo.getExpenseEntries(userId);
+      for (const l of localExpenses) {
+        if (!seenExpenseIds.has(l.id) && !protectedEntityKeys.has(`expense_entry:${l.id}`)) {
+          await localDomainRepo.deleteExpenseEntry(l.id);
+          changedTypes.add("expense_entry");
         }
       }
     }
 
-    if (Array.isArray(changes.expenseEntries)) {
-      const toSave = changes.expenseEntries
-        .filter((e: any) => e?.id && !protectedEntityKeys.has(`expense_entry:${e.id}`))
-        .map((e: any) => ({ ...e, userId }));
-      if (toSave.length > 0) {
-        await localDomainRepo.saveExpenseBatch(toSave);
-        changedTypes.add("expense_entry");
-      }
-      if (isFullSync) {
-        const remoteIds = new Set(changes.expenseEntries.map((e: any) => e.id));
-        const localAll = await localDomainRepo.getExpenseEntries(userId);
-        for (const l of localAll) {
-          if (!remoteIds.has(l.id) && !protectedEntityKeys.has(`expense_entry:${l.id}`)) {
-            await localDomainRepo.deleteExpenseEntry(l.id);
-            changedTypes.add("expense_entry");
-          }
-        }
-      }
-    }
-
-    // 10. User Settings
-    if (changes.userSettings && !protectedEntityKeys.has(`user_settings:${userId}`)) {
-      await localSyncMetaRepo.saveUserSettings(userId, changes.userSettings);
-      changedTypes.add("user_settings");
-    }
-
-    if (serverTimestamp) {
-      await localSyncMetaRepo.setCursor(userId, serverTimestamp);
-      this.lastSyncedAt = serverTimestamp;
+    if (snapshotTimestamp && (completeSnapshot || !isFullSync)) {
+      await localSyncMetaRepo.setCursor(userId, snapshotTimestamp);
+      this.lastSyncedAt = snapshotTimestamp;
     }
 
     if (changedTypes.size > 0 && typeof window !== "undefined") {
@@ -773,6 +924,16 @@ class SyncEngine {
       if (changedTypes.has("task")) {
         window.dispatchEvent(
           new CustomEvent("athar_tasks_updated", { detail: { userId } })
+        );
+      }
+      if (changedTypes.has("task_session")) {
+        window.dispatchEvent(
+          new CustomEvent("athar_task_sessions_updated", { detail: { userId } })
+        );
+      }
+      if (changedTypes.has("entity_revision")) {
+        window.dispatchEvent(
+          new CustomEvent("athar_revisions_updated", { detail: { userId } })
         );
       }
     }

@@ -2,10 +2,12 @@ import { Suspense } from "react";
 import Navbar from "@/components/Navbar";
 import MobileBottomNav from "@/components/ui/MobileBottomNav";
 import GlobalTaskTimerBar from "@/components/timer/GlobalTaskTimerBar";
+import NavigationProgressBar from "@/components/NavigationProgressBar";
 import { AtharProvider } from "@/components/context/AtharContext";
 import Toast from "@/components/Toast";
 import PwaRegister from "@/components/pwa/PwaRegister";
 import GuestImportModal from "@/components/auth/GuestImportModal";
+import OnboardingGate from "@/components/auth/OnboardingGate";
 import "./globals.css";
 
 export const metadata = {
@@ -38,6 +40,9 @@ export default function RootLayout({ children }) {
         }}
       >
         <AtharProvider>
+          <Suspense fallback={null}>
+            <NavigationProgressBar />
+          </Suspense>
           {/* Atmospheric ambient glow layers */}
           <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
             <div className="absolute -top-40 right-1/4 w-[600px] h-[600px] bg-violet-600/7 rounded-full blur-[140px]" />
@@ -52,19 +57,21 @@ export default function RootLayout({ children }) {
             />
           </div>
 
-          <div className="relative z-10 flex flex-col min-h-screen">
-            <Suspense fallback={<div className="h-16 sm:h-20 w-full bg-[#090b11]" />}>
-              <Navbar />
-            </Suspense>
-            <GlobalTaskTimerBar />
-            <main className="flex-1 pb-24 md:pb-16">
-              {children}
-            </main>
-            {/* Mobile Bottom Navigation */}
-            <Suspense fallback={null}>
-              <MobileBottomNav />
-            </Suspense>
-          </div>
+          <OnboardingGate>
+            <div className="relative z-10 flex flex-col min-h-screen">
+              <Suspense fallback={<div className="h-16 sm:h-20 w-full bg-[#090b11]" />}>
+                <Navbar />
+              </Suspense>
+              <GlobalTaskTimerBar />
+              <main className="flex-1 pb-24 lg:pb-16">
+                {children}
+              </main>
+              {/* Mobile Bottom Navigation */}
+              <Suspense fallback={null}>
+                <MobileBottomNav />
+              </Suspense>
+            </div>
+          </OnboardingGate>
 
           <Toast />
           <PwaRegister />

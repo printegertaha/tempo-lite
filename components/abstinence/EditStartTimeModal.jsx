@@ -10,6 +10,8 @@ import {
 } from "@/lib/dates";
 import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
+import DatePickerField from "@/components/ui/DatePickerField";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 export default function EditStartTimeModal({
   isOpen,
@@ -150,24 +152,22 @@ export default function EditStartTimeModal({
             <div className="space-y-3 pt-1">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-zinc-300 block">تاريخ البداية:</label>
-                <input
-                  type="date"
+                <DatePickerField
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-violet-500"
-                  required
+                  onChange={(d) => setStartDate(d)}
+                  title="تحديد تاريخ البداية"
+                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-zinc-300 block">ساعة ودقيقة البداية:</label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="time"
+                  <TimePickerField
                     value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-violet-500 font-mono"
-                    required
+                    onChange={(t) => setStartTime(t)}
+                    title="تحديد وقت البداية"
+                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                   />
                   <button
                     type="button"

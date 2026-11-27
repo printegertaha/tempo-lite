@@ -6,6 +6,7 @@ import {
   Circle,
   Calendar,
   Clock,
+  Hourglass,
   Flame,
   MoreVertical,
   Edit2,
@@ -26,30 +27,36 @@ import {
 } from "lucide-react";
 import { formatArabicDueDate } from "@/lib/dates";
 import TruncatedTaskTitle from "@/components/tasks/TruncatedTaskTitle";
+import YouTubePreviewCard, {
+  normalizeYouTubeMetaList,
+} from "@/components/tasks/YouTubePreviewCard";
+
+const MUTED_META_CLASS =
+  "bg-zinc-900/50 border border-zinc-800/70 text-zinc-500 font-normal";
 
 const PRIORITY_CONFIG = {
   URGENT: {
     label: "عاجلة",
-    color: "text-red-400 bg-red-500/10 border-red-500/30",
-    badge: "border-red-500/40 text-red-300",
-    glow: "shadow-red-500/10",
+    color: MUTED_META_CLASS,
+    badge: "border-zinc-800 text-zinc-500",
+    glow: "",
   },
   HIGH: {
     label: "مرتفعة",
-    color: "text-amber-400 bg-amber-500/10 border-amber-500/30",
-    badge: "border-amber-500/40 text-amber-300",
-    glow: "shadow-amber-500/10",
+    color: MUTED_META_CLASS,
+    badge: "border-zinc-800 text-zinc-500",
+    glow: "",
   },
   MEDIUM: {
     label: "متوسطة",
-    color: "text-sky-400 bg-sky-500/10 border-sky-500/20",
-    badge: "border-sky-500/30 text-sky-300",
-    glow: "shadow-sky-500/5",
+    color: MUTED_META_CLASS,
+    badge: "border-zinc-800 text-zinc-500",
+    glow: "",
   },
   LOW: {
     label: "منخفضة",
-    color: "text-zinc-400 bg-zinc-800/60 border-zinc-700/30",
-    badge: "border-zinc-700 text-zinc-400",
+    color: MUTED_META_CLASS,
+    badge: "border-zinc-800 text-zinc-500",
     glow: "",
   },
 };
@@ -129,6 +136,25 @@ export default function TaskCard({
             )}
           </button>
 
+          {task.priority && (
+            <span
+              className="mt-1 w-4 h-4 rounded-full bg-zinc-900/80 border border-zinc-800/80 text-[10px] font-mono text-zinc-500 flex items-center justify-center leading-none shrink-0"
+              title={`أولوية ${
+                task.priority === "HIGH" || task.priority === "URGENT"
+                  ? 1
+                  : task.priority === "LOW"
+                    ? 3
+                    : 2
+              }`}
+            >
+              {task.priority === "HIGH" || task.priority === "URGENT"
+                ? 1
+                : task.priority === "LOW"
+                  ? 3
+                  : 2}
+            </span>
+          )}
+
           <TruncatedTaskTitle
             title={task.title}
             isCompleted={isCompleted}
@@ -138,47 +164,36 @@ export default function TaskCard({
           />
         </div>
 
-        {/* Badges bar */}
+        {/* Badges bar (Muted uniform gray so focus stays on task title) */}
         <div className="flex items-center gap-2 flex-wrap mt-3">
-              {/* Priority Indicator */}
-              <span
-                className={`text-[11px] px-2.5 py-0.5 rounded-full border font-bold ${priorityInfo.color}`}
-              >
-                {priorityInfo.label}
-              </span>
 
               {/* Start Time Badge */}
-              {task.startTime && (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-300 font-mono">
-                  <Clock className="w-2.5 h-2.5 text-zinc-400" />
-                  <span>{task.startTime}</span>
-                </span>
-              )}
+              <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono ${MUTED_META_CLASS}`}>
+                <Clock className="w-2.5 h-2.5 text-zinc-500" />
+                <span>{task.startTime || "بدون معاد"}</span>
+              </span>
 
               {/* Duration / Pomodoro Badge */}
               {task.isPomodoro ? (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-300 font-mono">
-                  <Flame className="w-2.5 h-2.5 text-violet-400" />
+                <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono ${MUTED_META_CLASS}`}>
+                  <Flame className="w-2.5 h-2.5 text-zinc-500" />
                   <span>{task.workCycle || 25}+{task.breakCycle || 5}د بومودورو</span>
                 </span>
-              ) : task.durationMinutes ? (
-                <span className="inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-zinc-900 border border-zinc-800 text-zinc-400 font-mono">
-                  <span>{task.durationMinutes} دقيقة</span>
+              ) : (
+                <span className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-mono ${MUTED_META_CLASS}`}>
+                  <Hourglass className="w-2.5 h-2.5 text-zinc-500" />
+                  <span>
+                    {task.durationMinutes ? `${task.durationMinutes} دقيقة` : "بدون مدة"}
+                  </span>
                 </span>
-              ) : null}
+              )}
 
               {/* Due Date Indicator */}
               {task.dueDate && (
                 <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border font-mono flex items-center gap-1 ${
-                    dueInfo.isOverdue
-                      ? "bg-red-500/15 border-red-500/40 text-red-400 font-bold animate-pulse"
-                      : dueInfo.isToday
-                      ? "bg-amber-500/15 border-amber-500/40 text-amber-300 font-bold"
-                      : "bg-zinc-800/60 border-zinc-700/40 text-zinc-400"
-                  }`}
+                  className={`text-[10px] px-2 py-0.5 rounded-full font-mono flex items-center gap-1 ${MUTED_META_CLASS}`}
                 >
-                  <Calendar className="w-2.5 h-2.5" />
+                  <Calendar className="w-2.5 h-2.5 text-zinc-500" />
                   <span>{dueInfo.label}</span>
                 </span>
               )}
@@ -186,10 +201,10 @@ export default function TaskCard({
               {/* Recurring Badge */}
               {task.isRecurring && (
                 <span
-                  className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300"
+                  className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full ${MUTED_META_CLASS}`}
                   title="مهمة دورية تتكرر أسبوعياً"
                 >
-                  <Repeat className="w-2.5 h-2.5" />
+                  <Repeat className="w-2.5 h-2.5 text-zinc-500" />
                   <span>دورية</span>
                 </span>
               )}
@@ -221,6 +236,14 @@ export default function TaskCard({
               >
                 {task.description}
               </p>
+            )}
+
+            {normalizeYouTubeMetaList(task.youtubeMeta).length > 0 && (
+              <div className="mt-3 space-y-1.5">
+                {normalizeYouTubeMetaList(task.youtubeMeta).map((yt) => (
+                  <YouTubePreviewCard key={yt.videoId} meta={yt} compact />
+                ))}
+              </div>
             )}
 
             {/* Sub-tasks checklist progress */}
@@ -370,13 +393,7 @@ export default function TaskCard({
                     >
                       +1 يوم (غداً)
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => handlePostponeClick(3)}
-                      className="w-full text-right px-3 py-1.5 text-zinc-200 hover:bg-zinc-800 hover:text-amber-300 transition-colors"
-                    >
-                      +3 أيام
-                    </button>
+               
                     <button
                       type="button"
                       onClick={() => handlePostponeClick(7)}

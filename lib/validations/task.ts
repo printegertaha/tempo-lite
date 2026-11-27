@@ -7,6 +7,21 @@ export type TaskPriorityType = z.infer<typeof TaskPriorityEnum>;
 export const TaskStatusEnum = z.enum(["TODO", "IN_PROGRESS", "COMPLETED", "CANCELLED"]);
 export type TaskStatusType = z.infer<typeof TaskStatusEnum>;
 
+export const YouTubeMetaItemSchema = z.object({
+  videoId: z.string().min(1),
+  url: z.string().url(),
+  title: z.string().min(1),
+  channelName: z.string().min(1),
+  channelUrl: z.string().optional().nullable(),
+  channelAvatar: z.string().optional().nullable(),
+  thumbnailUrl: z.string().min(1),
+});
+
+export const YouTubeMetaSchema = z
+  .union([YouTubeMetaItemSchema, z.array(YouTubeMetaItemSchema)])
+  .optional()
+  .nullable();
+
 export const SubtaskItemSchema = z.object({
   id: z.string(),
   title: z.string().trim().min(1, "عنوان المهمة الفرعية مطلوب"),
@@ -35,7 +50,7 @@ export const CreateTaskSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "تنسيق الوقت غير صالح (HH:MM)")
     .optional()
     .nullable(),
-  durationMinutes: z.coerce.number().int().min(1).max(1440).optional().nullable(),
+  durationMinutes: z.coerce.number().int().min(1).max(10080).optional().nullable(),
   priority: TaskPriorityEnum.default("MEDIUM"),
   status: TaskStatusEnum.default("TODO"),
   lifeAreaId: z.string().trim().optional().nullable(),
@@ -47,6 +62,7 @@ export const CreateTaskSchema = z.object({
   breakCycle: z.coerce.number().int().min(1).max(60).default(5),
   isRecurring: z.boolean().default(false),
   subtasks: z.array(SubtaskItemSchema).default([]),
+  youtubeMeta: YouTubeMetaSchema,
 });
 
 export type CreateTaskInput = z.infer<typeof CreateTaskSchema>;
@@ -74,7 +90,7 @@ export const UpdateTaskSchema = z.object({
     .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "تنسيق الوقت غير صالح (HH:MM)")
     .optional()
     .nullable(),
-  durationMinutes: z.coerce.number().int().min(1).max(1440).optional().nullable(),
+  durationMinutes: z.coerce.number().int().min(1).max(10080).optional().nullable(),
   priority: TaskPriorityEnum.optional(),
   status: TaskStatusEnum.optional(),
   lifeAreaId: z.string().trim().optional().nullable(),
@@ -87,6 +103,7 @@ export const UpdateTaskSchema = z.object({
   breakCycle: z.coerce.number().int().min(1).max(60).optional(),
   isRecurring: z.boolean().optional(),
   subtasks: z.array(SubtaskItemSchema).optional(),
+  youtubeMeta: YouTubeMetaSchema,
 });
 
 export type UpdateTaskInput = z.infer<typeof UpdateTaskSchema>;

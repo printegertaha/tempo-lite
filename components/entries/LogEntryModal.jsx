@@ -21,6 +21,8 @@ import {
   deleteTrackerEntryLocalFirst,
 } from "@/lib/local-db/habit-ops";
 import { localEntryRepo } from "@/lib/local-db";
+import DatePickerField from "@/components/ui/DatePickerField";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 export default function LogEntryModal({
   isOpen,
@@ -178,12 +180,11 @@ export default function LogEntryModal({
               تاريخ الإنجاز (التاريخ المحلي)
             </label>
             <div className="relative">
-              <input
-                type="date"
-                required
+              <DatePickerField
                 value={localDate}
-                onChange={(e) => setLocalDate(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100 focus:outline-none focus:border-violet-500 font-mono"
+                onChange={(d) => setLocalDate(d)}
+                title="تحديد تاريخ الإنجاز"
+                className="w-full px-4 py-2.5 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100 font-mono"
               />
             </div>
           </div>
@@ -245,23 +246,21 @@ export default function LogEntryModal({
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
                   وقت البدء (HH:MM)
                 </label>
-                <input
-                  type="time"
-                  required
+                <TimePickerField
                   value={timeStart}
-                  onChange={(e) => setTimeStart(e.target.value)}
+                  onChange={(t) => setTimeStart(t)}
+                  title="تحديد وقت البدء"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100"
                 />
               </div>
               <div>
                 <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                  وقت الانتهاء (HH:MM)
+                  وقت الانتهاء
                 </label>
-                <input
-                  type="time"
-                  required
+                <TimePickerField
                   value={timeEnd}
-                  onChange={(e) => setTimeEnd(e.target.value)}
+                  onChange={(t) => setTimeEnd(t)}
+                  title="تحديد وقت الانتهاء"
                   className="w-full px-3.5 py-2.5 rounded-xl bg-zinc-900 border border-zinc-750 text-xs text-zinc-100"
                 />
               </div>

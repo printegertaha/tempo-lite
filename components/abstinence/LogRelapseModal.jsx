@@ -16,6 +16,8 @@ import { logRelapse } from "@/actions/abstinence";
 import { getLocalDateString, parseLocalDateTimeToUtc } from "@/lib/dates";
 import { localAbstinenceRepo, localOutboxRepo } from "@/lib/local-db";
 import { syncEngine } from "@/lib/sync/sync-engine";
+import DatePickerField from "@/components/ui/DatePickerField";
+import TimePickerField from "@/components/ui/TimePickerField";
 
 const COMMON_TRIGGERS = [
   "توتر وضغط نفسي",
@@ -194,24 +196,22 @@ export default function LogRelapseModal({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-400 block">التاريخ:</label>
-                <input
-                  type="date"
+                <DatePickerField
                   value={relapseDate}
-                  onChange={(e) => setRelapseDate(e.target.value)}
-                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-rose-500"
-                  required
+                  onChange={(d) => setRelapseDate(d)}
+                  title="تحديد تاريخ الانتكاسة"
+                  className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-[11px] text-zinc-400 block">الوقت:</label>
                 <div className="flex items-center gap-2">
-                  <input
-                    type="time"
+                  <TimePickerField
                     value={relapseTime}
-                    onChange={(e) => setRelapseTime(e.target.value)}
-                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 focus:outline-none focus:border-rose-500 font-mono"
-                    required
+                    onChange={(t) => setRelapseTime(t)}
+                    title="تحديد وقت الانتكاسة"
+                    className="w-full px-3.5 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                   />
                   <button
                     type="button"
@@ -263,16 +263,16 @@ export default function LogRelapseModal({
 
             {!startNewFromRelapse && (
               <div className="grid grid-cols-2 gap-2 pt-1 animate-in fade-in duration-150">
-                <input
-                  type="date"
+                <DatePickerField
                   value={newStartDate}
-                  onChange={(e) => setNewStartDate(e.target.value)}
+                  onChange={(d) => setNewStartDate(d)}
+                  title="تحديد تاريخ البداية الجديدة"
                   className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100"
                 />
-                <input
-                  type="time"
+                <TimePickerField
                   value={newStartTime}
-                  onChange={(e) => setNewStartTime(e.target.value)}
+                  onChange={(t) => setNewStartTime(t)}
+                  title="تحديد وقت البداية الجديدة"
                   className="px-3 py-2 rounded-xl bg-zinc-900 border border-zinc-800 text-xs text-zinc-100 font-mono"
                 />
               </div>

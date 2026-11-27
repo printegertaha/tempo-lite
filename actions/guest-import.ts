@@ -7,6 +7,8 @@ import { slugify } from "@/lib/validations/life-area";
 
 export async function importGuestData(payload: {
   tasks?: any[];
+  taskSessions?: any[];
+  entityRevisions?: any[];
   prayers?: any[];
   trackers?: any[];
   trackerEntries?: any[];
@@ -15,8 +17,10 @@ export async function importGuestData(payload: {
   dailyNotes?: any[];
   gymWorkouts?: any[];
   mealEntries?: any[];
+  waterEntries?: any[];
   expenseEntries?: any[];
   preferences?: any;
+  onboarding?: any;
 }) {
   try {
     const session = await getServerSession();
@@ -27,6 +31,8 @@ export async function importGuestData(payload: {
     const userId = session.user.id;
     const {
       tasks = [],
+      taskSessions = [],
+      entityRevisions = [],
       prayers = [],
       trackers = [],
       trackerEntries = [],
@@ -35,12 +41,16 @@ export async function importGuestData(payload: {
       dailyNotes = [],
       gymWorkouts = [],
       mealEntries = [],
+      waterEntries = [],
       expenseEntries = [],
       preferences = null,
+      onboarding = null,
     } = payload;
 
     const importedCounts: Record<string, number> = {
       tasks: 0,
+      taskSessions: 0,
+      entityRevisions: 0,
       prayers: 0,
       trackers: 0,
       trackerEntries: 0,
@@ -48,6 +58,7 @@ export async function importGuestData(payload: {
       dailyNotes: 0,
       gymWorkouts: 0,
       mealEntries: 0,
+      waterEntries: 0,
       expenseEntries: 0,
     };
 
@@ -179,6 +190,7 @@ export async function importGuestData(payload: {
       }
 
       // 3. Import Tasks (Idempotent upsert with ownership verification)
+      const taskIdMap = new Map<string, string>();
       for (const t of tasks) {
         if (!t.title) continue;
         const origTaskId = t.id || crypto.randomUUID();
@@ -188,6 +200,7 @@ export async function importGuestData(payload: {
         });
         const taskId =
           existingTask && existingTask.userId !== userId ? crypto.randomUUID() : origTaskId;
+        taskIdMap.set(origTaskId, taskId);
 
         const mappedTrackerId = t.trackerId
           ? trackerIdMap.get(t.trackerId) || t.trackerId
@@ -255,6 +268,93 @@ export async function importGuestData(payload: {
         });
 
         importedCounts.tasks++;
+      }
+
+      // 3b. Import Task Execution Sessions (preserving timestamps & untracked flags)
+      if (Array.isArray(taskSessions)) {
+        for (const s of taskSessions) {
+          if (!s?.taskTitleSnapshot || !s?.localDate) continue;
+          const origSessId = s.id || crypto.randomUUID();
+          const existingSess = await tx.taskSession.findUnique({
+            where: { id: origSessId },
+            select: { id: true, userId: true },
+          });
+          const sessId =
+            existingSess && existingSess.userId !== userId
+              ? crypto.randomUUID()
+              : origSessId;
+          const mappedTaskId = s.taskId ? taskIdMap.get(s.taskId) || s.taskId : origSessId;
+          const mappedTrackerId = s.trackerId
+            ? trackerIdMap.get(s.trackerId) || s.trackerId
+            : null;
+
+          await tx.taskSession.upsert({
+            where: { id: sessId },
+            create: {
+              id: sessId,
+              userId,
+              taskId: mappedTaskId,
+              trackerId: mappedTrackerId,
+              localDate: s.localDate,
+              startedAt: s.startedAt ? new Date(s.startedAt) : null,
+              endedAt: s.endedAt ? new Date(s.endedAt) : null,
+              durationSeconds: s.durationSeconds ?? null,
+              status: s.status || "completed",
+              completionSource: s.completionSource || "timer",
+              isEstimated: Boolean(s.isEstimated),
+              completedCycles: Number(s.completedCycles) || 0,
+              taskTitleSnapshot: s.taskTitleSnapshot,
+              taskDescriptionSnapshot: s.taskDescriptionSnapshot ?? null,
+              subtasksSnapshot: Array.isArray(s.subtasksSnapshot) ? s.subtasksSnapshot : [],
+              lifeAreaIdSnapshot: s.lifeAreaIdSnapshot ?? null,
+              lifeAreaNameSnapshot: s.lifeAreaNameSnapshot ?? null,
+              notes: s.notes ?? null,
+            },
+            update: {
+              taskTitleSnapshot: s.taskTitleSnapshot,
+              notes: s.notes ?? undefined,
+            },
+          });
+          importedCounts.taskSessions++;
+        }
+      }
+
+      // 3c. Import Historical Entity Revisions
+      if (Array.isArray(entityRevisions)) {
+        for (const r of entityRevisions) {
+          if (!r?.entityType || !r?.entityId) continue;
+          const origRevId = r.id || crypto.randomUUID();
+          const existingRev = await tx.entityRevision.findUnique({
+            where: { id: origRevId },
+            select: { id: true, userId: true },
+          });
+          if (existingRev && existingRev.userId !== userId) continue;
+          const mappedEntityId =
+            r.entityType === "task"
+              ? taskIdMap.get(r.entityId) || r.entityId
+              : r.entityType === "tracker"
+                ? trackerIdMap.get(r.entityId) || r.entityId
+                : r.entityId;
+
+          await tx.entityRevision.upsert({
+            where: { id: origRevId },
+            create: {
+              id: origRevId,
+              userId,
+              entityType: r.entityType,
+              entityId: mappedEntityId,
+              localDate: r.localDate ?? null,
+              revisionNumber: Number(r.revisionNumber) || 1,
+              previousValues: r.previousValues || {},
+              newValues: r.newValues || {},
+              editedBy: r.editedBy || "guest",
+              editedAt: r.editedAt ? new Date(r.editedAt) : new Date(),
+              reason: r.reason ?? null,
+            },
+            update: {},
+          });
+          importedCounts.entityRevisions++;
+        }
       }
 
       // 4. Import Daily Notes
@@ -338,24 +438,61 @@ export async function importGuestData(payload: {
             id: mealId,
             userId,
             date: m.date,
+            time: m.time || null,
             mealType: m.mealType || "lunch",
             title: m.title,
-            calories: m.calories || 0,
-            protein: m.protein || 0,
-            carbs: m.carbs || 0,
-            fat: m.fat || 0,
+            calories: Math.round(Number(m.calories || 0)),
+            protein: Number(m.protein || 0),
+            carbs: Number(m.carbs || 0),
+            fat: Number(m.fat || 0),
+            items: Array.isArray(m.items) ? m.items : [],
+            dailyTargetsSnapshot: m.dailyTargetsSnapshot ?? undefined,
             notes: m.notes || null,
           },
           update: {
             title: m.title,
-            calories: m.calories || 0,
-            protein: m.protein || 0,
-            carbs: m.carbs || 0,
-            fat: m.fat || 0,
+            time: m.time || null,
+            calories: Math.round(Number(m.calories || 0)),
+            protein: Number(m.protein || 0),
+            carbs: Number(m.carbs || 0),
+            fat: Number(m.fat || 0),
+            items: Array.isArray(m.items) ? m.items : [],
           },
         });
 
         importedCounts.mealEntries++;
+      }
+
+      // 6b. Import Water Entries
+      for (const w of waterEntries) {
+        const amountMl = Math.round(Number(w?.amountMl || 0));
+        if (!w?.date || amountMl <= 0) continue;
+        const origWaterId = w.id || crypto.randomUUID();
+        const existingWater = await tx.waterEntry.findUnique({
+          where: { id: origWaterId },
+          select: { id: true, userId: true },
+        });
+        const waterId =
+          existingWater && existingWater.userId !== userId ? crypto.randomUUID() : origWaterId;
+
+        await tx.waterEntry.upsert({
+          where: { id: waterId },
+          create: {
+            id: waterId,
+            userId,
+            date: w.date,
+            amountMl,
+            occurredAt: w.occurredAt ? new Date(w.occurredAt) : new Date(),
+            source: w.source || "nutrition",
+            notes: w.notes || null,
+          },
+          update: {
+            amountMl,
+            date: w.date,
+          },
+        });
+
+        importedCounts.waterEntries++;
       }
 
       // 7. Import Expense Entries
@@ -401,62 +538,117 @@ export async function importGuestData(payload: {
         importedCounts.expenseEntries++;
       }
 
-      // 7b. Merge explicit guest localization/prayer preferences if present
-      if (preferences && typeof preferences === "object") {
+      // 7b. Merge explicit guest localization/prayer/onboarding preferences safely without clobbering existing non-empty account prefs
+      if ((preferences && typeof preferences === "object") || (onboarding && typeof onboarding === "object")) {
         const existingSettings = await tx.userSettings.findUnique({
           where: { userId },
-          select: { id: true, dashboardConfig: true, countryCode: true },
+          select: {
+            id: true,
+            dashboardConfig: true,
+            countryCode: true,
+            salutation: true,
+            religion: true,
+            onboardingCompleted: true,
+            onboardingStep: true,
+            onboardingCompletedAt: true,
+          },
         });
         const prevCfg =
           existingSettings?.dashboardConfig && typeof existingSettings.dashboardConfig === "object"
             ? (existingSettings.dashboardConfig as Record<string, any>)
             : {};
 
+        const guestSalutation =
+          onboarding?.salutation || preferences?.salutation || null;
+        const guestReligion =
+          onboarding?.religion || preferences?.religion || null;
+        const resolvedSalutation = existingSettings?.salutation || guestSalutation;
+        const resolvedReligion = existingSettings?.religion || guestReligion;
+        const resolvedOnboarded = Boolean(
+          existingSettings?.onboardingCompleted || onboarding?.completed || preferences?.onboardingCompleted
+        );
+        const resolvedStep = existingSettings?.onboardingCompleted
+          ? 3
+          : onboarding?.currentStep || existingSettings?.onboardingStep || 1;
+        const resolvedCompletedAt =
+          existingSettings?.onboardingCompletedAt ||
+          (resolvedOnboarded
+            ? onboarding?.completedAt
+              ? new Date(onboarding.completedAt)
+              : new Date()
+            : null);
+
         await tx.userSettings.upsert({
           where: { userId },
           create: {
             userId,
-            timezone: preferences.timezone || "Africa/Cairo",
-            countryCode: preferences.countryCode || null,
-            governorate: preferences.governorate || null,
-            city: preferences.city || null,
-            currency: preferences.currency || null,
-            currencyAuto: preferences.currencyAuto ?? true,
-            prayerTrackingEnabled: preferences.prayerTrackingEnabled ?? true,
+            timezone: preferences?.timezone || "Africa/Cairo",
+            countryCode: preferences?.countryCode || "EG",
+            governorate: preferences?.governorate || "القاهرة",
+            city: preferences?.city || null,
+            currency: preferences?.currency || "EGP",
+            currencyAuto: preferences?.currencyAuto ?? true,
+            prayerTrackingEnabled:
+              preferences?.prayerTrackingEnabled ??
+              (resolvedReligion ? resolvedReligion === "muslim" : true),
+            salutation: resolvedSalutation,
+            religion: resolvedReligion,
+            onboardingCompleted: resolvedOnboarded,
+            onboardingStep: resolvedStep,
+            onboardingCompletedAt: resolvedCompletedAt,
             dashboardConfig: {
               ...prevCfg,
-              ...(preferences.country ? { country: preferences.country } : {}),
-              ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
-              ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
-              ...(preferences.city !== undefined ? { city: preferences.city } : {}),
-              ...(preferences.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
-              ...(preferences.prayerPreferenceConfigured !== undefined
+              ...(preferences?.country ? { country: preferences.country } : {}),
+              ...(preferences?.countryCode ? { countryCode: preferences.countryCode } : {}),
+              ...(preferences?.governorate ? { governorate: preferences.governorate } : {}),
+              ...(preferences?.city !== undefined ? { city: preferences.city } : {}),
+              ...(preferences?.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
+              ...(preferences?.prayerPreferenceConfigured !== undefined
                 ? { prayerPreferenceConfigured: Boolean(preferences.prayerPreferenceConfigured) }
                 : {}),
+              ...(resolvedSalutation ? { salutation: resolvedSalutation } : {}),
+              ...(resolvedReligion ? { religion: resolvedReligion } : {}),
+              onboardingCompleted: resolvedOnboarded,
             },
           },
           update: {
-            ...(preferences.timezone ? { timezone: preferences.timezone } : {}),
-            ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
-            ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
-            ...(preferences.city !== undefined ? { city: preferences.city } : {}),
-            ...(preferences.currency ? { currency: preferences.currency } : {}),
-            ...(preferences.currencyAuto !== undefined
+            ...(preferences?.timezone ? { timezone: preferences.timezone } : {}),
+            ...(preferences?.countryCode ? { countryCode: preferences.countryCode } : {}),
+            ...(preferences?.governorate ? { governorate: preferences.governorate } : {}),
+            ...(preferences?.city !== undefined ? { city: preferences.city } : {}),
+            ...(preferences?.currency ? { currency: preferences.currency } : {}),
+            ...(preferences?.currencyAuto !== undefined
               ? { currencyAuto: Boolean(preferences.currencyAuto) }
               : {}),
-            ...(preferences.prayerTrackingEnabled !== undefined
+            ...(preferences?.prayerTrackingEnabled !== undefined && !existingSettings?.religion
               ? { prayerTrackingEnabled: Boolean(preferences.prayerTrackingEnabled) }
+              : {}),
+            ...(resolvedSalutation && !existingSettings?.salutation
+              ? { salutation: resolvedSalutation }
+              : {}),
+            ...(resolvedReligion && !existingSettings?.religion
+              ? { religion: resolvedReligion }
+              : {}),
+            ...(resolvedOnboarded && !existingSettings?.onboardingCompleted
+              ? {
+                  onboardingCompleted: true,
+                  onboardingStep: 3,
+                  onboardingCompletedAt: resolvedCompletedAt,
+                }
               : {}),
             dashboardConfig: {
               ...prevCfg,
-              ...(preferences.country ? { country: preferences.country } : {}),
-              ...(preferences.countryCode ? { countryCode: preferences.countryCode } : {}),
-              ...(preferences.governorate ? { governorate: preferences.governorate } : {}),
-              ...(preferences.city !== undefined ? { city: preferences.city } : {}),
-              ...(preferences.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
-              ...(preferences.prayerPreferenceConfigured !== undefined
+              ...(preferences?.country ? { country: preferences.country } : {}),
+              ...(preferences?.countryCode ? { countryCode: preferences.countryCode } : {}),
+              ...(preferences?.governorate ? { governorate: preferences.governorate } : {}),
+              ...(preferences?.city !== undefined ? { city: preferences.city } : {}),
+              ...(preferences?.prayerCalc ? { prayerCalc: preferences.prayerCalc } : {}),
+              ...(preferences?.prayerPreferenceConfigured !== undefined
                 ? { prayerPreferenceConfigured: Boolean(preferences.prayerPreferenceConfigured) }
                 : {}),
+              ...(resolvedSalutation ? { salutation: resolvedSalutation } : {}),
+              ...(resolvedReligion ? { religion: resolvedReligion } : {}),
+              onboardingCompleted: resolvedOnboarded,
             },
           },
         });

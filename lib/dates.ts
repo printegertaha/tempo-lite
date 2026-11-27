@@ -13,10 +13,10 @@ export function getDefaultTimezone(): string {
   if (typeof Intl !== "undefined") {
     try {
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz) return tz;
+      if (tz && tz !== "UTC") return tz;
     } catch {}
   }
-  return "Asia/Riyadh";
+  return "Africa/Cairo";
 }
 
 /**
@@ -25,7 +25,7 @@ export function getDefaultTimezone(): string {
  */
 export function getLocalDateString(
   date: Date = new Date(),
-  timezone: string = "Asia/Riyadh"
+  timezone: string = "Africa/Cairo"
 ): string {
   try {
     const formatter = new Intl.DateTimeFormat("en-CA", {
@@ -343,7 +343,7 @@ export function formatSecondsDigital(totalSeconds: number): string {
  */
 export function formatArabicDateTime(
   date: Date | string,
-  timezone: string = "Asia/Riyadh"
+  timezone: string = "Africa/Cairo"
 ): { dateStr: string; timeStr: string; fullStr: string } {
   const d = new Date(date);
   try {

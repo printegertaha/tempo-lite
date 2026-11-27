@@ -2,6 +2,11 @@
 // Dialect: PostgreSQL (Supabase) · ORM: Prisma 7.x · Auth: Better Auth 1.x
 
 generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+generator jsClient {
   provider = "prisma-client-js"
 }
 
@@ -39,8 +44,11 @@ model User {
   mutationReceipts   MutationReceipt[]
   gymWorkouts        GymWorkout[]
   mealEntries        MealEntry[]
+  waterEntries       WaterEntry[]
   expenseEntries     ExpenseEntry[]
   prayerRecords      PrayerRecord[]
+  taskSessions       TaskSession[]
+  entityRevisions    EntityRevision[]
 
   @@map("user")
 }
@@ -102,13 +110,18 @@ model UserSettings {
   userId          String   @unique
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  timezone              String   @default("Asia/Riyadh") // IANA Timezone identifier
+  timezone              String   @default("Africa/Cairo") // IANA Timezone identifier
   countryCode           String?  // ISO 3166-1 alpha-2 country code (e.g. "EG", "SA")
   governorate           String?  // Administrative subdivision / governorate
   city                  String?  // Optional locality / city within governorate
   currency              String?  // ISO 4217 preferred currency code (e.g. "EGP", "SAR")
   currencyAuto          Boolean  @default(true) // Auto-update currency on country change
   prayerTrackingEnabled Boolean  @default(true) // Optional prayer tracking module toggle
+  salutation            String?  // Personalized Arabic salutation ("بشمهندس" | "بشمهندسة")
+  religion              String?  // Personalized religion preference ("muslim" | "christian" | "atheist")
+  onboardingCompleted   Boolean  @default(false) // Mandatory onboarding gate completion state
+  onboardingStep        Int      @default(1) // Last reached onboarding step (1..3)
+  onboardingCompletedAt DateTime? // Timestamp when onboarding finished
   language              String   @default("ar")          // Primary language (Arabic default)
   weekStartDay          Int      @default(6)             // 6 = Saturday (السبت), 0 = Sunday
   themeAccent           String   @default("violet")      // Brand accent token
@@ -336,6 +349,7 @@ model Task {
   version     Int          @default(1)    // Version for optimistic concurrency control
   
   tags        Json         @default("[]") // String array of labels
+  youtubeMeta Json?        // Optional attached YouTube video/channel metadata
   sortOrder   Int          @default(0)
   
   isArchived  Boolean      @default(false)
@@ -468,22 +482,41 @@ model GymWorkout {
 }
 
 model MealEntry {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  date      String   // Local calendar date "YYYY-MM-DD"
-  mealType  String   // "breakfast", "lunch", "dinner", "snacks"
-  title     String
-  calories  Int      @default(0)
-  protein   Float    @default(0)
-  carbs     Float    @default(0)
-  fat       Float    @default(0)
-  notes     String?  @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                   String   @id @default(cuid())
+  userId               String
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date                 String   // Local calendar date "YYYY-MM-DD"
+  time                 String?  // Local clock time "HH:MM"
+  mealType             String   // "breakfast", "lunch", "dinner", "snacks"
+  title                String
+  calories             Int      @default(0)
+  protein              Float    @default(0)
+  carbs                Float    @default(0)
+  fat                  Float    @default(0)
+  items                Json     @default("[]") // Ingredient snapshots or legacy text items
+  dailyTargetsSnapshot Json?    // Daily targets active when this meal was logged
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   @@index([userId, date])
   @@map("meal_entry")
+}
+
+model WaterEntry {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date       String   // Local calendar date "YYYY-MM-DD"
+  amountMl   Int      // Amount in milliliters (e.g., 250, 500, custom)
+  occurredAt DateTime @default(now())
+  source     String   @default("nutrition") // "nutrition" | "habit_water" | "quick_log"
+  notes      String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId, date])
+  @@map("water_entry")
 }
 
 model ExpenseEntry {
@@ -526,6 +559,60 @@ model PrayerRecord {
   @@index([userId, date])
   @@map("prayer_record")
 }
+
+// -----------------------------------------------------------------------------
+// 13. DURABLE TASK EXECUTION SESSIONS & HISTORICAL REVISIONS
+// -----------------------------------------------------------------------------
+
+model TaskSession {
+  id                      String    @id @default(cuid())
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  taskId                  String
+  trackerId               String?
+  localDate               String    // Local calendar date "YYYY-MM-DD" in user timezone
+  startedAt               DateTime? // Nullable for untracked checkbox completions
+  endedAt                 DateTime? // Exact finish / completion timestamp
+  durationSeconds         Int?      // Actual active timer seconds (null for untracked completion)
+  status                  String    @default("completed") // "completed" | "interrupted" | "cancelled" | "legacy"
+  completionSource        String    @default("timer") // "timer" | "checkbox" | "legacy"
+  isEstimated             Boolean   @default(false)
+  completedCycles         Int       @default(0)
+  taskTitleSnapshot       String
+  taskDescriptionSnapshot String?   @db.Text
+  subtasksSnapshot        Json      @default("[]")
+  lifeAreaIdSnapshot      String?
+  lifeAreaNameSnapshot    String?
+  notes                   String?   @db.Text
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  @@index([userId, localDate])
+  @@index([userId, taskId])
+  @@map("task_session")
+}
+
+model EntityRevision {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entityType     String   // "task" | "task_session" | "tracker" | "tracker_entry" | "daily_note" | etc.
+  entityId       String
+  localDate      String?
+  revisionNumber Int      @default(1)
+  previousValues Json
+  newValues      Json
+  editedBy       String
+  editedAt       DateTime @default(now())
+  reason         String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([userId, entityType, entityId])
+  @@index([userId, localDate])
+  @@map("entity_revision")
+}
+
 
 
 

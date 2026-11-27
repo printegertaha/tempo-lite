@@ -16,11 +16,14 @@ const BackupPayloadSchema = z.object({
   trackers: z.array(z.record(z.string(), z.any())).optional().default([]),
   trackerEntries: z.array(z.record(z.string(), z.any())).optional().default([]),
   tasks: z.array(z.record(z.string(), z.any())).optional().default([]),
+  taskSessions: z.array(z.record(z.string(), z.any())).optional().default([]),
+  entityRevisions: z.array(z.record(z.string(), z.any())).optional().default([]),
   dailyNotes: z.array(z.record(z.string(), z.any())).optional().default([]),
   prayerRecords: z.array(z.record(z.string(), z.any())).optional().default([]),
   abstinenceTrackers: z.array(z.record(z.string(), z.any())).optional().default([]),
   gymWorkouts: z.array(z.record(z.string(), z.any())).optional().default([]),
   mealEntries: z.array(z.record(z.string(), z.any())).optional().default([]),
+  waterEntries: z.array(z.record(z.string(), z.any())).optional().default([]),
   expenseEntries: z.array(z.record(z.string(), z.any())).optional().default([]),
 });
 
@@ -37,11 +40,14 @@ export async function exportCloudBackup() {
       trackers,
       trackerEntries,
       tasks,
+      taskSessions,
+      entityRevisions,
       dailyNotes,
       prayerRecords,
       abstinenceTrackers,
       gymWorkouts,
       mealEntries,
+      waterEntries,
       expenseEntries,
     ] = await Promise.all([
       prisma.userSettings.findUnique({ where: { userId } }),
@@ -49,6 +55,8 @@ export async function exportCloudBackup() {
       prisma.tracker.findMany({ where: { userId }, orderBy: { sortOrder: "asc" } }),
       prisma.trackerEntry.findMany({ where: { userId }, orderBy: { occurredAt: "asc" } }),
       prisma.task.findMany({ where: { userId }, orderBy: { sortOrder: "asc" } }),
+      prisma.taskSession.findMany({ where: { userId }, orderBy: { endedAt: "desc" } }),
+      prisma.entityRevision.findMany({ where: { userId }, orderBy: { editedAt: "asc" } }),
       prisma.dailyNote.findMany({ where: { userId }, orderBy: { localDate: "asc" } }),
       prisma.prayerRecord.findMany({ where: { userId }, orderBy: { date: "asc" } }),
       prisma.abstinenceTracker.findMany({
@@ -57,6 +65,7 @@ export async function exportCloudBackup() {
       }),
       prisma.gymWorkout.findMany({ where: { userId }, orderBy: { date: "desc" } }),
       prisma.mealEntry.findMany({ where: { userId }, orderBy: { date: "desc" } }),
+      prisma.waterEntry.findMany({ where: { userId }, orderBy: { occurredAt: "desc" } }),
       prisma.expenseEntry.findMany({ where: { userId }, orderBy: { date: "desc" } }),
     ]);
 
@@ -68,11 +77,14 @@ export async function exportCloudBackup() {
         trackers,
         trackerEntries,
         tasks,
+        taskSessions,
+        entityRevisions,
         dailyNotes,
         prayerRecords,
         abstinenceTrackers,
         gymWorkouts,
         mealEntries,
+        waterEntries,
         expenseEntries,
       },
     };
@@ -112,6 +124,7 @@ export async function restoreCloudBackup(rawBackup: unknown) {
       abstinenceTrackers: 0,
       gymWorkouts: 0,
       mealEntries: 0,
+      waterEntries: 0,
       expenseEntries: 0,
     };
 
@@ -130,6 +143,14 @@ export async function restoreCloudBackup(rawBackup: unknown) {
             currency: s.currency || null,
             currencyAuto: s.currencyAuto ?? true,
             prayerTrackingEnabled: s.prayerTrackingEnabled ?? true,
+            salutation: s.salutation ?? null,
+            religion: s.religion ?? null,
+            onboardingCompleted:
+              s.onboardingCompleted !== undefined ? Boolean(s.onboardingCompleted) : true,
+            onboardingStep: Number(s.onboardingStep ?? 3),
+            onboardingCompletedAt: s.onboardingCompletedAt
+              ? new Date(s.onboardingCompletedAt)
+              : new Date(),
             language: s.language || "ar",
             weekStartDay: Number(s.weekStartDay ?? 6),
             themeAccent: s.themeAccent || "violet",
@@ -149,6 +170,11 @@ export async function restoreCloudBackup(rawBackup: unknown) {
               s.prayerTrackingEnabled !== undefined
                 ? Boolean(s.prayerTrackingEnabled)
                 : undefined,
+            ...(s.salutation !== undefined ? { salutation: s.salutation } : {}),
+            ...(s.religion !== undefined ? { religion: s.religion } : {}),
+            ...(s.onboardingCompleted !== undefined
+              ? { onboardingCompleted: Boolean(s.onboardingCompleted) }
+              : {}),
             language: s.language || undefined,
             weekStartDay: s.weekStartDay !== undefined ? Number(s.weekStartDay) : undefined,
             themeAccent: s.themeAccent || undefined,
@@ -509,23 +535,53 @@ export async function restoreCloudBackup(rawBackup: unknown) {
             id: safeId,
             userId,
             date: m.date,
+            time: m.time || null,
             mealType: m.mealType || "lunch",
             title: m.title,
-            calories: Number(m.calories) || 0,
+            calories: Math.round(Number(m.calories) || 0),
             protein: Number(m.protein) || 0,
             carbs: Number(m.carbs) || 0,
             fat: Number(m.fat) || 0,
+            items: Array.isArray(m.items) ? m.items : [],
+            dailyTargetsSnapshot: m.dailyTargetsSnapshot ?? undefined,
             notes: m.notes || null,
           },
           update: {
             title: m.title,
-            calories: Number(m.calories) || 0,
+            time: m.time || null,
+            calories: Math.round(Number(m.calories) || 0),
             protein: Number(m.protein) || 0,
             carbs: Number(m.carbs) || 0,
             fat: Number(m.fat) || 0,
+            items: Array.isArray(m.items) ? m.items : [],
           },
         });
         restoredCounts.mealEntries++;
+      }
+
+      for (const w of data.waterEntries) {
+        const amountMl = Math.round(Number(w?.amountMl) || 0);
+        if (!w.date || amountMl <= 0) continue;
+        const id = w.id || crypto.randomUUID();
+        const owner = await tx.waterEntry.findUnique({ where: { id }, select: { userId: true } });
+        const safeId = owner && owner.userId !== userId ? crypto.randomUUID() : id;
+        await tx.waterEntry.upsert({
+          where: { id: safeId },
+          create: {
+            id: safeId,
+            userId,
+            date: w.date,
+            amountMl,
+            occurredAt: w.occurredAt ? new Date(w.occurredAt) : new Date(),
+            source: w.source || "nutrition",
+            notes: w.notes || null,
+          },
+          update: {
+            amountMl,
+            date: w.date,
+          },
+        });
+        restoredCounts.waterEntries++;
       }
 
       for (const e of data.expenseEntries) {
@@ -588,6 +644,8 @@ export async function clearCloudUserData() {
 
     await prisma.$transaction([
       prisma.trackerEntry.deleteMany({ where: { userId } }),
+      prisma.taskSession.deleteMany({ where: { userId } }),
+      prisma.entityRevision.deleteMany({ where: { userId } }),
       prisma.task.deleteMany({ where: { userId } }),
       prisma.abstinenceSession.deleteMany({ where: { userId } }),
       prisma.abstinenceTracker.deleteMany({ where: { userId } }),
@@ -598,6 +656,7 @@ export async function clearCloudUserData() {
       prisma.prayerRecord.deleteMany({ where: { userId } }),
       prisma.gymWorkout.deleteMany({ where: { userId } }),
       prisma.mealEntry.deleteMany({ where: { userId } }),
+      prisma.waterEntry.deleteMany({ where: { userId } }),
       prisma.expenseEntry.deleteMany({ where: { userId } }),
       prisma.mutationReceipt.deleteMany({ where: { userId } }),
     ]);

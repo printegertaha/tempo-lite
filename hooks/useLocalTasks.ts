@@ -5,6 +5,16 @@ import { localTaskRepo, localOutboxRepo, LocalTask, LocalMutation } from "@/lib/
 import { syncEngine } from "@/lib/sync/sync-engine";
 import { soundManager } from "@/lib/audio";
 import { addDaysToDateString, getLocalDateString } from "@/lib/dates";
+import {
+  recordCheckboxCompletionSession,
+  removeCheckboxCompletionSessions,
+  permanentlyDeleteTaskLocalCascade,
+} from "@/lib/tasks/task-lifecycle";
+import {
+  recordRevisionIfOlderThanSevenDays,
+  resolveTaskEffectiveLocalDate,
+} from "@/lib/history/revisions";
+import { activeTimerEngine } from "@/lib/timer/active-timer";
 
 export type TaskCacheScope = "home" | "active" | "full";
 
@@ -59,6 +69,7 @@ function normalizeServerTask(t: any): LocalTask {
     clientUpdatedAt: Date.now(),
     subtasks: Array.isArray(t.subtasks) ? t.subtasks : [],
     tags: Array.isArray(t.tags) ? t.tags : [],
+    youtubeMeta: t.youtubeMeta || null,
     version: t.version || 1,
     _syncStatus: "synced",
   };
@@ -299,6 +310,7 @@ export function useLocalTasks(
         isRecurring: Boolean(taskData.isRecurring),
         subtasks: taskData.subtasks || [],
         tags: taskData.tags || [],
+        youtubeMeta: taskData.youtubeMeta ?? null,
         sortOrder: (tasksRef.current[tasksRef.current.length - 1]?.sortOrder ?? -1) + 1,
         version: 1,
         isArchived: false,
@@ -365,6 +377,19 @@ export function useLocalTasks(
 
       await localTaskRepo.save(updatedTask);
 
+      const effectiveDate = resolveTaskEffectiveLocalDate(current, timezone);
+      await recordRevisionIfOlderThanSevenDays({
+        userId: effectiveUserId,
+        entityType: "task",
+        entityId: id,
+        recordDate: effectiveDate,
+        previousRecord: current,
+        nextRecord: updatedTask,
+        candidateKeys: Object.keys(updates),
+        editedBy: effectiveUserId,
+        timezone,
+      }).catch(() => {});
+
       if (!isGuest) {
         const mutation: LocalMutation = {
           mutationId: crypto.randomUUID(),
@@ -384,7 +409,7 @@ export function useLocalTasks(
 
       broadcastChange();
     },
-    [effectiveUserId, isGuest, includeArchived, broadcastChange, setTasks]
+    [effectiveUserId, isGuest, includeArchived, timezone, broadcastChange, setTasks]
   );
 
   /**
@@ -396,6 +421,7 @@ export function useLocalTasks(
       if (!task) return;
 
       const isCompleting = task.status !== "COMPLETED";
+      const hadActiveTimer = isCompleting && activeTimerEngine.hasActiveSessionForTask(id);
       const newStatus = isCompleting ? "COMPLETED" : "TODO";
       const completedAt = isCompleting ? new Date().toISOString() : null;
 
@@ -415,45 +441,33 @@ export function useLocalTasks(
           new CustomEvent("athar_task_completed_externally", { detail: { taskId: id } })
         );
       }
+
+      if (isCompleting && !hadActiveTimer && completedAt) {
+        await recordCheckboxCompletionSession({
+          task,
+          userId: effectiveUserId,
+          completedAtIso: completedAt,
+          timezone,
+        }).catch(() => {});
+      } else if (!isCompleting) {
+        await removeCheckboxCompletionSessions(id, effectiveUserId).catch(() => {});
+      }
     },
-    [updateTask]
+    [updateTask, effectiveUserId, timezone]
   );
 
   /**
-   * 4. Delete Task (Instant Local Execution)
+   * 4. Delete Task (Instant Local Execution with full cascading cleanup)
    */
   const deleteTask = useCallback(
     async (id: string) => {
       setTasks((prev) => prev.filter((t) => t.id !== id));
-      await localTaskRepo.delete(id);
-
-      if (!isGuest) {
-        const mutation: LocalMutation = {
-          mutationId: crypto.randomUUID(),
-          userId: effectiveUserId,
-          entityType: "task",
-          entityId: id,
-          action: "delete",
-          payload: {},
-          clientTimestamp: Date.now(),
-          version: 1,
-          status: "pending",
-          retryCount: 0,
-        };
-        await localOutboxRepo.add(mutation);
-        syncEngine.scheduleSync(5000);
-      }
-
-      if (typeof window !== "undefined") {
-        window.dispatchEvent(
-          new CustomEvent("athar_task_deleted_externally", { detail: { taskId: id } })
-        );
-      }
+      await permanentlyDeleteTaskLocalCascade(id, effectiveUserId);
 
       soundManager.playClick();
       broadcastChange();
     },
-    [effectiveUserId, isGuest, broadcastChange, setTasks]
+    [effectiveUserId, broadcastChange, setTasks]
   );
 
   /**
@@ -483,33 +497,13 @@ export function useLocalTasks(
     const allIds = allLocal.map((t) => t.id);
 
     setTasks([]);
-    await localTaskRepo.deleteBatch(allIds);
-
-    if (!isGuest && allIds.length > 0) {
-      const nowMs = Date.now();
-      await Promise.all(
-        allIds.map((id) => {
-          const mutation: LocalMutation = {
-            mutationId: crypto.randomUUID(),
-            userId: effectiveUserId,
-            entityType: "task",
-            entityId: id,
-            action: "delete",
-            payload: {},
-            clientTimestamp: nowMs,
-            version: 1,
-            status: "pending",
-            retryCount: 0,
-          };
-          return localOutboxRepo.add(mutation);
-        })
-      );
-      syncEngine.scheduleSync(5000);
+    for (const tid of allIds) {
+      await permanentlyDeleteTaskLocalCascade(tid, effectiveUserId);
     }
 
     soundManager.playClick();
     broadcastChange();
-  }, [effectiveUserId, isGuest, broadcastChange, setTasks]);
+  }, [effectiveUserId, broadcastChange, setTasks]);
 
   /**
    * 7. Reorder Tasks

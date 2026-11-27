@@ -4,6 +4,8 @@ import { z } from "zod";
  * Valid color tokens aligned with Athar design tokens
  */
 export const THEME_ACCENTS = ["violet", "emerald", "amber", "cyan", "rose", "blue", "indigo"] as const;
+export const SALUTATION_VALUES = ["بشمهندس", "بشمهندسة"] as const;
+export const RELIGION_VALUES = ["muslim", "christian", "atheist"] as const;
 
 /**
  * Common Arabic & international week start days
@@ -74,6 +76,11 @@ export const UserSettingsUpdateSchema = z.object({
   currency: z.string().max(10).nullable().optional(),
   currencyAuto: z.boolean().optional(),
   prayerTrackingEnabled: z.boolean().optional(),
+  salutation: z.enum(SALUTATION_VALUES).nullable().optional(),
+  religion: z.enum(RELIGION_VALUES).nullable().optional(),
+  onboardingCompleted: z.boolean().optional(),
+  onboardingStep: z.number().int().min(1).max(3).optional(),
+  onboardingCompletedAt: z.string().nullable().optional(),
   language: z.enum(["ar", "en"]).optional(),
   weekStartDay: z.number().int().min(0).max(6).optional(),
   themeAccent: z.enum(THEME_ACCENTS).optional(),

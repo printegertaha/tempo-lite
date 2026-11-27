@@ -936,9 +936,10 @@ export function formatCurrency(
  * Resolve neutral / detected default preferences (prefers Egypt/Cairo/EGP only when detected or fallback neutral).
  */
 export function buildDefaultLocalizationPreferences(detectedTimezone?: string | null): LocalizationPreferences {
-  const detectedCountry = getCountryFromTimezone(detectedTimezone) || COUNTRY_BY_CODE["EG"];
-  const tz = detectedTimezone && isValidIanaTimezone(detectedTimezone)
-    ? detectedTimezone
+  const effectiveTz = detectedTimezone && detectedTimezone !== "UTC" ? detectedTimezone : "Africa/Cairo";
+  const detectedCountry = getCountryFromTimezone(effectiveTz) || COUNTRY_BY_CODE["EG"];
+  const tz = effectiveTz && isValidIanaTimezone(effectiveTz)
+    ? effectiveTz
     : detectedCountry.defaultTimezone;
 
   return {

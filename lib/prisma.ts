@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "./generated/prisma/client";
 
-const PRISMA_CLIENT_EPOCH = "20261125_localization_currency_prayer_pref";
+const PRISMA_CLIENT_EPOCH = "20261126_onboarding_sessions_revisions";
 
 // Global declaration for singleton caching in Next.js development mode
 const globalForPrisma = globalThis as unknown as {

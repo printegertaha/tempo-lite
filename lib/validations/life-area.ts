@@ -1,12 +1,13 @@
 import { z } from "zod";
 
 export const LIFE_AREA_COLORS = [
-  "violet",
-  "emerald",
-  "amber",
-  "cyan",
+  "pink",
   "rose",
   "blue",
+  "amber",
+  "emerald",
+  "violet",
+  "cyan",
   "indigo",
   "teal",
   "orange",

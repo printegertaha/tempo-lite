@@ -7,6 +7,7 @@ import TrackerCard from "@/components/trackers/TrackerCard";
 import TrackerModal from "@/components/trackers/TrackerModal";
 import LogEntryModal from "@/components/entries/LogEntryModal";
 import RadialHabitWheel from "@/components/trackers/RadialHabitWheel";
+import DatePickerField from "@/components/ui/DatePickerField";
 import {
   Flame,
   Plus,
@@ -380,17 +381,10 @@ export default function HabitsClient({
             <Flame className="w-5 h-5 sm:w-6 sm:h-6" />
           </div>
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h1 className="text-base sm:text-2xl font-black text-zinc-100 truncate">
-                العادات ومنظومة التتبع
-              </h1>
-              <span className="px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/25 shrink-0">
-                {user ? `${filteredTrackers.length}` : "معاينة"}
-              </span>
-            </div>
-            <p className="text-zinc-400 text-xs mt-0.5 hidden sm:block">
-              حرية كاملة لتأسيس وتعديل أنظمة القياس الـ 7: إنجاز، عداد، قياس، مدة، نطاق وقت، قائمة تدقيق، وامتناع
-            </p>
+            <h1 className="text-base sm:text-xl font-black text-zinc-100 truncate">
+              <span className="sm:hidden">العادات</span>
+              <span className="hidden sm:inline">العادات ومنظومة التتبع</span>
+            </h1>
           </div>
         </div>
 
@@ -440,145 +434,145 @@ export default function HabitsClient({
         <RadialHabitWheel existingTrackers={trackers} />
       ) : (
         <>
-          {/* 2. Controls: Status Tabs, Date & Search cleanly stacked for mobile */}
-          <div className="space-y-3">
-            {/* Row 1: Status Tabs (Full width grid on mobile, inline on desktop) */}
-            <div className="grid grid-cols-4 sm:flex items-center gap-1 p-1 rounded-2xl bg-zinc-900/80 border border-zinc-800 text-xs w-full sm:w-fit">
-              <button
-                type="button"
-                onClick={() => setStatusTab("active")}
-                className={`py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
-                  statusTab === "active"
-                    ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                النشطة
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusTab("pinned")}
-                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
-                  statusTab === "pinned"
-                    ? "bg-zinc-800 text-violet-300 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Pin className="w-3 h-3" />
-                <span>المثبتة</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusTab("paused")}
-                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
-                  statusTab === "paused"
-                    ? "bg-zinc-800 text-amber-300 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Pause className="w-3 h-3" />
-                <span>المتوقفة</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStatusTab("archived")}
-                className={`flex items-center justify-center gap-1 py-1.5 px-2.5 sm:px-3.5 rounded-xl font-bold transition-all text-center whitespace-nowrap ${
-                  statusTab === "archived"
-                    ? "bg-zinc-800 text-zinc-100 shadow-sm"
-                    : "text-zinc-400 hover:text-zinc-200"
-                }`}
-              >
-                <Archive className="w-3 h-3" />
-                <span>الأرشيف</span>
-              </button>
-            </div>
-
-            {/* Row 2: Date Picker & Search Input cleanly stacked or flexed */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
-              <div className="flex items-center gap-2">
-                <div className="relative flex items-center">
-                  <Calendar className="w-3.5 h-3.5 text-zinc-400 absolute right-3 pointer-events-none" />
-                  <input
-                    type="date"
-                    value={selectedDate}
-                    onChange={(e) => {
-                      setSelectedDate(e.target.value);
-                      fetchDailyEntries(e.target.value);
-                    }}
-                    className="pr-8 pl-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-200 font-mono focus:outline-none focus:border-violet-500 cursor-pointer w-full sm:w-auto"
-                    title="اختر تاريخ اليوميات"
-                  />
-                </div>
-
-                {/* Mobile View Toggle */}
+          {/* 2. Unified Calm Controls Toolbar */}
+          <div className="p-2.5 sm:p-3 rounded-2xl bg-[#0c0e17]/75 border border-zinc-800/80 space-y-2.5">
+            {/* Top Row: Status Tabs + Search + Date (Single balanced row on md+) */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              {/* Status Tabs */}
+              <div className="grid grid-cols-4 md:flex items-center gap-1 p-1 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs w-full md:w-fit shrink-0">
                 <button
                   type="button"
-                  onClick={() => setMainView(mainView === "cards" ? "wheel" : "cards")}
-                  className="sm:hidden flex items-center gap-1 px-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs font-bold text-zinc-300"
+                  onClick={() => setStatusTab("active")}
+                  className={`py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
+                    statusTab === "active"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{mainView === "cards" ? "العجلة" : "البطاقات"}</span>
+                  النشطة
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusTab("pinned")}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
+                    statusTab === "pinned"
+                      ? "bg-zinc-800 text-violet-300 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <Pin className="w-3 h-3 hidden sm:inline shrink-0" />
+                  <span>المثبتة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusTab("paused")}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
+                    statusTab === "paused"
+                      ? "bg-zinc-800 text-amber-300 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <Pause className="w-3 h-3 hidden sm:inline shrink-0" />
+                  <span>المتوقفة</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusTab("archived")}
+                  className={`flex items-center justify-center gap-1 py-1.5 px-2 md:px-3 rounded-lg font-semibold transition-colors text-center whitespace-nowrap cursor-pointer ${
+                    statusTab === "archived"
+                      ? "bg-zinc-800 text-zinc-100 shadow-sm"
+                      : "text-zinc-400 hover:text-zinc-200"
+                  }`}
+                >
+                  <Archive className="w-3 h-3 hidden sm:inline shrink-0" />
+                  <span>الأرشيف</span>
                 </button>
               </div>
 
-              <div className="relative w-full sm:w-64">
-                <Search className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="بحث في المتعقبات..."
-                  className="w-full pr-8 pl-3 py-2 rounded-xl bg-zinc-900/80 border border-zinc-800 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500"
-                />
+              {/* Search + Date + Mobile Wheel Toggle */}
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 flex-1 md:max-w-md md:justify-end min-w-0">
+                <div className="relative flex-1 min-w-0">
+                  <Search className="w-3.5 h-3.5 text-zinc-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="بحث في المتعقبات..."
+                    className="w-full pr-8 pl-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-violet-500/70"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <DatePickerField
+                    value={selectedDate}
+                    onChange={(d) => {
+                      setSelectedDate(d);
+                      fetchDailyEntries(d);
+                    }}
+                    title="اختر تاريخ اليوميات"
+                    className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs text-zinc-200 min-w-[125px]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setMainView(mainView === "cards" ? "wheel" : "cards")}
+                    className="sm:hidden flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-zinc-900/90 border border-zinc-800/80 text-xs font-bold text-zinc-300 shrink-0 cursor-pointer"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>{mainView === "cards" ? "العجلة" : "البطاقات"}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
-        {/* Row 2: Life Areas Filter Pills */}
-        {lifeAreas.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none text-xs">
-            <span className="text-zinc-400 flex items-center gap-1 shrink-0 ml-1">
-              <Layers className="w-3.5 h-3.5" />
-              <span>المجال:</span>
-            </span>
-            <button
-              type="button"
-              onClick={() => setSelectedAreaId("all")}
-              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border transition-all ${
-                selectedAreaId === "all"
-                  ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                  : "bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              الكل
-            </button>
-            {lifeAreas.map((area) => (
-              <button
-                key={area.id}
-                type="button"
-                onClick={() => setSelectedAreaId(area.id)}
-                className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border transition-all ${
-                  selectedAreaId === area.id
-                    ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                    : "bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200"
-                }`}
-              >
-                {area.name}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={() => setSelectedAreaId("none")}
-              className={`px-3 py-1.5 rounded-xl font-semibold whitespace-nowrap border transition-all ${
-                selectedAreaId === "none"
-                  ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
-                  : "bg-zinc-900/60 text-zinc-400 border-zinc-800 hover:text-zinc-200"
-              }`}
-            >
-              بدون مجال
-            </button>
+            {/* Bottom Row: Life Areas Filter Pills + Subtle Count */}
+            {lifeAreas.length > 0 && trackers.length > 0 && (
+              <div className="flex items-center justify-between gap-3 pt-2 border-t border-zinc-800/60 text-xs">
+                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAreaId("all")}
+                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
+                      selectedAreaId === "all"
+                        ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
+                        : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
+                    }`}
+                  >
+                    الكل
+                  </button>
+                  {lifeAreas.map((area) => (
+                    <button
+                      key={area.id}
+                      type="button"
+                      onClick={() => setSelectedAreaId(area.id)}
+                      className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
+                        selectedAreaId === area.id
+                          ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
+                          : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
+                      }`}
+                    >
+                      {area.name}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedAreaId("none")}
+                    className={`px-3 py-1 rounded-lg font-semibold whitespace-nowrap border transition-colors cursor-pointer ${
+                      selectedAreaId === "none"
+                        ? "bg-violet-600/20 text-violet-300 border-violet-500/40"
+                        : "bg-zinc-900/60 text-zinc-400 border-zinc-800/80 hover:text-zinc-200"
+                    }`}
+                  >
+                    بدون مجال
+                  </button>
+                </div>
+
+                <span className="hidden sm:inline text-[11px] text-zinc-500 font-mono shrink-0">
+                  {filteredTrackers.length} متعقب
+                </span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
       {/* 3. Trackers List / Clean Empty State */}
       {isLoading ? (
@@ -601,11 +595,6 @@ export default function HabitsClient({
                 ? "لم تقم بتثبيت أي متعقب بعد"
                 : "لم تقم بإنشاء أي متعقب بعد"}
             </h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
-              {statusTab === "active"
-                ? "تبدأ منظومة أثـر فارغة تماماً لتمكينك من صياغة تتبعك الخاص وفق أسلوب حياتك الحقيقي (صلوات، برمجة، قراءة، شرب ماء، نوم، أو امتناع عن عادة سيئة)."
-                : "يمكنك إدارة حالات المتعقبات بحرية في أي وقت مع الحفاظ التام على السجلات التاريخية."}
-            </p>
           </div>
           {statusTab === "active" && (
             <button
