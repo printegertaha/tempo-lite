@@ -110,7 +110,7 @@ export default function OnboardingLoadingExperience() {
         {/* Persistent Score Pill */}
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-zinc-900/90 border border-amber-500/30 shadow-lg shadow-amber-500/10">
           <Trophy className="w-3.5 h-3.5 text-amber-400" />
-          <span className="text-[11px] text-zinc-400">السكور:</span>
+          <span className="text-[11px] text-zinc-400">المجموع:</span>
           <span className="font-mono text-sm font-black text-amber-300 tabular-nums">
             {score.toLocaleString("en-US")}
           </span>
@@ -130,7 +130,7 @@ export default function OnboardingLoadingExperience() {
           <button
             type="button"
             onClick={handleSparkTap}
-            aria-label="زيادة السكور"
+            aria-label="زيادة المجموع"
             className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-600 to-indigo-700 flex items-center justify-center shadow-2xl shadow-violet-600/40 hover:scale-105 active:scale-90 transition-transform duration-150 cursor-pointer border border-violet-400/30"
           >
             <Flame className="w-8 h-8 text-white fill-white" />

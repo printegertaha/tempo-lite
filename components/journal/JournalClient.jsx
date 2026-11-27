@@ -66,6 +66,7 @@ import {
   ShieldCheck,
   History,
   Pencil,
+  Undo2,
   Trash2,
   Loader2,
   FileText,
@@ -168,6 +169,10 @@ export default function JournalClient({
 
   const [editingNoteModal, setEditingNoteModal] = useState(false);
   const [editNoteTitle, setEditNoteTitle] = useState("");
+  const [activePrayerModal, setActivePrayerModal] = useState(null);
+  const [prayerDraftLocation, setPrayerDraftLocation] = useState("mosque");
+  const [prayerDraftSunnah, setPrayerDraftSunnah] = useState(false);
+  const [prayerDraftNotes, setPrayerDraftNotes] = useState("");
   const [editNoteContent, setEditNoteContent] = useState("");
 
   const [deleteTaskCandidateId, setDeleteTaskCandidateId] = useState(null);
@@ -339,9 +344,17 @@ export default function JournalClient({
         });
       }
 
-      const completedPrayers = showIslamic
-        ? dayPrayers.filter((p) => p.isCompleted)
-        : [];
+      const prayerOrder = ["fajr", "dhuhr", "asr", "maghrib", "isha"];
+      const prayerByKey = new Map();
+      if (showIslamic) {
+        for (const p of dayPrayers) {
+          if (!p?.isCompleted || !p.prayerKey) continue;
+          prayerByKey.set(p.prayerKey, p);
+        }
+      }
+      const completedPrayers = Array.from(prayerByKey.values()).sort(
+        (a, b) => prayerOrder.indexOf(a.prayerKey) - prayerOrder.indexOf(b.prayerKey)
+      );
 
       const gymToday = allGym.filter((g) => g.date === selectedDate);
       const mealsToday = allMeals.filter((m) => m.date === selectedDate);
@@ -385,12 +398,14 @@ export default function JournalClient({
     window.addEventListener("athar_tasks_updated", refresh);
     window.addEventListener("athar_task_sessions_updated", refresh);
     window.addEventListener("athar_revisions_updated", refresh);
+    window.addEventListener("athar_prayers_updated", refresh);
     return () => {
       active = false;
       window.removeEventListener("athar_data_synced", refresh);
       window.removeEventListener("athar_tasks_updated", refresh);
       window.removeEventListener("athar_task_sessions_updated", refresh);
       window.removeEventListener("athar_revisions_updated", refresh);
+      window.removeEventListener("athar_prayers_updated", refresh);
     };
   }, [loadDayData]);
 
@@ -593,6 +608,104 @@ export default function JournalClient({
   );
 
   const isDateOlderThan7 = isRecordOlderThanSevenDays(selectedDate, effectiveTimezone);
+  const isTodaySelected = selectedDate === todayStr;
+
+  const openPrayerModal = (prayer) => {
+    setActivePrayerModal(prayer);
+    setPrayerDraftLocation(prayer.location || "mosque");
+    setPrayerDraftSunnah(Boolean(prayer.withSunnah));
+    setPrayerDraftNotes(prayer.notes || "");
+  };
+
+  const persistPrayerUpdate = async (updatedRecord) => {
+    await localPrayerRepo.save(updatedRecord);
+    if (!isGuest) {
+      await localOutboxRepo.add({
+        mutationId: crypto.randomUUID(),
+        userId: effectiveUserId,
+        entityType: "prayer_record",
+        entityId: updatedRecord.id,
+        action: "update",
+        payload: {
+          date: updatedRecord.date,
+          prayerKey: updatedRecord.prayerKey,
+          isCompleted: updatedRecord.isCompleted,
+          completedAt: updatedRecord.completedAt,
+          location: updatedRecord.location,
+          withSunnah: updatedRecord.withSunnah,
+          notes: updatedRecord.notes,
+        },
+        clientTimestamp: Date.now(),
+        version: 1,
+        status: "pending",
+        retryCount: 0,
+      });
+      syncEngine.scheduleSync(500);
+    }
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(
+        new CustomEvent("athar_prayers_updated", {
+          detail: { userId: effectiveUserId, dateStr: selectedDate },
+        })
+      );
+    }
+  };
+
+  const handleSavePrayerDetails = async () => {
+    if (!activePrayerModal || !isTodaySelected) return;
+    const updatedRecord = {
+      ...activePrayerModal,
+      id:
+        activePrayerModal.id ||
+        `${effectiveUserId}_${selectedDate}_${activePrayerModal.prayerKey}`,
+      userId: effectiveUserId,
+      date: selectedDate,
+      isCompleted: true,
+      location: prayerDraftLocation,
+      withSunnah: Boolean(prayerDraftSunnah),
+      notes: prayerDraftNotes.trim() || null,
+      clientUpdatedAt: Date.now(),
+    };
+    setDayPayload((prev) =>
+      prev
+        ? {
+            ...prev,
+            prayers: prev.prayers.map((item) =>
+              item.prayerKey === updatedRecord.prayerKey ? updatedRecord : item
+            ),
+          }
+        : prev
+    );
+    setActivePrayerModal(null);
+    await persistPrayerUpdate(updatedRecord);
+  };
+
+  const handleUndoPrayerCompletion = async (prayer) => {
+    if (!prayer || !isTodaySelected) return;
+    const updatedRecord = {
+      ...prayer,
+      id: prayer.id || `${effectiveUserId}_${selectedDate}_${prayer.prayerKey}`,
+      userId: effectiveUserId,
+      date: selectedDate,
+      isCompleted: false,
+      completedAt: null,
+      clientUpdatedAt: Date.now(),
+    };
+    setDayPayload((prev) =>
+      prev
+        ? {
+            ...prev,
+            prayers: prev.prayers.filter(
+              (item) => item.prayerKey !== updatedRecord.prayerKey
+            ),
+          }
+        : prev
+    );
+    if (activePrayerModal?.prayerKey === updatedRecord.prayerKey) {
+      setActivePrayerModal(null);
+    }
+    await persistPrayerUpdate(updatedRecord);
+  };
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-8 space-y-6 pb-24">
@@ -1081,14 +1194,14 @@ export default function JournalClient({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {dayPayload.prayers.map((p) => (
                   <div
-                    key={p.id || p.prayerKey}
+                    key={p.prayerKey || p.id}
                     className="p-3 rounded-2xl bg-zinc-900/60 border border-zinc-800/80 flex items-center justify-between gap-2 text-xs"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <span className="font-bold text-zinc-100 block">
                         صلاة {PRAYER_NAMES_ARABIC[p.prayerKey] || p.prayerKey}
                       </span>
-                      <span className="text-[11px] text-zinc-400">
+                      <span className="text-[11px] text-zinc-400 block truncate">
                         {[
                           p.location ? LOCATION_AR[p.location] || p.location : null,
                           p.withSunnah ? "مع السنة" : null,
@@ -1098,14 +1211,45 @@ export default function JournalClient({
                           .join(" • ") || "أُديت"}
                       </span>
                     </div>
-                    {p.completedAt && (
-                      <span className="font-mono text-[10px] text-zinc-500">
-                        {new Date(p.completedAt).toLocaleTimeString("ar-EG", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    )}
+
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {p.completedAt && (
+                        <span className="font-mono text-[10px] text-zinc-500 ml-1">
+                          {new Date(p.completedAt).toLocaleTimeString("ar-EG", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => openPrayerModal(p)}
+                        title={isTodaySelected ? "تعديل تفاصيل الصلاة" : "عرض تفاصيل الصلاة"}
+                        aria-label={isTodaySelected ? "تعديل تفاصيل الصلاة" : "عرض تفاصيل الصلاة"}
+                        className={`rounded-lg bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 transition-colors cursor-pointer ${
+                          isTodaySelected
+                            ? "p-1.5"
+                            : "px-2 py-1 text-[11px] font-semibold"
+                        }`}
+                      >
+                        {isTodaySelected ? (
+                          <Pencil className="w-3.5 h-3.5" />
+                        ) : (
+                          "التفاصيل"
+                        )}
+                      </button>
+                      {isTodaySelected && (
+                        <button
+                          type="button"
+                          onClick={() => handleUndoPrayerCompletion(p)}
+                          title="التراجع عن إتمام الصلاة"
+                          aria-label="التراجع عن إتمام الصلاة"
+                          className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 text-rose-300 transition-colors cursor-pointer"
+                        >
+                          <Undo2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1386,6 +1530,146 @@ export default function JournalClient({
           </form>
         </Modal>
       )}
+
+      {/* Prayer Details / Today-Only Edit Modal */}
+      <Modal
+        isOpen={Boolean(activePrayerModal)}
+        onClose={() => setActivePrayerModal(null)}
+        title={`تفاصيل صلاة ${
+          PRAYER_NAMES_ARABIC[activePrayerModal?.prayerKey] ||
+          activePrayerModal?.prayerKey ||
+          ""
+        }`}
+        size="sm"
+      >
+        {activePrayerModal && (
+          <div className="space-y-4 text-xs">
+            <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/70 border border-zinc-800">
+              <span className="text-zinc-400">وقت التسجيل</span>
+              <span className="font-mono text-zinc-200">
+                {activePrayerModal.completedAt
+                  ? new Date(activePrayerModal.completedAt).toLocaleTimeString(
+                      "ar-EG",
+                      { hour: "2-digit", minute: "2-digit" }
+                    )
+                  : "—"}
+              </span>
+            </div>
+
+            {isTodaySelected ? (
+              <>
+                <div>
+                  <label className="block text-zinc-400 mb-1.5 font-medium">
+                    موقع الصلاة
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPrayerDraftLocation("mosque")}
+                      className={`py-2 px-3 rounded-xl border font-bold transition-colors cursor-pointer ${
+                        prayerDraftLocation === "mosque"
+                          ? "bg-emerald-600/20 border-emerald-500/40 text-emerald-300"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                      }`}
+                    >
+                      في المسجد / جماعة
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPrayerDraftLocation("home")}
+                      className={`py-2 px-3 rounded-xl border font-bold transition-colors cursor-pointer ${
+                        prayerDraftLocation === "home"
+                          ? "bg-emerald-600/20 border-emerald-500/40 text-emerald-300"
+                          : "bg-zinc-900 border-zinc-800 text-zinc-400"
+                      }`}
+                    >
+                      في البيت / منفرد
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1">
+                  <label className="text-zinc-300 font-medium">
+                    مع السنن الرواتب
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setPrayerDraftSunnah((prev) => !prev)}
+                    className={`w-10 h-6 rounded-full transition-colors relative cursor-pointer ${
+                      prayerDraftSunnah ? "bg-emerald-600" : "bg-zinc-800"
+                    }`}
+                  >
+                    <span
+                      className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
+                        prayerDraftSunnah ? "right-5" : "right-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block text-zinc-400 mb-1 font-medium">
+                    ملاحظات أو خواطر
+                  </label>
+                  <textarea
+                    value={prayerDraftNotes}
+                    onChange={(e) => setPrayerDraftNotes(e.target.value)}
+                    placeholder="تدوين أي شعور أو ملاحظة..."
+                    rows={2}
+                    className="w-full p-2.5 rounded-xl bg-zinc-900/90 border border-zinc-800 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-emerald-500 text-xs"
+                  />
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-zinc-800/80">
+                  <button
+                    type="button"
+                    onClick={() => handleUndoPrayerCompletion(activePrayerModal)}
+                    className="px-3 py-2 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 text-rose-300 font-semibold transition-colors cursor-pointer"
+                  >
+                    تراجع عن الإتمام
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSavePrayerDetails}
+                    className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-colors cursor-pointer"
+                  >
+                    حفظ التعديلات
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-zinc-400">موقع الصلاة</span>
+                  <span className="text-zinc-200 font-semibold">
+                    {activePrayerModal.location
+                      ? LOCATION_AR[activePrayerModal.location] ||
+                        activePrayerModal.location
+                      : "غير محدد"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-xl bg-zinc-900/70 border border-zinc-800">
+                  <span className="text-zinc-400">السنن الرواتب</span>
+                  <span className="text-zinc-200 font-semibold">
+                    {activePrayerModal.withSunnah ? "نعم، مع السنة" : "لا"}
+                  </span>
+                </div>
+                {activePrayerModal.notes && (
+                  <div className="p-3 rounded-xl bg-zinc-900/70 border border-zinc-800 space-y-1">
+                    <span className="text-zinc-400 block">ملاحظات</span>
+                    <p className="text-zinc-200 leading-relaxed">
+                      {activePrayerModal.notes}
+                    </p>
+                  </div>
+                )}
+                <p className="text-[11px] text-zinc-500 text-center pt-1">
+                  يمكن تعديل بيانات العبادات لليوم الحالي فقط.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Permanent Task Cascade Deletion Dialog */}
       {deleteTaskCandidateId && (

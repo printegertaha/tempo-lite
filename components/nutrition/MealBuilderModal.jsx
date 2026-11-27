@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Modal from "@/components/ui/Modal";
 import TimePickerField from "@/components/ui/TimePickerField";
 import HorizontalFormCarousel from "@/components/ui/HorizontalFormCarousel";
+import FoodQuantitySelector from "@/components/nutrition/FoodQuantitySelector";
 import {
   VERIFIED_FOOD_CATALOG,
   searchFoodCatalog,
@@ -32,6 +33,7 @@ import {
   Bookmark,
   Info,
   ArrowLeft,
+  ArrowRight,
 } from "lucide-react";
 
 const MEAL_CATEGORIES = [
@@ -72,6 +74,7 @@ export default function MealBuilderModal({
   const [saveAsFavorite, setSaveAsFavorite] = useState(false);
 
   const [jumpToSlide, setJumpToSlide] = useState(null);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   // Direct manual override mode (opt-in only)
   const [manualTotalsMode, setManualTotalsMode] = useState(false);
@@ -118,7 +121,9 @@ export default function MealBuilderModal({
       setNotes(initialMeal.notes || "");
 
       const structuredIngs = Array.isArray(initialMeal.items)
-        ? initialMeal.items.filter((it) => it && typeof it === "object" && it.foodId)
+        ? initialMeal.items.filter(
+            (it) => it && typeof it === "object" && it.foodId,
+          )
         : [];
       setIngredients(structuredIngs);
       setBasePlanIngredients(initialMeal.sourcePlanId ? structuredIngs : []);
@@ -166,17 +171,21 @@ export default function MealBuilderModal({
     const map = new Map();
     for (const f of VERIFIED_FOOD_CATALOG) map.set(f.id, f);
     for (const f of customFoods) if (f?.id) map.set(f.id, f);
-    for (const f of cachedUsdaFoods) if (f?.id && !map.has(f.id)) map.set(f.id, f);
+    for (const f of cachedUsdaFoods)
+      if (f?.id && !map.has(f.id)) map.set(f.id, f);
     for (const f of remoteFoods) if (f?.id && !map.has(f.id)) map.set(f.id, f);
     return Array.from(map.values());
   }, [customFoods, cachedUsdaFoods, remoteFoods]);
 
   const filteredFoods = useMemo(
     () => searchFoodCatalog(combinedCatalog, searchQuery, "all").slice(0, 30),
-    [combinedCatalog, searchQuery]
+    [combinedCatalog, searchQuery],
   );
 
-  const ingredientTotals = useMemo(() => sumMealIngredients(ingredients), [ingredients]);
+  const ingredientTotals = useMemo(
+    () => sumMealIngredients(ingredients),
+    [ingredients],
+  );
 
   const draftTotals = useMemo(() => {
     if (manualTotalsMode) {
@@ -203,16 +212,25 @@ export default function MealBuilderModal({
   const impact = useMemo(
     () =>
       computeMealImpact({
-        dailyLogged: dailyLogged || { calories: 0, protein: 0, carbs: 0, fat: 0 },
+        dailyLogged: dailyLogged || {
+          calories: 0,
+          protein: 0,
+          carbs: 0,
+          fat: 0,
+        },
         dailyTargets,
         previousMeal: previousMealTotals,
         draftMeal: draftTotals,
       }),
-    [dailyLogged, dailyTargets, previousMealTotals, draftTotals]
+    [dailyLogged, dailyTargets, previousMealTotals, draftTotals],
   );
 
   const selectedFoodPreview = useMemo(() => {
-    if (!selectedFood || selectedFood.source.verificationStatus === "unavailable") return null;
+    if (
+      !selectedFood ||
+      selectedFood.source.verificationStatus === "unavailable"
+    )
+      return null;
     const g = Number(gramsInput);
     if (!Number.isFinite(g) || g <= 0) return null;
     return calculateIngredientMacros(selectedFood, g);
@@ -221,32 +239,43 @@ export default function MealBuilderModal({
   const handleUsdaSearch = async () => {
     const q = searchQuery.trim();
     if (q.length < 2) {
-      setUsdaStatusMsg("اكتب كلمتين أو حرفين باللغة الإنجليزية للبحث الإلكتروني.");
+      setUsdaStatusMsg(
+        "اكتب كلمتين أو حرفين باللغة الإنجليزية للبحث الإلكتروني.",
+      );
       return;
     }
     setIsSearchingUsda(true);
     setUsdaStatusMsg("");
     try {
-      const res = await fetch(`/api/nutrition/foods/search?q=${encodeURIComponent(q)}`);
+      const res = await fetch(
+        `/api/nutrition/foods/search?q=${encodeURIComponent(q)}`,
+      );
       const json = await res.json();
       if (!res.ok || !json.success) {
-        setUsdaStatusMsg(json.error || "تعذر البحث الإلكتروني حالياً؛ يمكنك الاعتماد على القائمة المحلية.");
+        setUsdaStatusMsg(
+          json.error ||
+            "تعذر البحث الإلكتروني حالياً؛ يمكنك الاعتماد على القائمة المحلية.",
+        );
         return;
       }
       const items = Array.isArray(json.items) ? json.items : [];
       setRemoteFoods(items);
       if (items.length > 0) {
         const mergedCache = [...items, ...cachedUsdaFoods].filter(
-          (item, idx, arr) => arr.findIndex((x) => x.id === item.id) === idx
+          (item, idx, arr) => arr.findIndex((x) => x.id === item.id) === idx,
         );
         setCachedUsdaFoods(mergedCache);
-        void localSyncMetaRepo.saveCachedNutritionFoods(mergedCache).catch(() => {});
+        void localSyncMetaRepo
+          .saveCachedNutritionFoods(mergedCache)
+          .catch(() => {});
         setUsdaStatusMsg(`تم العثور على ${items.length} صنف وحفظها محلياً.`);
       } else {
         setUsdaStatusMsg("لم تُسفر عملية البحث عن نتائج مطابقة.");
       }
     } catch {
-      setUsdaStatusMsg("لا يوجد اتصال بالإنترنت حالياً — يتم البحث من القائمة المحلية.");
+      setUsdaStatusMsg(
+        "لا يوجد اتصال بالإنترنت حالياً — يتم البحث من القائمة المحلية.",
+      );
     } finally {
       setIsSearchingUsda(false);
     }
@@ -276,9 +305,9 @@ export default function MealBuilderModal({
             source: ing.source,
           },
           safeG,
-          ing.id
+          ing.id,
         );
-      })
+      }),
     );
   };
 
@@ -293,7 +322,8 @@ export default function MealBuilderModal({
       synonyms: [nameAr],
       category: "custom",
       preparationState: "user_defined",
-      preparationLabelAr: customFoodDraft.preparationLabelAr.trim() || "مُدخل يدوياً",
+      preparationLabelAr:
+        customFoodDraft.preparationLabelAr.trim() || "مُدخل يدوياً",
       per100g: {
         calories: Math.max(0, Number(customFoodDraft.calories || 0)),
         protein: Math.max(0, Number(customFoodDraft.protein || 0)),
@@ -330,7 +360,10 @@ export default function MealBuilderModal({
     const resolvedTitle =
       title.trim() ||
       (ingredients.length > 0
-        ? ingredients.map((i) => formatShortFoodNameAr(i.nameAr)).slice(0, 3).join(" و")
+        ? ingredients
+            .map((i) => formatShortFoodNameAr(i.nameAr))
+            .slice(0, 3)
+            .join(" و")
         : categoryLabel);
 
     const mealObject = {
@@ -383,11 +416,14 @@ export default function MealBuilderModal({
           sections={CAROUSEL_SECTIONS}
           resetKey={`${isOpen}-${initialMeal?.id || "new"}`}
           jumpToSlide={jumpToSlide}
+          onSlideChange={setCurrentSlide}
         >
           {/* Slide 1: Meal Type, Title & Time */}
           <div className="space-y-5 p-1">
             <div className="space-y-2">
-              <span className="block text-sm font-bold text-zinc-200">نوع الوجبة</span>
+              <span className="block text-sm font-bold text-zinc-200">
+                نوع الوجبة
+              </span>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {MEAL_CATEGORIES.map((c) => {
                   const isSelected = mealType === c.id;
@@ -413,7 +449,10 @@ export default function MealBuilderModal({
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="sm:col-span-2">
-                <label htmlFor="mb-title" className="block text-sm font-semibold text-zinc-300 mb-1.5">
+                <label
+                  htmlFor="mb-title"
+                  className="block text-sm font-semibold text-zinc-300 mb-1.5"
+                >
                   اسم الوجبة (اختياري)
                 </label>
                 <input
@@ -426,7 +465,10 @@ export default function MealBuilderModal({
                 />
               </div>
               <div>
-                <label htmlFor="mb-time" className="block text-sm font-semibold text-zinc-300 mb-1.5">
+                <label
+                  htmlFor="mb-time"
+                  className="block text-sm font-semibold text-zinc-300 mb-1.5"
+                >
                   التوقيت
                 </label>
                 <TimePickerField
@@ -481,7 +523,12 @@ export default function MealBuilderModal({
                     type="text"
                     placeholder="اسم الطعام"
                     value={customFoodDraft.nameAr}
-                    onChange={(e) => setCustomFoodDraft((p) => ({ ...p, nameAr: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomFoodDraft((p) => ({
+                        ...p,
+                        nameAr: e.target.value,
+                      }))
+                    }
                     className="px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100"
                   />
                   <input
@@ -489,7 +536,10 @@ export default function MealBuilderModal({
                     placeholder="الحالة (مثال: مطبوخ / جاهز)"
                     value={customFoodDraft.preparationLabelAr}
                     onChange={(e) =>
-                      setCustomFoodDraft((p) => ({ ...p, preparationLabelAr: e.target.value }))
+                      setCustomFoodDraft((p) => ({
+                        ...p,
+                        preparationLabelAr: e.target.value,
+                      }))
                     }
                     className="px-2.5 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100"
                   />
@@ -500,7 +550,12 @@ export default function MealBuilderModal({
                     min="0"
                     placeholder="سعرات"
                     value={customFoodDraft.calories}
-                    onChange={(e) => setCustomFoodDraft((p) => ({ ...p, calories: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomFoodDraft((p) => ({
+                        ...p,
+                        calories: e.target.value,
+                      }))
+                    }
                     className="px-2 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                   />
                   <input
@@ -509,7 +564,12 @@ export default function MealBuilderModal({
                     min="0"
                     placeholder="ب (جم)"
                     value={customFoodDraft.protein}
-                    onChange={(e) => setCustomFoodDraft((p) => ({ ...p, protein: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomFoodDraft((p) => ({
+                        ...p,
+                        protein: e.target.value,
+                      }))
+                    }
                     className="px-2 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                   />
                   <input
@@ -518,7 +578,12 @@ export default function MealBuilderModal({
                     min="0"
                     placeholder="ك (جم)"
                     value={customFoodDraft.carbs}
-                    onChange={(e) => setCustomFoodDraft((p) => ({ ...p, carbs: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomFoodDraft((p) => ({
+                        ...p,
+                        carbs: e.target.value,
+                      }))
+                    }
                     className="px-2 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                   />
                   <input
@@ -527,7 +592,9 @@ export default function MealBuilderModal({
                     min="0"
                     placeholder="د (جم)"
                     value={customFoodDraft.fat}
-                    onChange={(e) => setCustomFoodDraft((p) => ({ ...p, fat: e.target.value }))}
+                    onChange={(e) =>
+                      setCustomFoodDraft((p) => ({ ...p, fat: e.target.value }))
+                    }
                     className="px-2 py-2 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                   />
                 </div>
@@ -540,7 +607,7 @@ export default function MealBuilderModal({
                   حفظ واختيار الطعام
                 </button>
               </div>
-            ) : (
+            ) : !selectedFood ? (
               <>
                 <div className="flex gap-2.5">
                   <div className="relative flex-1">
@@ -574,33 +641,35 @@ export default function MealBuilderModal({
                   </p>
                 )}
 
-                <div className="max-h-40 overflow-y-auto space-y-1.5 pr-0.5">
+                <div className="max-h-52 overflow-y-auto space-y-1.5 pr-0.5">
                   {searchQuery.trim().length === 0 ? (
                     <p className="text-xs text-zinc-500 py-4 text-center">
                       اكتب اسم الطعام في خانة البحث أعلاه لعرض النتائج المطابقة.
                     </p>
                   ) : filteredFoods.length === 0 ? (
                     <p className="text-xs text-zinc-500 py-3 text-center">
-                      لا توجد نتائج مطابقة. جرّب البحث الإلكتروني أو أضف طعاماً مخصصاً.
+                      لا توجد نتائج مطابقة. جرّب البحث الإلكتروني أو أضف طعاماً
+                      مخصصاً.
                     </p>
                   ) : (
                     filteredFoods.map((food) => {
-                      const isUnavailable = food.source.verificationStatus === "unavailable";
-                      const isUserProvided = food.source.verificationStatus === "user_provided";
-                      const isSelected = selectedFood?.id === food.id;
+                      const isUnavailable =
+                        food.source.verificationStatus === "unavailable";
+                      const isUserProvided =
+                        food.source.verificationStatus === "user_provided";
                       return (
                         <button
                           key={food.id}
                           type="button"
                           onClick={() => {
                             setSelectedFood(food);
-                            setGramsInput(food.portions?.[0]?.grams ? String(food.portions[0].grams) : "100");
+                            setGramsInput(
+                              food.portions?.[0]?.grams
+                                ? String(food.portions[0].grams)
+                                : "100",
+                            );
                           }}
-                          className={`w-full text-right p-2 rounded-xl border transition-all cursor-pointer ${
-                            isSelected
-                              ? "bg-teal-500/15 border-teal-500/50"
-                              : "bg-zinc-950/70 border-zinc-800/80 hover:border-zinc-700"
-                          }`}
+                          className="w-full text-right p-2.5 rounded-xl border transition-all cursor-pointer bg-zinc-950/70 border-zinc-800/80 hover:border-teal-500/40"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <div className="min-w-0">
@@ -610,7 +679,9 @@ export default function MealBuilderModal({
                               <div className="text-[10px] text-zinc-400 flex items-center gap-1.5">
                                 <span>{food.preparationLabelAr}</span>
                                 {isUserProvided && (
-                                  <span className="text-cyan-300">· مُدخل يدوياً</span>
+                                  <span className="text-cyan-300">
+                                    · مُدخل يدوياً
+                                  </span>
                                 )}
                               </div>
                             </div>
@@ -625,97 +696,50 @@ export default function MealBuilderModal({
                     })
                   )}
                 </div>
-
-                {selectedFood && (
-                  <div className="p-3 rounded-xl bg-[#0c151c] border border-teal-500/30 space-y-2">
-                    {selectedFood.source.verificationStatus === "unavailable" ? (
-                      <div className="space-y-2 text-xs">
-                        <p className="font-bold text-amber-200">{selectedFood.nameAr} — غير متاح كقيمة موحدة</p>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setCustomFoodDraft((p) => ({ ...p, nameAr: selectedFood.nameAr }));
-                            setShowCustomFoodForm(true);
-                          }}
-                          className="px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-200 text-xs font-bold cursor-pointer"
-                        >
-                          إدخال قيم مخصصة لهذا الطبق
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                          <span className="font-bold text-zinc-100">
-                            {formatShortFoodNameAr(selectedFood.nameAr)}
-                          </span>
-                          {selectedFoodPreview && (
-                            <span className="font-mono text-[11px] text-zinc-300">
-                              <b className="text-amber-400">{selectedFoodPreview.calories} kcal</b> · ب:{" "}
-                              <b className="text-emerald-400">{selectedFoodPreview.protein}</b> · ك:{" "}
-                              <b className="text-cyan-400">{selectedFoodPreview.carbs}</b> · د:{" "}
-                              <b className="text-orange-400">{selectedFoodPreview.fat}</b>
-                            </span>
-                          )}
-                        </div>
-                        {selectedFood.ediblePortionNoteAr && (
-                          <div className="text-[10px] text-teal-300/90 flex items-center gap-1">
-                            <Info className="w-3 h-3 shrink-0" />
-                            <span>{selectedFood.ediblePortionNoteAr}</span>
-                          </div>
-                        )}
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <input
-                            id="mb-grams"
-                            type="number"
-                            min="1"
-                            max="3000"
-                            step="1"
-                            value={gramsInput}
-                            onChange={(e) => setGramsInput(e.target.value)}
-                            className="w-20 px-2.5 py-1.5 rounded-lg bg-zinc-950 border border-teal-500/40 text-xs text-zinc-100 font-mono"
-                            aria-label="الكمية بالجرام"
-                          />
-                          <span className="text-[11px] text-zinc-400">جم</span>
-                          {[50, 100, 150, 200].map((g) => (
-                            <button
-                              key={g}
-                              type="button"
-                              onClick={() => setGramsInput(String(g))}
-                              className="px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-700 text-[11px] font-mono text-zinc-300 cursor-pointer"
-                            >
-                              {g}جم
-                            </button>
-                          ))}
-                          {selectedFood.portions?.map((p, idx) => (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => setGramsInput(String(p.grams))}
-                              className="px-2 py-1 rounded-lg bg-teal-500/15 border border-teal-500/30 text-[11px] text-teal-200 cursor-pointer"
-                            >
-                              {p.labelAr}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={handleAddIngredient}
-                            disabled={!selectedFoodPreview}
-                            className="mr-auto flex items-center gap-1 px-3 py-1.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>إضافة</span>
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
               </>
+            ) : selectedFood.source.verificationStatus === "unavailable" ? (
+              <div className="p-4 rounded-2xl bg-[#0c151c] border border-teal-500/35 space-y-3 text-xs">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-bold text-amber-200">
+                    {selectedFood.nameAr} — غير متاح كقيمة موحدة
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFood(null)}
+                    className="px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-[11px] font-semibold cursor-pointer"
+                  >
+                    إلغاء والعودة للبحث
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomFoodDraft((p) => ({
+                      ...p,
+                      nameAr: selectedFood.nameAr,
+                    }));
+                    setShowCustomFoodForm(true);
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-cyan-600/20 border border-cyan-500/40 text-cyan-200 text-xs font-bold cursor-pointer"
+                >
+                  إدخال قيم مخصصة لهذا الطبق
+                </button>
+              </div>
+            ) : (
+              <FoodQuantitySelector
+                food={selectedFood}
+                gramsInput={gramsInput}
+                setGramsInput={setGramsInput}
+                preview={selectedFoodPreview}
+                onAdd={handleAddIngredient}
+                onCancel={() => setSelectedFood(null)}
+              />
             )}
 
             <div className="flex items-center justify-between pt-2 border-t border-zinc-800/80 text-xs">
               <span className="text-zinc-400">
-                المكونات المضافة: <b className="text-teal-300 font-mono">{ingredients.length}</b>
+                المكونات المضافة:{" "}
+                <b className="text-teal-300 font-mono">{ingredients.length}</b>
               </span>
               <button
                 type="button"
@@ -738,12 +762,18 @@ export default function MealBuilderModal({
                   </span>
                   {basePlanIngredients.length > 0 && mode === "log" && (
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] text-zinc-400">نسبة التناول:</span>
+                      <span className="text-[11px] text-zinc-400">
+                        نسبة التناول:
+                      </span>
                       {[0.5, 0.75, 1].map((ratio) => (
                         <button
                           key={ratio}
                           type="button"
-                          onClick={() => setIngredients(scaleMealIngredients(basePlanIngredients, ratio))}
+                          onClick={() =>
+                            setIngredients(
+                              scaleMealIngredients(basePlanIngredients, ratio),
+                            )
+                          }
                           className="px-2 py-0.5 rounded-lg bg-teal-500/15 hover:bg-teal-500/25 border border-teal-500/30 text-[11px] font-mono font-bold text-teal-300 cursor-pointer"
                         >
                           {Math.round(ratio * 100)}%
@@ -764,7 +794,8 @@ export default function MealBuilderModal({
                           {formatShortFoodNameAr(ing.nameAr)}
                         </div>
                         <div className="text-[10px] font-mono text-zinc-400">
-                          {ing.calories} kcal · ب:{ing.protein} · ك:{ing.carbs} · د:{ing.fat}
+                          {ing.calories} kcal · ب:{ing.protein} · ك:{ing.carbs}{" "}
+                          · د:{ing.fat}
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
@@ -773,14 +804,20 @@ export default function MealBuilderModal({
                           min="1"
                           max="3000"
                           value={ing.grams}
-                          onChange={(e) => handleUpdateIngredientGrams(ing.id, e.target.value)}
+                          onChange={(e) =>
+                            handleUpdateIngredientGrams(ing.id, e.target.value)
+                          }
                           className="w-18 px-2 py-1 rounded-lg bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                           aria-label={`وزن ${ing.nameAr} بالجرام`}
                         />
                         <span className="text-[11px] text-zinc-400">جم</span>
                         <button
                           type="button"
-                          onClick={() => setIngredients((prev) => prev.filter((x) => x.id !== ing.id))}
+                          onClick={() =>
+                            setIngredients((prev) =>
+                              prev.filter((x) => x.id !== ing.id),
+                            )
+                          }
                           className="p-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
                           aria-label={`حذف ${ing.nameAr}`}
                         >
@@ -815,7 +852,9 @@ export default function MealBuilderModal({
                       <input
                         type="checkbox"
                         checked={isRestaurantEstimate}
-                        onChange={(e) => setIsRestaurantEstimate(e.target.checked)}
+                        onChange={(e) =>
+                          setIsRestaurantEstimate(e.target.checked)
+                        }
                         className="accent-amber-500"
                       />
                       <span>وجبة مطعم / تيك أواي</span>
@@ -823,52 +862,80 @@ export default function MealBuilderModal({
                   </div>
                   <div className="grid grid-cols-4 gap-2">
                     <div>
-                      <label className="block text-[11px] text-zinc-400 mb-1">السعرات</label>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        السعرات
+                      </label>
                       <input
                         type="number"
                         min="0"
                         required
                         value={manualMacros.calories}
-                        onChange={(e) => setManualMacros((p) => ({ ...p, calories: e.target.value }))}
+                        onChange={(e) =>
+                          setManualMacros((p) => ({
+                            ...p,
+                            calories: e.target.value,
+                          }))
+                        }
                         placeholder="0"
                         className="w-full px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-zinc-400 mb-1">ب (جم)</label>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        ب (جم)
+                      </label>
                       <input
                         type="number"
                         step="0.1"
                         min="0"
                         required
                         value={manualMacros.protein}
-                        onChange={(e) => setManualMacros((p) => ({ ...p, protein: e.target.value }))}
+                        onChange={(e) =>
+                          setManualMacros((p) => ({
+                            ...p,
+                            protein: e.target.value,
+                          }))
+                        }
                         placeholder="0"
                         className="w-full px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-zinc-400 mb-1">ك (جم)</label>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        ك (جم)
+                      </label>
                       <input
                         type="number"
                         step="0.1"
                         min="0"
                         required
                         value={manualMacros.carbs}
-                        onChange={(e) => setManualMacros((p) => ({ ...p, carbs: e.target.value }))}
+                        onChange={(e) =>
+                          setManualMacros((p) => ({
+                            ...p,
+                            carbs: e.target.value,
+                          }))
+                        }
                         placeholder="0"
                         className="w-full px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] text-zinc-400 mb-1">د (جم)</label>
+                      <label className="block text-[11px] text-zinc-400 mb-1">
+                        د (جم)
+                      </label>
                       <input
                         type="number"
                         step="0.1"
                         min="0"
                         required
                         value={manualMacros.fat}
-                        onChange={(e) => setManualMacros((p) => ({ ...p, fat: e.target.value }))}
+                        onChange={(e) =>
+                          setManualMacros((p) => ({
+                            ...p,
+                            fat: e.target.value,
+                          }))
+                        }
                         placeholder="0"
                         className="w-full px-2.5 py-2 rounded-xl bg-zinc-900 border border-zinc-700 text-xs text-zinc-100 font-mono"
                       />
@@ -881,8 +948,13 @@ export default function MealBuilderModal({
             {impact.remaining && (
               <div className="p-2.5 rounded-xl bg-[#0c151c] border border-teal-500/25 text-[11px] text-zinc-300">
                 بعد هذه الوجبة: متبقي{" "}
-                <b className="font-mono text-amber-300">{impact.remaining.calories} kcal</b> · ب:{" "}
-                <b className="font-mono text-emerald-400">{impact.remaining.protein} جم</b>
+                <b className="font-mono text-amber-300">
+                  {impact.remaining.calories} kcal
+                </b>{" "}
+                · ب:{" "}
+                <b className="font-mono text-emerald-400">
+                  {impact.remaining.protein} جم
+                </b>
               </div>
             )}
 
@@ -910,7 +982,7 @@ export default function MealBuilderModal({
         </HorizontalFormCarousel>
 
         {/* Sticky Live Summary & Submit Footer */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-zinc-800">
+        <div className="sticky -bottom-5 sm:-bottom-6 z-20 -mx-5 sm:-mx-7 px-5 sm:px-7 py-3.5 bg-[#0c0e17]/95 backdrop-blur-md flex flex-wrap items-center justify-between gap-3 border-t border-zinc-800">
           <div className="text-sm font-mono text-zinc-200">
             <b className="text-amber-400">{draftTotals.calories} kcal</b> · ب:{" "}
             <b className="text-emerald-400">{draftTotals.protein}</b> · ك:{" "}
@@ -919,23 +991,54 @@ export default function MealBuilderModal({
           </div>
 
           <div className="flex items-center gap-2.5 mr-auto">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2.5 rounded-xl text-sm text-zinc-400 hover:text-zinc-200 cursor-pointer"
-            >
-              إلغاء
-            </button>
-            <button
-              type="submit"
-              disabled={!manualTotalsMode && ingredients.length === 0}
-              className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold shadow-md shadow-teal-600/30 cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>
-                {mode === "edit" ? "حفظ التعديلات" : mode === "plan" ? "حفظ في الخطة" : "حفظ الوجبة"}
-              </span>
-            </button>
+            {currentSlide > 0 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setJumpToSlide({ index: currentSlide - 1, nonce: Date.now() })
+                }
+                className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-sm font-semibold text-zinc-200 cursor-pointer"
+              >
+                <ArrowRight className="w-4 h-4" />
+                <span>السابق</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2.5 rounded-xl text-sm text-zinc-400 hover:text-zinc-200 cursor-pointer"
+              >
+                إلغاء
+              </button>
+            )}
+
+            {currentSlide < CAROUSEL_SECTIONS.length - 1 ? (
+              <button
+                type="button"
+                onClick={() =>
+                  setJumpToSlide({ index: currentSlide + 1, nonce: Date.now() })
+                }
+                className="flex items-center gap-1.5 px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-sm font-bold shadow-md shadow-teal-600/30 cursor-pointer"
+              >
+                <span>التالي</span>
+                <ArrowLeft className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="submit"
+                disabled={!manualTotalsMode && ingredients.length === 0}
+                className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 disabled:opacity-50 text-white text-sm font-bold shadow-md shadow-teal-600/30 cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>
+                  {mode === "edit"
+                    ? "حفظ التعديلات"
+                    : mode === "plan"
+                      ? "حفظ في الخطة"
+                      : "حفظ الوجبة"}
+                </span>
+              </button>
+            )}
           </div>
         </div>
       </form>

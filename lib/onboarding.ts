@@ -31,12 +31,12 @@ export const RELIGIONS: ReadonlyArray<{
   {
     value: "christian",
     label: "مسيحي",
-    description: "تجربة تركّز على المهام والعادات والحياة اليومية",
+    description: "عدم عرض ميزات تتبع الصلاة والقرآن",
   },
   {
     value: "atheist",
     label: "ملحد",
-    description: "تجربة تركّز على الإنتاجية والتوازن الشخصي",
+    description: "حاجة كدا للناس اللي بتعبد الكراسي",
   },
 ];
 

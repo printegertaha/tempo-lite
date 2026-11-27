@@ -1442,7 +1442,8 @@ export function AtharProvider({ children }) {
   };
 
   // 10. Secondary domain helpers (Preferences, Expenses, Nutrition, Gym, Journal)
-  const updatePreferences = async (patch) => {
+  const updatePreferences = async (patch, options = {}) => {
+    const { sync = true } = options;
     const nextPrefs = normalizeUserPreferences({
       ...userPreferences,
       ...patch,
@@ -1457,7 +1458,7 @@ export function AtharProvider({ children }) {
         window.dispatchEvent(new CustomEvent("athar_preferences_updated", { detail: nextPrefs }));
       } catch {}
     }
-    if (!isGuestUser) {
+    if (!isGuestUser && sync) {
       await localOutboxRepo
         .add({
           mutationId: crypto.randomUUID(),
@@ -1676,9 +1677,12 @@ export function AtharProvider({ children }) {
       setupVersion: 1,
       updatedAt: new Date().toISOString(),
     };
-    await updatePreferences({
-      nutritionProfile: nextProfile,
-    });
+    await updatePreferences(
+      {
+        nutritionProfile: nextProfile,
+      },
+      { sync: false }
+    );
     return nextProfile;
   };
 

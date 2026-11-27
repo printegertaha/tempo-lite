@@ -504,6 +504,9 @@ class SyncEngine {
     const protectedEntityKeys = new Set<string>();
     for (const m of pendingMutations) {
       protectedEntityKeys.add(`${m.entityType}:${m.entityId}`);
+      if (m.entityType === "prayer_record" && m.payload?.date && m.payload?.prayerKey) {
+        protectedEntityKeys.add(`prayer_record_key:${m.payload.date}:${m.payload.prayerKey}`);
+      }
     }
     for (const c of existingConflicts) {
       protectedEntityKeys.add(`${c.entityType}:${c.entityId}`);
@@ -727,8 +730,24 @@ class SyncEngine {
 
       // 7. Prayer records merge
       if (Array.isArray(changes.prayerRecords) && changes.prayerRecords.length > 0) {
+        // Re-read pending outbox right before saving so an in-flight pull that started
+        // before a user toggled a prayer cannot overwrite their fresh local state.
+        const latestPending = await localOutboxRepo.getPending(userId, false);
+        const latestProtectedIds = new Set(protectedEntityKeys);
+        for (const m of latestPending) {
+          latestProtectedIds.add(`${m.entityType}:${m.entityId}`);
+          if (m.entityType === "prayer_record" && m.payload?.date && m.payload?.prayerKey) {
+            latestProtectedIds.add(`prayer_record_key:${m.payload.date}:${m.payload.prayerKey}`);
+          }
+        }
+
         const toSave = changes.prayerRecords
-          .filter((p: any) => p?.id && !protectedEntityKeys.has(`prayer_record:${p.id}`))
+          .filter(
+            (p: any) =>
+              p?.id &&
+              !latestProtectedIds.has(`prayer_record:${p.id}`) &&
+              !latestProtectedIds.has(`prayer_record_key:${p.date}:${p.prayerKey}`)
+          )
           .map((p: any) => ({
             ...p,
             userId,

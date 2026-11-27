@@ -183,6 +183,39 @@ export default function HomeView({
   const alertedTaskIdsRef = useRef(new Set());
   const [prevTodayStr, setPrevTodayStr] = useState(todayStr);
 
+  const doneStorageKey = `athar_day_done:${userId || "guest"}:${todayStr}`;
+  const [dayDeclaredDone, setDayDeclaredDone] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      setDayDeclaredDone(localStorage.getItem(doneStorageKey) === "1");
+    } catch {
+      setDayDeclaredDone(false);
+    }
+  }, [doneStorageKey]);
+
+  useEffect(() => {
+    if (!isLoaded || !auxLoaded) return;
+    if (totalPendingCount > 0 && dayDeclaredDone) {
+      setDayDeclaredDone(false);
+      try {
+        localStorage.removeItem(doneStorageKey);
+      } catch {
+        // ignore storage errors
+      }
+    }
+  }, [isLoaded, auxLoaded, totalPendingCount, dayDeclaredDone, doneStorageKey]);
+
+  const handleDeclareDayDone = () => {
+    setDayDeclaredDone(true);
+    try {
+      localStorage.setItem(doneStorageKey, "1");
+    } catch {
+      // ignore storage errors
+    }
+  };
+
   const [draggedTaskId, setDraggedTaskId] = useState(null);
   const [dragOverTaskId, setDragOverTaskId] = useState(null);
   const touchStartRef = useRef(null);
@@ -822,87 +855,106 @@ export default function HomeView({
           </section>
         )}
 
-        {/* 5B. All Today's Scheduled Obligations Completed */}
-        {isLoaded && auxLoaded && homeState === "all_completed" && (
-          <section
-            aria-label="تم إنجاز جميع التزامات اليوم"
-            data-testid="home-all-done-state"
-            className="rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-950/20 via-zinc-900/50 to-zinc-900/30 px-6 py-12 text-center space-y-5"
-          >
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-950/30">
-              <Heart className="w-7 h-7 fill-emerald-400/20" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
-                خلصت كل اللي مطلوب منك النهاردة
-              </h2>
-              <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                مش عارف أشكر إيديك الحلوين ولا دماغ معاليك, على شوية الشغل
-                العظيم اللي طلع من سيادتك دا, حقيقي أنا فخور بيك.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-              <Link
-                href="/journal"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200 transition-colors"
-              >
-                <BookMarked className="w-3.5 h-3.5 text-violet-400" />
-                <span>عملت إيه النهارده</span>
-              </Link>
-              <Link
-                href="/tasks"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-colors"
-              >
-                <ListTodo className="w-3.5 h-3.5 text-emerald-400" />
-                <span>إدارة المهام</span>
-              </Link>
-              <Link
-                href="/habits"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-colors"
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                <span>العادات</span>
-              </Link>
-            </div>
-          </section>
-        )}
+        {/* 5B. All Today's Scheduled Obligations Completed (only after user clicks "خلصت") */}
+        {isLoaded &&
+          auxLoaded &&
+          (homeState === "all_completed" || homeState === "nothing_due_today") &&
+          dayDeclaredDone && (
+            <section
+              aria-label="تم إنجاز جميع التزامات اليوم"
+              data-testid="home-all-done-state"
+              className="rounded-3xl border border-emerald-500/20 bg-gradient-to-b from-emerald-950/20 via-zinc-900/50 to-zinc-900/30 px-6 py-12 text-center space-y-5"
+            >
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center shadow-lg shadow-emerald-950/30">
+                <Heart className="w-7 h-7 fill-emerald-400/20" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
+                  خلصت كل اللي مطلوب منك النهاردة
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
+                  مش عارف أشكر إيديك الحلوين ولا دماغ معاليك, على شوية الشغل
+                  العظيم اللي طلع من سيادتك دا, حقيقي أنا فخور بيك.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                <Link
+                  href="/journal"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200 transition-colors"
+                >
+                  <BookMarked className="w-3.5 h-3.5 text-violet-400" />
+                  <span>عملت إيه النهارده</span>
+                </Link>
+                <Link
+                  href="/tasks"
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-colors"
+                >
+                  <ListTodo className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>إدارة المهام</span>
+                </Link>
+              </div>
+            </section>
+          )}
 
-        {/* 5C. Existing User With Nothing Scheduled Due Today */}
-        {isLoaded && auxLoaded && homeState === "nothing_due_today" && (
-          <section
-            aria-label="لا توجد التزامات مجدولة اليوم"
-            data-testid="home-nothing-due-state"
-            className="rounded-3xl border border-zinc-800/80 bg-zinc-900/40 px-6 py-12 text-center space-y-5"
-          >
-            <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-800/70 border border-zinc-700/60 text-zinc-300 flex items-center justify-center">
-              <CalendarCheck className="w-7 h-7 text-emerald-400" />
-            </div>
-            <div className="space-y-2">
-              <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
-                مفيش حاجة مطلوبة منك النهارده.
-              </h2>
-              <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                لا توجد مهام أو عادات مجدولة لهذا اليوم.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
-              <Link
-                href="/tasks"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200 transition-colors"
-              >
-                <ListTodo className="w-3.5 h-3.5 text-emerald-400" />
-                <span>إدارة المهام</span>
-              </Link>
-              <Link
-                href="/habits"
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-colors"
-              >
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                <span>العادات</span>
-              </Link>
-            </div>
-          </section>
-        )}
+        {/* 5C. No Pending Tasks Today — Always allow adding tasks or subtle "تأكيد" */}
+        {isLoaded &&
+          auxLoaded &&
+          (homeState === "all_completed" || homeState === "nothing_due_today") &&
+          !dayDeclaredDone && (
+            <section
+              aria-label="لا توجد التزامات مجدولة اليوم"
+              data-testid="home-nothing-due-state"
+              className="rounded-3xl border border-zinc-800/80 bg-zinc-900/40 px-6 py-12 text-center space-y-5"
+            >
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-zinc-800/70 border border-zinc-700/60 text-zinc-300 flex items-center justify-center">
+                <CalendarCheck className="w-7 h-7 text-emerald-400" />
+              </div>
+              <div className="space-y-2">
+                <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
+                  ما فيش مهام اليوم
+                </h2>
+                <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
+                  ما فيش مهام عليك اليوم
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingTask(null);
+                    setIsEditorOpen(true);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-xs font-bold text-white shadow-md shadow-violet-600/20 transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>إضافة مهمة</span>
+                </button>
+                <Link
+                  href="/tasks"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-200 transition-colors"
+                >
+                  <ListTodo className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>إدارة المهام</span>
+                </Link>
+                <Link
+                  href="/habits"
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 text-xs font-semibold text-zinc-300 transition-colors"
+                >
+                  <Flame className="w-3.5 h-3.5 text-amber-400" />
+                  <span>العادات</span>
+                </Link>
+              </div>
+              <div>
+                <button
+                  type="button"
+                  onClick={handleDeclareDayDone}
+                  className="text-[11px] text-zinc-500 hover:text-emerald-400 underline-offset-4 hover:underline transition-colors cursor-pointer"
+                >
+                  تأكيد
+                </button>
+              </div>
+            </section>
+          )}
       </main>
 
       {isEditorOpen && (

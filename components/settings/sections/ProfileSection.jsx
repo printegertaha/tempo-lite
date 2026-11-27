@@ -415,7 +415,7 @@ export default function ProfileSection({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-zinc-800/80">
         <div className="space-y-2">
           <span className="text-xs font-bold text-zinc-300 block">
-            طريقة المخاطبة
+           النوع
           </span>
           <div className="grid grid-cols-2 gap-2">
             {SALUTATIONS.map((item) => {

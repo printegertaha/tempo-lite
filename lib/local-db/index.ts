@@ -1013,10 +1013,39 @@ export const localSyncMetaRepo = {
   },
 };
 
+function pickNewerPrayerRecord(a: LocalPrayerRecord, b: LocalPrayerRecord): LocalPrayerRecord {
+  const aTime = Number((a as any).clientUpdatedAt || 0) || (a.completedAt ? new Date(a.completedAt).getTime() : 0);
+  const bTime = Number((b as any).clientUpdatedAt || 0) || (b.completedAt ? new Date(b.completedAt).getTime() : 0);
+  if (bTime !== aTime) return bTime > aTime ? b : a;
+  if (Boolean(b.isCompleted) !== Boolean(a.isCompleted)) return b.isCompleted ? b : a;
+  return b;
+}
+
 export const localPrayerRepo = {
   async getByDate(userId: string, date: string): Promise<LocalPrayerRecord[]> {
     const db = await getLocalDB();
-    return db.getAllFromIndex("prayer_records", "by-user-date", [userId, date]);
+    const all = await db.getAllFromIndex("prayer_records", "by-user-date", [userId, date]);
+    if (all.length <= 1) return all;
+
+    const byKey = new Map<string, LocalPrayerRecord>();
+    for (const rec of all) {
+      const existing = byKey.get(rec.prayerKey);
+      byKey.set(rec.prayerKey, existing ? pickNewerPrayerRecord(existing, rec) : rec);
+    }
+
+    const deduped = Array.from(byKey.values());
+    if (deduped.length < all.length) {
+      const keepIds = new Set(deduped.map((r) => r.id));
+      const dupIds = all.filter((r) => !keepIds.has(r.id)).map((r) => r.id);
+      if (dupIds.length > 0) {
+        const tx = db.transaction("prayer_records", "readwrite");
+        for (const id of dupIds) {
+          await tx.store.delete(id);
+        }
+        await tx.done;
+      }
+    }
+    return deduped;
   },
 
   async getAllForUser(userId: string): Promise<LocalPrayerRecord[]> {
@@ -1031,13 +1060,29 @@ export const localPrayerRepo = {
 
   async save(record: LocalPrayerRecord): Promise<void> {
     const db = await getLocalDB();
-    await db.put("prayer_records", record);
+    const tx = db.transaction("prayer_records", "readwrite");
+    const sameDay = await tx.store.index("by-user-date").getAll([record.userId, record.date]);
+    for (const existing of sameDay) {
+      if (existing.prayerKey === record.prayerKey && existing.id !== record.id) {
+        await tx.store.delete(existing.id);
+      }
+    }
+    await tx.store.put(record);
+    await tx.done;
   },
 
   async saveBatch(records: LocalPrayerRecord[]): Promise<void> {
+    if (records.length === 0) return;
     const db = await getLocalDB();
     const tx = db.transaction("prayer_records", "readwrite");
+    const idx = tx.store.index("by-user-date");
     for (const r of records) {
+      const sameDay = await idx.getAll([r.userId, r.date]);
+      for (const existing of sameDay) {
+        if (existing.prayerKey === r.prayerKey && existing.id !== r.id) {
+          await tx.store.delete(existing.id);
+        }
+      }
       await tx.store.put(r);
     }
     await tx.done;

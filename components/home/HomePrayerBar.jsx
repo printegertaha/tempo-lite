@@ -105,7 +105,8 @@ export default function HomePrayerBar({
       active = false;
       window.removeEventListener("athar_data_synced", onSynced);
     };
-  }, [isGuest, userId, dateStr, initialPrayers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isGuest, userId, dateStr]);
 
   const completedCount = prayers.filter((p) => p.isCompleted).length;
 
@@ -113,7 +114,10 @@ export default function HomePrayerBar({
     async (record) => {
       const effectiveUserId = isGuest ? "guest" : userId;
       const localRec = {
-        id: record.id || `${effectiveUserId}_${dateStr}_${record.prayerKey}`,
+        id:
+          record.id && record.id !== `${dateStr}_${record.prayerKey}`
+            ? record.id
+            : `${effectiveUserId}_${dateStr}_${record.prayerKey}`,
         userId: effectiveUserId,
         date: dateStr,
         prayerKey: record.prayerKey,
@@ -125,35 +129,36 @@ export default function HomePrayerBar({
         clientUpdatedAt: Date.now(),
       };
       await localPrayerRepo.save(localRec);
+
+      if (!isGuest) {
+        await localOutboxRepo.add({
+          mutationId: crypto.randomUUID(),
+          userId: effectiveUserId,
+          entityType: "prayer_record",
+          entityId: localRec.id,
+          action: "update",
+          payload: {
+            date: dateStr,
+            prayerKey: localRec.prayerKey,
+            isCompleted: localRec.isCompleted,
+            completedAt: localRec.completedAt,
+            location: localRec.location,
+            withSunnah: localRec.withSunnah,
+            notes: localRec.notes,
+          },
+          clientTimestamp: Date.now(),
+          version: 1,
+          status: "pending",
+          retryCount: 0,
+        });
+        syncEngine.scheduleSync(500);
+      }
+
       if (typeof window !== "undefined") {
         window.dispatchEvent(
           new CustomEvent("athar_prayers_updated", { detail: { userId: effectiveUserId, dateStr } })
         );
       }
-
-      if (isGuest) return;
-
-      await localOutboxRepo.add({
-        mutationId: crypto.randomUUID(),
-        userId: effectiveUserId,
-        entityType: "prayer_record",
-        entityId: localRec.id,
-        action: "update",
-        payload: {
-          date: dateStr,
-          prayerKey: localRec.prayerKey,
-          isCompleted: localRec.isCompleted,
-          completedAt: localRec.completedAt,
-          location: localRec.location,
-          withSunnah: localRec.withSunnah,
-          notes: localRec.notes,
-        },
-        clientTimestamp: Date.now(),
-        version: 1,
-        status: "pending",
-        retryCount: 0,
-      });
-      syncEngine.scheduleSync(500);
     },
     [isGuest, userId, dateStr]
   );
