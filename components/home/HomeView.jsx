@@ -91,7 +91,7 @@ export default function HomeView({
 
   const [lifeAreas, setLifeAreas] = useState(initialLifeAreas);
   const [todayStr, setTodayStr] = useState(
-    () => initialDate || getLocalDateString(new Date(), effectiveTimezone)
+    () => initialDate || getLocalDateString(new Date(), effectiveTimezone),
   );
 
   useEffect(() => {
@@ -211,14 +211,14 @@ export default function HomeView({
     const checkSchedule = () => {
       const now = new Date();
       const currentHHMM = `${String(now.getHours()).padStart(2, "0")}:${String(
-        now.getMinutes()
+        now.getMinutes(),
       ).padStart(2, "0")}`;
 
       const dueNow = todayTasks.find(
         (t) =>
           t.startTime === currentHHMM &&
           t.status !== "COMPLETED" &&
-          !alertedTaskIdsRef.current.has(t.id)
+          !alertedTaskIdsRef.current.has(t.id),
       );
 
       if (dueNow) {
@@ -248,7 +248,7 @@ export default function HomeView({
         setUndoableTaskTitle(task.title);
       }
     },
-    [tasks, toggleTaskStatus]
+    [tasks, toggleTaskStatus],
   );
 
   const handleUndo = useCallback(
@@ -257,7 +257,7 @@ export default function HomeView({
       setUndoableTaskId(null);
       setUndoableTaskTitle(null);
     },
-    [toggleTaskStatus]
+    [toggleTaskStatus],
   );
 
   useEffect(() => {
@@ -288,14 +288,14 @@ export default function HomeView({
       ) {
         const remainingMins = Math.max(
           1,
-          habitItem.targetValue - habitItem.currentValue
+          habitItem.targetValue - habitItem.currentValue,
         );
         await logDurationLocalFirst(
           userId,
           tracker,
           remainingMins * 60,
           todayStr,
-          tracker.name
+          tracker.name,
         );
       } else if (tracker.metricType === "AVOIDANCE") {
         await logAvoidanceLocalFirst(userId, tracker, true, todayStr);
@@ -305,14 +305,14 @@ export default function HomeView({
             !(
               habitItem.entriesToday[habitItem.entriesToday.length - 1]
                 ?.entryPayload?.completedItemIds || []
-            ).includes(it.id)
+            ).includes(it.id),
         );
         if (firstUnchecked) {
           await toggleChecklistItemLocalFirst(
             userId,
             tracker,
             firstUnchecked.id,
-            todayStr
+            todayStr,
           );
         }
       }
@@ -375,7 +375,11 @@ export default function HomeView({
     const currentIds = todayTasks.map((t) => t.id);
     const draggedIndex = currentIds.indexOf(sourceId);
     const targetIndex = currentIds.indexOf(targetId);
-    if (draggedIndex === -1 || targetIndex === -1 || draggedIndex === targetIndex)
+    if (
+      draggedIndex === -1 ||
+      targetIndex === -1 ||
+      draggedIndex === targetIndex
+    )
       return;
     const newIds = [...currentIds];
     newIds.splice(draggedIndex, 1);
@@ -489,7 +493,7 @@ export default function HomeView({
 
   const greetingText = formatPersonalizedGreeting(
     userPreferences?.salutation,
-    userPreferences?.profileName || user?.name
+    userPreferences?.profileName || user?.name,
   );
 
   return (
@@ -501,14 +505,20 @@ export default function HomeView({
               <Bell className="w-4 h-4 animate-bounce text-emerald-400" />
               <span>
                 حان موعد مهمة:{" "}
-                <strong className="text-zinc-100">{scheduledAlertTask.title}</strong>
+                <strong className="text-zinc-100">
+                  {scheduledAlertTask.title}
+                </strong>
               </span>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={() => {
-                  activeTimerEngine.requestStart(scheduledAlertTask, "stopwatch", userId);
+                  activeTimerEngine.requestStart(
+                    scheduledAlertTask,
+                    "stopwatch",
+                    userId,
+                  );
                   setScheduledAlertTask(null);
                 }}
                 className="px-2.5 py-1 rounded-lg bg-emerald-500 text-zinc-950 font-semibold hover:bg-emerald-400 transition-colors cursor-pointer"
@@ -575,7 +585,8 @@ export default function HomeView({
                 حابب نبدأ بإيه؟
               </h2>
               <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                ابدأ بإضافة أول مهمة أو عادة يومية، أو خصّص مجالات حياتك بما يناسب يومك.
+                ابدأ بإضافة أول مهمة أو عادة يومية، أو خصّص مجالات حياتك بما
+                يناسب يومك.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
@@ -750,12 +761,14 @@ export default function HomeView({
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {pendingHabits.map((item) => {
-                const { tracker, currentValue, targetValue, progressPercent } = item;
+                const { tracker, currentValue, targetValue, progressPercent } =
+                  item;
                 const isDuration =
                   tracker.metricType === "DURATION" ||
                   tracker.metricType === "TIME_RANGE";
                 const progressText =
-                  tracker.metricType === "BOOLEAN" || tracker.metricType === "AVOIDANCE"
+                  tracker.metricType === "BOOLEAN" ||
+                  tracker.metricType === "AVOIDANCE"
                     ? "بانتظار الإنجاز"
                     : isDuration
                       ? `${formatDurationArabic(currentValue * 60)} / ${formatDurationArabic(targetValue * 60)}`
@@ -821,10 +834,11 @@ export default function HomeView({
             </div>
             <div className="space-y-2">
               <h2 className="text-xl sm:text-2xl font-black text-zinc-100">
-                خلصت كل المطلوب منك النهارده ❤️
+                خلصت كل اللي مطلوب منك النهاردة
               </h2>
               <p className="text-xs sm:text-sm text-zinc-400 max-w-md mx-auto">
-                يومك خالٍ من الالتزامات المعلّقة الآن. استمتع بوقتك أو راجع ما أنجزته اليوم.
+                مش عارف أشكر إيديك الحلوين ولا دماغ معاليك, على شوية الشغل
+                العظيم اللي طلع من سيادتك دا, حقيقي أنا فخور بيك.
               </p>
             </div>
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">

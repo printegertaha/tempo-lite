@@ -71,7 +71,10 @@ export default function TaskModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const [jumpToSlide, setJumpToSlide] = useState<{ index: number; nonce: number } | null>(null);
+  const [jumpToSlide, setJumpToSlide] = useState<{
+    index: number;
+    nonce: number;
+  } | null>(null);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
   const [prevTaskId, setPrevTaskId] = useState(task?.id);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
@@ -208,7 +211,10 @@ export default function TaskModal({
     if (isSubmitting) return;
     if (!title.trim()) {
       setJumpToSlide({ index: 0, nonce: Date.now() });
-      setTimeout(() => titleInputRef.current?.focus({ preventScroll: true }), 140);
+      setTimeout(
+        () => titleInputRef.current?.focus({ preventScroll: true }),
+        140,
+      );
       return;
     }
 
@@ -271,9 +277,6 @@ export default function TaskModal({
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between px-6 py-4 border-b border-zinc-800/80 bg-zinc-900/40">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
-              <Check className="w-4 h-4" />
-            </div>
             <div>
               <h2 className="text-base font-bold text-zinc-100">
                 {task ? "تعديل المهمة" : "مهمة جديدة"}

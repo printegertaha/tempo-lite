@@ -401,7 +401,7 @@ export default function TasksView({
           }}
           aria-label="إضافة مهمة جديدة"
           title="إضافة مهمة جديدة"
-          className="p-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
+          className="p-2.5 rounded-xl bg-gray-950 hover:bg-gray-900 text-white shadow-lg shadow-violet-600/30 transition-all active:scale-95 cursor-pointer shrink-0"
         >
           <Plus className="w-5 h-5" />
         </button>
